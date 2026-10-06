@@ -26,6 +26,8 @@ defmodule Instance.Character.Actions.Sabotage do
       case Game.call(instance_id, :character, action.data["target_character"], :get_state) do
         {:ok, target} ->
           if target.type != :admiral, do: throw({:character_type_not_valid, []})
+          # a Navarch at school has no fleet to sabotage
+          if target.status == :student, do: throw({:character_type_not_valid, []})
           if target.system != action.data["target"], do: throw({:character_not_reachable, []})
           # Teams train saboteurs on a teammate's Navarch. The Rebel Defense
           # bot is a one-player faction, so it may train on its own

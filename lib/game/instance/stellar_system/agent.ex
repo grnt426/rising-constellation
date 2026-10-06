@@ -286,6 +286,20 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
+  # Unlike push_character this one can refuse: the school may have filled
+  # up, been damaged or changed hands since the client looked.
+  @decorate tick_rearm()
+  def on_call({:enroll_student, character}, _, state) do
+    case StellarSystem.enroll_student(state.data, character) do
+      {:ok, data} ->
+        notify_owner_update(state.instance_id, data)
+        {:reply, {:ok, data}, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
   @decorate tick_rearm()
   def on_call({:remove_character, character, mode}, _, state) do
     {:ok, data} = StellarSystem.remove_character(state.data, character, mode)

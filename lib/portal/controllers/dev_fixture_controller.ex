@@ -57,6 +57,13 @@ defmodule Portal.DevFixtureController do
   holds the body uid, the tile of each building, the free tiles, the
   bought patents and the queue.
 
+  `{"schools": true}` inside `empire` puts a finished Delta Polytech and an
+  Orb-INTEL (level 2, or 1 at Flash speed, whose buildings have one level)
+  on two free tiles of home's planet (the same dev-only call), for the
+  agent-training flows (docs/agent-training.md): one seat for any agent of
+  the player, one per level for Erased. `empire.schools` holds the body
+  uid and the tile and level of each building.
+
   `{"research": true}` inside `empire` (Legacy or Tactic content) sets up the
   patent and lex panels for the Patents & lexes screenshots, through the
   same player-agent calls the panels use, with the exact technology and
@@ -475,6 +482,7 @@ defmodule Portal.DevFixtureController do
     destabilize? = Map.get(opts, "destabilize", true) != false
     buildings? = Map.get(opts, "buildings", false) == true
     research? = Map.get(opts, "research", false) == true
+    schools? = Map.get(opts, "schools", false) == true
 
     with :ok <- slot_empire_lexes(instance_id, profile_id),
          {:ok, galaxy} <- Game.call(instance_id, :galaxy, :master, :get_state),
@@ -497,6 +505,7 @@ defmodule Portal.DevFixtureController do
          {:ok, population_status} <- maybe_destabilize(instance_id, owned2_id, destabilize?),
          {:ok, buildings} <- maybe_place_buildings(instance_id, profile_id, home_id, buildings?),
          {:ok, research} <- maybe_research(instance_id, profile_id, research?),
+         {:ok, schools} <- maybe_place_schools(instance_id, home_id, schools?),
          {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
       Logger.info(
         "[dev-fixture] empire home=#{home_id} owned2=#{owned2_id} dominion=#{dominion_id} " <>
@@ -518,7 +527,8 @@ defmodule Portal.DevFixtureController do
          max_systems: player.max_systems.value,
          max_dominions: player.max_dominions.value,
          buildings: buildings,
-         research: research
+         research: research,
+         schools: schools
        }}
     else
       {:error, _} = error -> error
@@ -784,6 +794,67 @@ defmodule Portal.DevFixtureController do
         {:error, _} = error -> error
         other -> {:error, {:fund_buildings, other}}
       end
+    end
+  end
+
+  # ---------------------------------------------------------------- schools
+
+  # The `schools` sub-option's cast (docs/agent-training.md): a finished
+  # Delta Polytech (one seat for any agent of the owner) and an Orb-INTEL
+  # (a seat per level for Erased) on home's inhabited planet. Both are
+  # open-biome buildings, so they fit the starter layout's habitable
+  # planet at every speed. The Orb-INTEL is level 2 where the content has
+  # one: Flash buildings have a single level.
+  @schools [university_open: 1, counterintelligence_open: 2]
+
+  defp maybe_place_schools(_instance_id, _home_id, false), do: {:ok, nil}
+
+  defp maybe_place_schools(instance_id, home_id, true) do
+    with {:ok, system} <- Game.call(instance_id, :stellar_system, home_id, :get_state),
+         {:ok, body, tiles} <- schools_planet(system),
+         schools = Enum.map(@schools, fn {key, level} -> {key, min(level, max_level(instance_id, key))} end),
+         :ok <- buildings_in_content(instance_id, schools),
+         placed = Enum.zip(tiles, schools),
+         :ok <-
+           each_ok(placed, fn {tile, {key, level}} ->
+             dev_put_building(instance_id, home_id, body.uid, tile, key, level, :built)
+           end) do
+      {:ok,
+       %{
+         body_uid: body.uid,
+         buildings: Enum.map(placed, fn {tile, {key, level}} -> %{tile: tile, key: key, level: level} end)
+       }}
+    end
+  end
+
+  defp max_level(instance_id, key) do
+    case Data.Querier.one(Data.Game.Building, instance_id, key) do
+      %{levels: [_ | _] = levels} -> levels |> Enum.map(& &1.level) |> Enum.max()
+      _ -> 1
+    end
+  end
+
+  # Home's inhabited planet, as buildings_planet/1 finds it, with a free
+  # tile per school.
+  defp schools_planet(system) do
+    planet =
+      Enum.find(system.bodies, fn body ->
+        body.type == :habitable_planet and
+          Enum.any?(body.tiles, &(&1.id == 1 and &1.building_status == :built))
+      end)
+
+    free =
+      if planet do
+        planet.tiles
+        |> Enum.filter(&(&1.id > 1 and &1.building_status == :empty and &1.construction_status == :none))
+        |> Enum.map(& &1.id)
+        |> Enum.sort()
+      end
+
+    cond do
+      is_nil(planet) -> {:error, {:schools, :no_inhabited_habitable_planet}}
+      length(free) < length(@schools) -> {:error, {:schools, :not_enough_free_tiles, planet.uid, free}}
+      true -> {:ok, planet, Enum.take(free, length(@schools))}
     end
   end
 

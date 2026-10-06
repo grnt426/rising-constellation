@@ -741,6 +741,77 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # Sends a deck agent to school (docs/agent-training.md). Unlike a
+  # governor or an agent taking the field, a student may go to a
+  # faction-mate's system, and it is that system which grants the seat —
+  # so the seat is taken BEFORE anything is committed here: a refusal
+  # leaves the agent in the deck and starts no process.
+  @decorate tick()
+  def on_call({:enroll_character, character_id, school, system_id}, _, state) do
+    with {:ok, _position} <- Game.call(state.instance_id, :stellar_system, system_id, :get_position),
+         {:ok, data, character} <- Player.enroll_character(state.data, character_id, school, system_id),
+         character = Character.update_strike(character, data.is_bankrupt),
+         {:ok, system} <- Game.call(state.instance_id, :stellar_system, system_id, {:enroll_student, character}) do
+      {:ok, supervisor_pid} = Instance.Supervisor.get_pid(state.instance_id)
+      channel = "instance:player:#{state.instance_id}:#{data.id}"
+      character_gen_state = Core.GenState.new(:character, state.instance_id, character.id, character, channel)
+
+      DynamicSupervisor.start_child(supervisor_pid, {Instance.Character.Agent, state: character_gen_state})
+
+      {:ok, time} = Game.call(state.instance_id, :time, :master, :get_state)
+
+      if time.is_running do
+        :ok = Game.call(state.instance_id, :character, character.id, {:start, state.tick.cumulated_pauses})
+      end
+
+      # the school may stand in a faction-mate's system: only an own
+      # system has a summary to refresh
+      data = if Player.own_system?(data, system_id), do: Player.update_stellar_system(data, system), else: data
+
+      # the passive experience rate comes from the owner's lexes
+      bonuses = Player.extract_bonus(data, [:character, :army, :spy, :speaker])
+      character = Game.call(state.instance_id, :character, character.id, {:update_bonuses, :player, bonuses})
+      data = Player.update_character(data, character)
+
+      state = next_tick(%{state | data: data})
+      broadcast_player(state, %{player_player: state.data})
+
+      {:reply, :ok, state}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      # a bare :process_not_found: no such system
+      _ -> {:reply, {:error, :system_not_found}, state}
+    end
+  end
+
+  # Spends the reallocations earned at a university on an agent that is
+  # back in the deck.
+  @decorate tick()
+  def on_call({:reallocate_skills, character_id, skills}, _, state) do
+    case Player.reallocate_skills(state.data, character_id, skills) do
+      {:ok, data} ->
+        broadcast_player(state, %{player_player: data})
+        {:reply, :ok, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  # Gives up the reallocations a deck agent has left (the card's Discard
+  # button, asked twice by the client).
+  @decorate tick()
+  def on_call({:discard_reallocations, character_id}, _, state) do
+    case Player.discard_reallocations(state.data, character_id) do
+      {:ok, data} ->
+        broadcast_player(state, %{player_player: data})
+        {:reply, :ok, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
   @decorate tick()
   def on_call({:deactivate_character, character_id}, _, state) do
     # snapshot the armada affiliation before deactivation wipes it, so
@@ -1237,6 +1308,22 @@ defmodule Instance.Player.Agent do
     broadcast_player(state, %{player_player: data})
 
     {:noreply, state}
+  end
+
+  # A school turned one of this player's students out (the system changed
+  # hands, or the building that seated it was damaged, demolished or lost
+  # a level — StellarSystem.sync_schools/1): back to the deck it goes, with
+  # the experience and reallocations it earned.
+  @decorate tick()
+  def on_cast({:student_evicted, character_id}, state) do
+    with %{status: :student, name: name, system: system_id} <-
+           Enum.find(state.data.characters, fn c -> c.id == character_id end),
+         {:ok, state} <- deactivate_character(state, character_id, true, leaving_system?: true) do
+      notif = Notification.Text.new(:character_school_closed, system_id, %{character: name})
+      on_cast({:push_notifs, notif}, state)
+    else
+      _ -> {:noreply, state}
+    end
   end
 
   # A stranded :attached armada member self-recovered (the attached-

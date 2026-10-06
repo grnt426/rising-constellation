@@ -72,6 +72,9 @@ defmodule Instance.StellarSystem.StellarSystem do
     # snapshots, so ALL access goes through Map.get / get_station, never
     # dot-access (snapshot-tolerant-fields convention).
     field(:station, %StellarSystem.Station{} | nil, default: nil)
+    # Agents in the system's schools (docs/agent-training.md,
+    # StellarSystem.School). Postdates the first snapshots: Map.get only.
+    field(:students, [%StellarSystem.Character{}], default: [])
 
     field(:instance_id, integer())
     field(:capital?, boolean())
@@ -280,6 +283,7 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     state = %{state | capital?: is_initial_system, status: status, owner: Instance.StellarSystem.Player.convert(player)}
     state = sync_station_control(state)
+    state = sync_schools(state)
 
     {_, _, state} = compute_bonus({MapSet.new(), [], state})
 
@@ -292,6 +296,7 @@ defmodule Instance.StellarSystem.StellarSystem do
     state =
       %{state | capital?: false, status: :inhabited_neutral, owner: nil}
       |> sync_station_control()
+      |> sync_schools()
 
     {_, _, state} = update_bonuses(state, :player, [])
 
@@ -334,6 +339,9 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     {state, damaged_building, cancelled_upgrades_refund} =
       apply_building_damage(state, building_count_to_damage, &damage_tile/1)
+
+    # a damaged school building takes no students
+    state = sync_schools(state)
 
     {_, _, state} =
       {MapSet.new(), [], state}
@@ -604,6 +612,8 @@ defmodule Instance.StellarSystem.StellarSystem do
               StellarSystem.Tile.remove_building(tile)
             end)
       }
+
+      state = sync_schools(state)
 
       {change, notifs, data} =
         {MapSet.new(), [], state}
@@ -890,15 +900,62 @@ defmodule Instance.StellarSystem.StellarSystem do
     {:ok, %{state | characters: characters}}
   end
 
+  # Unchecked: a student already enrolled (see enroll_student/2) whose entry
+  # is refreshed or put back.
+  def push_character(state, character, :student) do
+    converted = Instance.StellarSystem.Character.convert(character)
+    students = Enum.reject(Map.get(state, :students, []), fn c -> c.id == character.id end) ++ [converted]
+    {:ok, Map.put(state, :students, students)}
+  end
+
+  @doc """
+  Seats `character` (activated as a :student) in the school its training
+  names, if StellarSystem.School lets it in.
+  """
+  def enroll_student(state, character) do
+    constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+
+    with :ok <- StellarSystem.School.check_enrollment(state, character, constant) do
+      push_character(state, character, :student)
+    end
+  end
+
   def update_character(state, character) do
-    characters =
-      Enum.map(state.characters, fn c ->
+    refresh = fn list ->
+      Enum.map(list, fn c ->
         if c.id == character.id,
           do: Instance.StellarSystem.Character.convert(character),
           else: c
       end)
+    end
 
-    {:ok, %{state | characters: characters}}
+    state = %{state | characters: refresh.(state.characters)}
+
+    case Map.get(state, :students, []) do
+      [] -> {:ok, state}
+      students -> {:ok, Map.put(state, :students, refresh.(students))}
+    end
+  end
+
+  # Students who may no longer stay — the system changed hands, or their
+  # school lost the building or level that seated them — are handed back to
+  # their owners, who send them to the deck. A cast, like the station's
+  # reports to its faction: the owner may be the very player whose call
+  # brought us here.
+  defp sync_schools(state) do
+    case Map.get(state, :students, []) do
+      [] ->
+        state
+
+      students ->
+        {kept, evicted} = StellarSystem.School.settle(state, students)
+
+        Enum.each(evicted, fn student ->
+          Game.cast(state.instance_id, :player, student.owner.id, {:student_evicted, student.id})
+        end)
+
+        Map.put(state, :students, kept)
+    end
   end
 
   def remove_character(state, _character, :governor) do
@@ -912,6 +969,11 @@ defmodule Instance.StellarSystem.StellarSystem do
   def remove_character(state, character, :on_board) do
     characters = Enum.reject(state.characters, fn c -> c.id == character.id end)
     {:ok, %{state | characters: characters}}
+  end
+
+  def remove_character(state, character, :student) do
+    students = Enum.reject(Map.get(state, :students, []), fn c -> c.id == character.id end)
+    {:ok, Map.put(state, :students, students)}
   end
 
   def add_happiness_penalty(state, reason, value) do

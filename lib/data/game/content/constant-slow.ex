@@ -85,7 +85,20 @@ defmodule Data.Game.Constant.Content.Slow do
         gateway_charge_upkeep_credit: 250,
         gateway_charge_upkeep_technology: 50,
         training_center_interval: 240,
-        cyber_command_interval: 120
+        cyber_command_interval: 120,
+        # Agent training (docs/agent-training.md). Legacy design values:
+        # 4h of settling in, one reallocation credit per 24h of course
+        # (1 ut = 3 min wall); fees are per ut and per agent level.
+        polytech_xp_factor: 1.0,
+        university_xp_factor: 2.0,
+        university_settle_time: 80,
+        university_reallocation_interval: 480,
+        university_max_reallocations: 5,
+        university_fee_credit: 50,
+        university_fee_technology: 5,
+        university_fee_ideology: 5,
+        university_guest_min_level: 5,
+        training_defense_factor: 0.5
       }
     ]
   end

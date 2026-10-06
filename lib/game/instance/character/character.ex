@@ -9,6 +9,7 @@ defmodule Instance.Character.Character do
   alias Instance.Character.ActionQueue
   alias Instance.Character.ActionImpl
   alias Instance.Character.Speaker
+  alias Instance.Character.Training
   alias Spatial
   alias Spatial.Position
 
@@ -23,7 +24,7 @@ defmodule Instance.Character.Character do
 
   typedstruct enforce: true do
     field(:id, integer())
-    field(:status, :for_hire | :in_deck | :governor | :on_board | :dead)
+    field(:status, :for_hire | :in_deck | :governor | :on_board | :student | :dead)
     field(:type, :admiral | :spy | :speaker)
     field(:specialization, atom())
     field(:second_specialization, atom())
@@ -68,6 +69,14 @@ defmodule Instance.Character.Character do
     # Unit time since the attached-state watchdog last probed (see
     # check_armada_attachment). Pre-existing snapshots lack it: Map.get.
     field(:armada_watch_wait, number(), default: 0, enforce: false)
+
+    # Agent training (docs/agent-training.md). `training` is the school
+    # state of a :student (see Instance.Character.Training), nil otherwise;
+    # `reallocations` are the skill points its owner may still move,
+    # kept through recalls and deployments. Both postdate the first
+    # snapshots: readers use Map.get and writers Map.put.
+    field(:training, map() | nil, default: nil, enforce: false)
+    field(:reallocations, integer(), default: 0, enforce: false)
 
     field(:bonuses, %{}, default: %{})
     field(:instance_id, integer())
@@ -180,6 +189,18 @@ defmodule Instance.Character.Character do
     get_next_level_remaining_time(state)
   end
 
+  # A student ticks for its next level and for its school's next event
+  # (settled in, a reallocation earned, the end of the course).
+  def compute_next_tick_interval(%Character.Character{status: :student} = state) do
+    constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+    training = Map.get(state, :training)
+    rate = state.experience.change * Training.xp_factor(training, constant)
+
+    next_level = if rate > 0, do: get_next_level_experience(state) / rate, else: :never
+
+    Enum.min([next_level, Training.next_event(training, constant)])
+  end
+
   def compute_next_tick_interval(%Character.Character{} = state) do
     # TODO: calculate when the cover will change
     spy = if state.type == :spy and state.spy.cover.value < 100, do: 2, else: :never
@@ -266,6 +287,20 @@ defmodule Instance.Character.Character do
     state
   end
 
+  # A student sits in a school of the system: no army, cover or order
+  # queue, like a governor (see Instance.Character.Training).
+  def activate(%Character.Character{} = state, {:student, school}, system_id) do
+    {:ok, position} = Game.call(state.instance_id, :stellar_system, system_id, :get_position)
+    constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+
+    state =
+      %{state | status: :student, system: system_id, position: position}
+      |> Map.put(:training, Training.new(school, constant))
+
+    Spatial.delete(state)
+    state
+  end
+
   def deactivate(%Character.Character{} = state) do
     state = %{
       state
@@ -282,9 +317,62 @@ defmodule Instance.Character.Character do
     # a deactivated character keeps no armada affiliation — a stale map
     # here would resurrect membership on the next activation
     state = Map.put(state, :armada, nil)
+    state = Map.put(state, :training, nil)
 
     Spatial.delete(state)
     state
+  end
+
+  # Training (docs/agent-training.md)
+
+  def reallocations(state) when is_map(state), do: Map.get(state, :reallocations, 0) || 0
+
+  @doc """
+  Protection and Determination as an attacker meets them: cut by
+  `training_defense_factor` while the agent is in class.
+  """
+  def effective_protection(%Character.Character{} = state), do: training_penalty(state, state.protection)
+  def effective_determination(%Character.Character{} = state), do: training_penalty(state, state.determination)
+
+  defp training_penalty(%Character.Character{status: :student} = state, value) do
+    if Training.penalized?(Map.get(state, :training)) do
+      constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+      Kernel.trunc(value * constant.training_defense_factor)
+    else
+      value
+    end
+  end
+
+  defp training_penalty(%Character.Character{}, value), do: value
+
+  @doc "Ends a student's university course early; it then waits to be recalled."
+  def end_course(%Character.Character{status: :student} = state, reason) do
+    training = Map.get(state, :training)
+
+    if Training.enrolled?(training) and training.school == :university,
+      do: {:ok, Map.put(state, :training, Training.finish(training, reason))},
+      else: {:error, :not_on_a_course}
+  end
+
+  def end_course(%Character.Character{}, _reason), do: {:error, :not_on_a_course}
+
+  @doc """
+  Moves skill points: `skills` is the whole new list. Each point moved
+  spends one reallocation (see Training.check_reallocation/5).
+  """
+  def reallocate_skills(%Character.Character{} = state, skills) do
+    type_data = Data.Querier.one(Data.Game.Character, state.instance_id, state.type)
+    main_index = Enum.find_index(type_data.specializations, fn s -> s.key == state.specialization end)
+    held = reallocations(state)
+
+    with {:ok, moved} <- Training.check_reallocation(state.skills, skills, main_index, held, @max_level) do
+      state =
+        %{state | skills: skills}
+        |> Map.put(:reallocations, held - moved)
+        |> compute_bonus()
+
+      {:ok, state}
+    end
   end
 
   # Longest queue a player can build (orders + the auto-routed jumps
@@ -832,6 +920,34 @@ defmodule Instance.Character.Character do
     gain_experience({change, notifs, state}, next_tick_experience)
   end
 
+  # A student earns the governor's passive trickle scaled by its school
+  # (nothing while settling in or once the course is over), and a
+  # university course hands out its reallocations here.
+  defp update({change, notifs, %Character.Character{status: :student} = state}, elapsed_time, _cumulated_pauses) do
+    constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+    before = Map.get(state, :training)
+
+    {training, held, xp_time, events} =
+      Training.advance(before, reallocations(state), elapsed_time, constant)
+
+    # `xp_time` was spent in class even when this tick also began the
+    # course or ended it: rate it as the active phase it belongs to
+    in_class = if events == [], do: before, else: %{before | phase: :active}
+
+    experience =
+      state.experience.change * xp_time * Training.xp_factor(in_class, constant) *
+        Instance.Mutators.xp_multiplier(state.instance_id, :student)
+
+    state =
+      state
+      |> Map.put(:training, training)
+      |> Map.put(:reallocations, held)
+
+    {change, notifs} = training_events({change, notifs, state}, events)
+
+    gain_experience({change, notifs, state}, experience)
+  end
+
   defp update({change, notifs, %Character.Character{status: :on_board} = state}, elapsed_time, cumulated_pauses) do
     {change, notifs, state} =
       if state.type == :speaker do
@@ -957,6 +1073,26 @@ defmodule Instance.Character.Character do
     else
       {change, notifs, %{state | experience: Core.DynamicValue.add_value(state.experience, amount)}}
     end
+  end
+
+  defp training_events({change, notifs, _state}, []), do: {change, notifs}
+
+  defp training_events({change, notifs, state}, events) do
+    change =
+      change
+      |> MapSet.put(:player_update)
+      |> MapSet.put(:system_update)
+
+    data = %{character: state.name, reallocations: reallocations(state)}
+
+    notifs =
+      cond do
+        :graduated in events -> [Notification.Text.new(:character_course_completed, state.system, data) | notifs]
+        :reallocation in events -> [Notification.Text.new(:character_course_reallocation, state.system, data) | notifs]
+        true -> notifs
+      end
+
+    {change, notifs}
   end
 
   # Armada attached-state watchdog (docs/armadas.md §3.4 / §8.5,

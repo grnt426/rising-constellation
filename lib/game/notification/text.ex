@@ -11,6 +11,12 @@ defmodule Notification.Text do
     receive_resources: {true, false, [:player, :resources]},
     start_uprising: {true, true, [:system]},
     character_lvlup: {false, true, [:character, :level]},
+    # agent training (docs/agent-training.md). No system required: two of
+    # these are built inside the player agent, where a throw is a crash
+    character_course_reallocation: {false, false, [:character, :reallocations]},
+    character_course_completed: {true, false, [:character, :reallocations]},
+    character_course_unpaid: {true, false, [:character]},
+    character_school_closed: {true, false, [:character]},
     system_under_siege: {false, true, [:system]},
     interception_and_flight: {true, true, [:admiral, :system]},
     colonization_started: {false, true, [:admiral, :system]},

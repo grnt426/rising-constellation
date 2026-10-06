@@ -292,6 +292,43 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  # Agent training (docs/agent-training.md): a deck agent to a school of
+  # one's own or a faction-mate's system, and the skill points moved with
+  # the credits a university course earned.
+  record("enroll_character", %{"character_id" => character_id, "school" => school, "system_id" => system_id}, socket) do
+    with true <- is_integer(character_id) and is_integer(system_id),
+         {:ok, school} <- Map.fetch(%{"polytech" => :polytech, "university" => :university}, school) do
+      case Game.call(iid(socket), :player, pid(socket), {:enroll_character, character_id, school, system_id}) do
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      _ -> {:error, %{reason: :invalid_payload}}
+    end
+  end
+
+  record("reallocate_skills", %{"character_id" => character_id, "skills" => skills}, socket) do
+    if is_integer(character_id) and is_list(skills) do
+      case Game.call(iid(socket), :player, pid(socket), {:reallocate_skills, character_id, skills}) do
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      {:error, %{reason: :invalid_payload}}
+    end
+  end
+
+  record("discard_reallocations", %{"character_id" => character_id}, socket) do
+    if is_integer(character_id) do
+      case Game.call(iid(socket), :player, pid(socket), {:discard_reallocations, character_id}) do
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      {:error, %{reason: :invalid_payload}}
+    end
+  end
+
   record("deactivate_character", %{"character_id" => character_id}, socket) do
     case Game.call(iid(socket), :player, pid(socket), {:deactivate_character, character_id}) do
       {:error, reason} -> {:error, %{reason: reason}}

@@ -344,7 +344,7 @@ defmodule RC.Archive.SnapshotStats do
   defp agent_metrics(key, characters, f_players) do
     active =
       Enum.filter(characters, fn c ->
-        owner_faction(Map.get(c, :owner)) == key and c.status in [:governor, :on_board]
+        owner_faction(Map.get(c, :owner)) == key and c.status in [:governor, :on_board, :student]
       end)
 
     by_type =

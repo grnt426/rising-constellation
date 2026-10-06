@@ -30,6 +30,9 @@ defmodule Instance.Faction.Character do
     field(:army, %Character.Army{} | nil)
     field(:spy, %Character.Spy{} | nil)
     field(:speaker, %Character.Speaker{} | nil)
+    # school state of a :student (Instance.Character.Training)
+    field(:training, map() | nil)
+    field(:reallocations, integer() | nil)
   end
 
   @doc """
@@ -85,11 +88,17 @@ defmodule Instance.Faction.Character do
       # wire, enough to render "an enemy spy of level N" without
       # identifying the character or its owner.
       1 => [:type, :level],
-      2 => [:id, :status, :type, :name, :illustration, :level, :owner, :system],
+      2 => [:id, :status, :type, :name, :illustration, :level, :owner, :system, :training],
       3 => [:gender],
       4 => [:specialization, :age, :culture],
       5 => [:skills, :experience, :protection, :determination, :action_status, :on_strike]
     }
+
+    # the reallocations an agent holds are its owner's business
+    fields_levels =
+      if visibility_level >= 5 and is_own_faction,
+        do: Map.update!(fields_levels, 5, fn fields -> [:reallocations | fields] end),
+        else: fields_levels
 
     # Stage 8 F8 — at vis=5, :action_status is faction-internal intent
     # data (it reveals what attack the character is currently mid-cast on).
