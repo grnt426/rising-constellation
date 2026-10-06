@@ -303,6 +303,23 @@ defmodule RC.HelpTest do
       assert html =~ ~s(>Limited</span>)
     end
 
+    test "the card of a school's building ends with its training seats", %{ctx: ctx} do
+      # a Delta Polytech seats one agent at every level
+      {:ok, polytech} = Catalog.block(ctx, "card", "building", "university_open")
+      assert length(Regex.scan(~r/Training seats<\/span><span class="help-bcard-bonus-value"><strong>1<\/strong>/, polytech)) == 5
+
+      # a university seats one agent of its type per level
+      {:ok, monolith} = Catalog.block(ctx, "card", "building", "monument_dome")
+
+      for level <- 1..5 do
+        assert monolith =~
+                 ~r/data-level="#{level}">.*?Course seats, Siderians<\/span><span class="help-bcard-bonus-value"><strong>#{level}<\/strong>/s
+      end
+
+      {:ok, other} = Catalog.block(ctx, "card", "building", "ideo_open")
+      refute other =~ "seats"
+    end
+
     test "facts show the limit badge and link the Buildings guide section once it exists", %{ctx: ctx} do
       {:ok, html} = Catalog.block(ctx, "facts", "building", "monument_dome")
       assert html =~ ~s(<span class="help-limit-badge" title="Can only build one per star system.">Unique</span>)

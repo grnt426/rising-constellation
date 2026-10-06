@@ -508,5 +508,30 @@
       "yields": ".planner-outputs .planner-output-group >> nth=0",
       "workforce": ".planner-outputs .planner-output-group >> nth=1 >> .planner-output-row >> nth=2"
     }
+  },
+  {
+    "name": "system-schools",
+    "scene": "training",
+    "selector": ".school-box",
+    "padding": 8,
+    "alt": "The Schools row of a system: the Delta Polytech with a free seat, and the Orb-INTEL with a student and a free seat",
+    "marks": {
+      "school": ".school-box .school[data-school=\"spy\"] .school-building",
+      "student": ".school-box .school[data-school=\"spy\"] .school-seat.is-taken",
+      "seat": ".school-box .school[data-school=\"polytech\"] .school-seat.is-empty"
+    }
+  },
+  {
+    "name": "student-card",
+    "scene": "training",
+    "prepare": "open-student-card",
+    "selector": [".opened-character .card-container", ".opened-character .card-container .card-action"],
+    "padding": 0,
+    "alt": "The card of an Erased on a university course: its school and stage, its cut Protection and Determination, and the Recall button",
+    "marks": {
+      "status": ".opened-character .card-container .card-ribbon >> nth=0",
+      "defence": [".opened-character .card-container .simple-bonus.is-cut >> nth=0", ".opened-character .card-container .simple-bonus.is-cut >> nth=1"],
+      "recall": ".opened-character .card-container .card-action .button"
+    }
   }
 ]
