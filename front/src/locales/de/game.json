@@ -451,6 +451,10 @@
       "claim_released": "aufgegeben",
       "sighting": "sichtete"
     },
+    "new_below": "↓ {n} neue",
+    "resize": "Ziehen, um den Chat zu vergrößern oder zu verkleinern. Doppelklick für die Standardgröße.",
+    "resize_label": "Chatgröße ändern",
+    "mention_picker": "Ein Fraktionsmitglied erwähnen",
     "message_gone": "Diese Nachricht ist nicht mehr im Chatverlauf.",
     "claim_gone": "Die Ankündigung dieses Anspruchs ist nicht mehr im Chatverlauf.",
     "sighting": {
@@ -475,6 +479,8 @@
     },
     "ref": {
       "unknown_system": "Unbekanntes System",
+      "unknown_player": "Nicht mehr in der Fraktion",
+      "mention_you": "Das sind Sie",
       "unknown_ref": "Unbekannte Referenz",
       "sighting_gone": "Diese Meldung ist zu alt: Ihr Eintrag existiert nicht mehr.",
       "sighting_gone_short": "alte Meldung"
@@ -582,6 +588,9 @@
       "daily_seconds": "Sekunden",
       "daily_time_left": "Verbleibende Zeit im heutigen Spiel",
       "bankrupt_tooltip": "Ihr Imperium verfügt nicht mehr über die finanziellen Mittel, um Ihre Agenten zu unterstützen. Sie sind in den Streik getreten und gehorchen nicht mehr den Anweisungen. Die Navarchs haben auch ihre Reaktion auf \"Flucht\" geändert.",
+      "chat_panel": "Chat",
+      "chat_mentions": "{n} Erwähnungen von Ihnen",
+      "chat_unread": "{n} ungelesen",
       "character_market_panel": "Agentenmarkt",
       "defeat": "Sie wurden besiegt",
       "deploy_interruption": "Unterbrechung für Updates. Bitte neu verbinden",

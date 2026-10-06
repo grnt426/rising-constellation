@@ -18,6 +18,8 @@ export function navigateRef(vm, kind, id) {
       return navigateToSystem(vm, id);
     case 'spot':
       return navigateToSighting(vm, id);
+    case 'at':
+      return openMentionedPlayer(vm, id);
     default:
       return false;
   }
@@ -29,6 +31,15 @@ function leaveSystemView(vm) {
   if (vm.$store.state.game.selectedSystem) {
     vm.$store.dispatch('game/closeSystem', vm);
   }
+}
+
+// A mention leads to the card of the player it names.
+function openMentionedPlayer(vm, id) {
+  const playerId = parseInt(id, 10);
+  if (!Number.isFinite(playerId)) return false;
+
+  vm.$store.dispatch('game/openPlayer', { vm, id: playerId });
+  return true;
 }
 
 function navigateToSystem(vm, id) {
