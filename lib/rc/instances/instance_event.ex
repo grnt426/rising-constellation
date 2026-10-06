@@ -38,6 +38,7 @@ defmodule RC.Instances.InstanceEvent do
     wave_siderian_lost
     wave_erased_hired
     wave_erased_graduated
+    wave_erased_posted
     wave_erased_dispatched
     wave_erased_started
     wave_erased_resolved

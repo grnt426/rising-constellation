@@ -670,6 +670,22 @@ defmodule Wave.WarlordTest do
       assert Warlord.forget_erased(state, 7).erased == %{}
     end
 
+    test "a field informer sent forward holds a forward posting from then on" do
+      state =
+        warlord()
+        |> Warlord.track_erased(1, %{theatre: :field, duty: :infiltration})
+        |> Warlord.track_erased(2, %{theatre: :field, duty: :removal})
+        |> Warlord.repost_erased(1, :forward, :scout)
+        |> Warlord.repost_erased(2, :forward, :deep)
+
+      assert Wave.Erased.forward_held(state.erased) == %{scout: 1, deep: 1}
+      assert Warlord.erased_postings(state) == %{"forward/scout" => 1, "forward/deep" => 1}
+
+      # Lost with its agent, the posting is open again.
+      state = Warlord.forget_erased(state, 1)
+      assert Wave.Erased.forward_vacancies(%{scout: 1, deep: 1}, Wave.Erased.forward_held(state.erased)) == [:scout]
+    end
+
     test "postings roll up into a readable shape of the force" do
       state =
         warlord()

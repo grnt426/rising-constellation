@@ -199,6 +199,7 @@ defmodule Wave.Warlord do
         erased_released: 0,
         erased_lost: 0,
         erased_graduated: 0,
+        erased_posted: 0,
         removals_attempted: 0,
         removals_succeeded: 0,
         sabotages_attempted: 0,
@@ -1033,7 +1034,7 @@ defmodule Wave.Warlord do
     %{state | erased: Map.delete(state.erased, character_id)}
   end
 
-  @doc "Re-post an Erased — a graduating trainee taking its permanent duty."
+  @doc "Re-post an Erased: a graduating trainee taking its permanent duty, or a field informer sent forward."
   def repost_erased(%__MODULE__{} = state, character_id, theatre, duty) do
     case Map.get(state.erased, character_id) do
       nil ->

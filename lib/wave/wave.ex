@@ -311,6 +311,18 @@ defmodule Wave do
       # pass, the way players scout at the start of a match.
       "erased_roam_chance" => 0.35,
       "erased_roam_max_hops" => 6,
+      # Forward postings: field informers sent past the field theatre to work
+      # the ground the humans hold, however far away it is. Scouts take the
+      # edge nearest rebel space first; deep infiltrators start at the far end,
+      # where Intelligence is usually thinnest, and collect Shadows points.
+      # Each quota is its rate times the human players (one scout per three
+      # players, one deep infiltrator per five), and the two together never
+      # take more than `erased_forward_max_share` of the roster. Only agents
+      # with at least `erased_forward_min_points` informer points are sent.
+      "erased_scouts_per_player" => 0.35,
+      "erased_deep_per_player" => 0.2,
+      "erased_forward_max_share" => 0.3,
+      "erased_forward_min_points" => 1,
       # How long a hostile reading stays good before the Erased pass takes
       # another, and how much it may read when it does.
       "erased_recon_interval_ut" => 3.0,
