@@ -863,6 +863,10 @@
       "claim_released": "abandonné",
       "sighting": "a repéré"
     },
+    "new_below": "↓ {n} nouveaux",
+    "resize": "Glissez pour redimensionner le chat. Double-clic pour la taille par défaut.",
+    "resize_label": "Redimensionner le chat",
+    "mention_picker": "Mentionner un membre de la faction",
     "message_gone": "Ce message n'est plus dans l'historique de la discussion.",
     "claim_gone": "L'annonce de cette réclamation n'est plus dans l'historique de la discussion.",
     "sighting": {
@@ -887,6 +891,8 @@
     },
     "ref": {
       "unknown_system": "Système inconnu",
+      "unknown_player": "N'est plus dans la faction",
+      "mention_you": "C'est vous",
       "unknown_ref": "Référence inconnue",
       "sighting_gone": "Ce signalement est trop ancien : il n'en reste plus de trace.",
       "sighting_gone_short": "ancien signalement"
@@ -1110,6 +1116,9 @@
       "daily_seconds": "secondes",
       "daily_time_left": "Temps restant dans le défi du jour",
       "bankrupt_tooltip": "Votre empire n'a plus les moyens de soutenir vos agents. Ces derniers se sont mis en grève et ne répondent plus aux ordres. Les navarques se sont également mis en mode fuyard.",
+      "chat_panel": "Chat",
+      "chat_mentions": "{n} mentions de vous",
+      "chat_unread": "{n} non lus",
       "character_market_panel": "Marché des agents",
       "defeat": "Vous avez été défait",
       "deploy_interruption": "Interruption pour mise à jour. Veuillez vous reconnecter",

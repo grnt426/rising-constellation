@@ -477,6 +477,43 @@ $navbar-b10: rgba(0, 0, 0, .1);
 
   &.disabled { opacity: .4; }
   &:hover, &:focus { background: rgba(255, 255, 255, .05); }
+
+  // A button that can wear a count (the chat, while it is closed).
+  &.has-bubble { position: relative; }
+}
+
+// Count on a top bar button, over the label's top-right corner so the
+// bar doesn't shift when it appears. White for a plain unread count; a
+// mention of the player (.is-mention, "@") wears the faction colour and
+// its ring, like the unread-messages bubble on the player's portrait
+// (.navbar-player-message).
+.navbar-button-bubble {
+  position: absolute;
+  top: 8px;
+  right: 2px;
+  min-width: 16px;
+  padding: 0 4px;
+
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: $black;
+
+  background: $white;
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .35);
+  pointer-events: none;
+
+  // A mention just came in: two beats of the ring, then back to rest.
+  &.is-pulsing {
+    animation: navbar-bubble-pulse 700ms ease-out 2;
+  }
+}
+
+@keyframes navbar-bubble-pulse {
+  0% { box-shadow: 0 0 0 0 var(--bubble-ring, #{$white}); }
+  100% { box-shadow: 0 0 0 16px transparent; }
 }
 
 .navbar-deploy-button {
@@ -635,6 +672,12 @@ $navbar-b10: rgba(0, 0, 0, .1);
     .navbar.top .headband {
       color: $color;
       border-color: darken($color, $color-variant-4);
+    }
+
+    .navbar-button-bubble.is-mention {
+      --bubble-ring: #{lighten($color, $color-variant-4)};
+      background: lighten($color, $color-variant-4);
+      box-shadow: 0 0 0 4px transparentize(lighten($color, $color-variant-4), 0.7);
     }
   }
 }

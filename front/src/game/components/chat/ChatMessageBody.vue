@@ -18,6 +18,7 @@
 
 <script>
 import { parseChatMessage } from './parseChatMessage';
+import ChatRefMention from './refs/ChatRefMention.vue';
 import ChatRefSighting from './refs/ChatRefSighting.vue';
 import ChatRefSystem from './refs/ChatRefSystem.vue';
 import ChatRefUnknown from './refs/ChatRefUnknown.vue';
@@ -35,11 +36,13 @@ import ChatRefUnknown from './refs/ChatRefUnknown.vue';
 const REF_COMPONENTS = {
   sys: 'chat-ref-system',
   spot: 'chat-ref-sighting',
+  at: 'chat-ref-mention',
 };
 
 export default {
   name: 'chat-message-body',
   components: {
+    ChatRefMention,
     ChatRefSighting,
     ChatRefSystem,
     ChatRefUnknown,
