@@ -448,6 +448,103 @@
       font-size: 12px;
       opacity: 0.85;
     }
+
+    // Where the player stands on an open vote. Filled with the faction
+    // colour (theme block below) while it still waits on them, like the
+    // top bar's marker.
+    .fg-vote-answer {
+      flex: 0 0 auto;
+      padding: 1px 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      opacity: 0.6;
+
+      &.is-pending {
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        font-weight: 700;
+        opacity: 1;
+      }
+    }
+  }
+
+  // What a yes/no vote decides (BallotDecision.vue).
+  .fg-decision {
+    margin-bottom: 16px;
+
+    p {
+      margin: 0 0 8px;
+      font-size: 13px;
+      line-height: 18px;
+
+      &:last-child { margin-bottom: 0; }
+    }
+
+    .fg-decision-laws {
+      margin-bottom: 10px;
+    }
+
+    .fg-decision-label {
+      margin-bottom: 3px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      opacity: 0.6;
+    }
+
+    .fg-decision-law {
+      padding: 5px 8px;
+      margin-bottom: 3px;
+      background: rgba(255, 255, 255, 0.06);
+      border-left: 2px solid rgba(255, 255, 255, 0.5);
+      font-size: 12px;
+      line-height: 16px;
+
+      strong {
+        display: block;
+        font-size: 13px;
+      }
+
+      span { opacity: 0.75; }
+
+      // a law that would go: struck, and dimmed
+      &.is-repeal {
+        border-left-color: rgba(255, 255, 255, 0.2);
+        opacity: 0.6;
+
+        strong { text-decoration: line-through; }
+      }
+
+      &.is-keep {
+        border-left-color: rgba(255, 255, 255, 0.2);
+      }
+    }
+
+    .fg-decision-rule {
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 12px;
+      opacity: 0.7;
+    }
+  }
+
+  // "Abstain": the answer of a member who takes no side.
+  .fg-abstain {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+
+    .fg-abstain-hint {
+      flex: 1 1 auto;
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    button { flex: 0 0 auto; }
   }
 
   // Cardan offering indicator: the interception-tunnels glyph doubling
@@ -777,6 +874,15 @@
 
     .fg-result-fill {
       background: rgba($color, 0.75);
+    }
+
+    .fg-decision-law.is-enact {
+      border-left-color: $color;
+    }
+
+    .fg-vote-row .fg-vote-answer.is-pending {
+      border-color: lighten($color, 10%);
+      background: rgba($color, 0.55);
     }
   }
 }

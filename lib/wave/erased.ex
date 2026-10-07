@@ -20,6 +20,9 @@ defmodule Wave.Erased do
       enemy systems and dominions, removing enemy agents, and sabotaging
       enemy fleets.
 
+  A third theatre, `:forward`, is never rolled: it is a posting a few field
+  informers are given (see "Forward postings").
+
   ## Duties
 
   A duty is the standing job an Erased looks for work under:
@@ -88,6 +91,31 @@ defmodule Wave.Erased do
   At the level cap, or with nothing to practise on, it scouts: it walks to the
   nearest system the Rebellion has never seen, which is what players do with
   their first agents. Everything seen, it waits.
+
+  ## Forward postings
+
+  The field theatre stops `erased_field_depth` sectors out, and for most of a
+  match the humans are much further away than that. Players do not wait for
+  the fronts to meet: they send a few Erased ahead to watch the enemy's
+  advance, and a few more behind the lines to collect Shadows points where
+  nobody has built Intelligence. The Rebellion does the same with two
+  postings, both infiltration only, both for life:
+
+  | duty | works | order |
+  |---|---|---|
+  | `:scout` | every system and dominion the humans hold | the edge nearest rebel space first, then inwards |
+  | `:deep` | the same ground | the sector furthest from rebel space first, then outwards |
+
+  The quotas scale with the humans faced (`erased_scouts_per_player`,
+  `erased_deep_per_player`) and together never take more than
+  `erased_forward_max_share` of the roster. They are filled from idle field
+  agents holding at least `erased_forward_min_points` informer points, the
+  strongest informer first and scouts before deep infiltrators, because the
+  border is where the humans' Intelligence is. A posting lost with its agent
+  is refilled the same way.
+
+  Neither posting weighs the Visibility track: the humans answer it with
+  Intelligence, which is the point of sending them.
   """
 
   # Spy specialization indices, from Data.Game.Content.Character.
@@ -193,6 +221,81 @@ defmodule Wave.Erased do
       {:field, duty(duty_roll, Keyword.fetch!(opts, :field_weights), skills)}
     end
   end
+
+  # --- forward postings -------------------------------------------------------
+
+  @doc """
+  How many scouts and deep infiltrators the Rebellion keeps forward:
+  `%{scout: n, deep: n}`. Each is its per-player rate times the humans faced,
+  rounded, and the two together never exceed `room` agents: scouts are seated
+  first and deep infiltration takes what is left.
+  """
+  def forward_quotas(players, scouts_per_player, deep_per_player, room)
+      when is_number(players) and is_number(scouts_per_player) and is_number(deep_per_player) and is_integer(room) do
+    room = max(room, 0)
+    scouts = (players * scouts_per_player) |> round() |> max(0) |> min(room)
+    deep = (players * deep_per_player) |> round() |> max(0) |> min(room - scouts)
+
+    %{scout: scouts, deep: deep}
+  end
+
+  @doc "How many Erased hold each forward posting today."
+  def forward_held(roster) do
+    held =
+      roster
+      |> Enum.filter(fn {_id, entry} -> Map.get(entry, :theatre) == :forward end)
+      |> Enum.frequencies_by(fn {_id, entry} -> Map.get(entry, :duty) end)
+
+    %{scout: Map.get(held, :scout, 0), deep: Map.get(held, :deep, 0)}
+  end
+
+  @doc "The forward postings still open, scouts first, as a list of duties."
+  def forward_vacancies(quotas, held) do
+    for duty <- [:scout, :deep],
+        _ <- 1..max(Map.get(quotas, duty, 0) - Map.get(held, duty, 0), 0)//1,
+        do: duty
+  end
+
+  @doc "True when an agent can be sent forward: it holds at least `min_points` informer points."
+  def fit_for_forward?(skills, min_points), do: skill_points(skills).infiltration >= min_points
+
+  @doc """
+  Orders the candidates for a forward posting: the strongest informer first,
+  and between equals the one already on infiltration duty, so a remover or a
+  saboteur is only taken off its trade when nobody else will do.
+  """
+  def forward_rank(infiltrate_strength, duty, id),
+    do: {-infiltrate_strength, if(duty == :infiltration, do: 0, else: 1), id}
+
+  @doc "Ground a forward agent works: a system or a dominion another faction holds."
+  def forward_ground?(system, bot_faction) do
+    system.faction not in [nil, bot_faction] and system.status in [:inhabited_dominion, :inhabited_player]
+  end
+
+  # A sector no chain of adjacency reaches from rebel space has no depth. A
+  # scout treats it as the far end of the map; a deep infiltrator, which
+  # counts from the far end, as the near one.
+  @unreached_depth 99
+
+  @doc """
+  Ranks forward ground for one posting. `depth` is the sector's distance from
+  rebel space (`Wave.Geometry.depth_of/2`), `chance` the agent's odds against
+  the Intelligence the Rebellion has learned there (nil when it never has).
+
+  A scout sweeps from the edge nearest rebel space inwards, a deep infiltrator
+  from the far end outwards. Inside a sector both take a system known to be
+  soft before one never tried, and one known to be hard last, the nearest
+  first.
+  """
+  def forward_priority(:deep, system, depth, chance, hops),
+    do: {-(depth || 0), odds_rank(chance), hops, system.id}
+
+  def forward_priority(_scout, system, depth, chance, hops),
+    do: {depth || @unreached_depth, odds_rank(chance), hops, system.id}
+
+  defp odds_rank(nil), do: 1
+  defp odds_rank(chance) when chance >= 0.5, do: 0
+  defp odds_rank(_chance), do: 2
 
   # --- target rules -----------------------------------------------------------
 

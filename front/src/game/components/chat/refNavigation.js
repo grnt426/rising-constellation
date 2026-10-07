@@ -18,6 +18,10 @@ export function navigateRef(vm, kind, id) {
       return navigateToSystem(vm, id);
     case 'spot':
       return navigateToSighting(vm, id);
+    case 'vote':
+      return navigateToVote(vm, id);
+    case 'at':
+      return openMentionedPlayer(vm, id);
     default:
       return false;
   }
@@ -31,12 +35,32 @@ function leaveSystemView(vm) {
   }
 }
 
+// A mention leads to the card of the player it names.
+function openMentionedPlayer(vm, id) {
+  const playerId = parseInt(id, 10);
+  if (!Number.isFinite(playerId)) return false;
+
+  vm.$store.dispatch('game/openPlayer', { vm, id: playerId });
+  return true;
+}
+
 function navigateToSystem(vm, id) {
   const systemId = parseInt(id, 10);
   if (!Number.isFinite(systemId)) return false;
 
   leaveSystemView(vm);
   vm.$root.$emit('map:centerToSystem', systemId);
+  return true;
+}
+
+// A vote leads to the Government drawer, on that ballot (or on its
+// result once it has closed). `openPanel`, not `togglePanel`: a click on
+// a second vote while the drawer is open must not close it.
+function navigateToVote(vm, id) {
+  const ballotId = parseInt(id, 10);
+  if (!Number.isFinite(ballotId)) return false;
+
+  vm.$root.$emit('openPanel', 'government', { ballotId });
   return true;
 }
 

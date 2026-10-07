@@ -483,6 +483,72 @@ decisions, 2026-09-29):
    discovered spy (`Jump.pre_validate/2`), so the old "a blown Erased may
    roam" rule only produced refused orders.
 
+#### Forward scouts and deep infiltration (2026-10-06)
+
+The field theatre stops `erased_field_depth` (2) sectors from rebel space. On
+match day 9 of instance 185 the nearest human system was four sectors and 1.8
+days of travel away, so no Erased had ever stood on human ground, while two
+Myrmezir Erased were already inside rebel sectors. Players send agents ahead
+long before the fronts meet: to see what the enemy is building towards, and to
+make it spend on Intelligence. They also send some behind the lines to collect
+Shadows points, because backline systems rarely carry any Intelligence. The
+Rebellion now does both (user decisions, 2026-10-06).
+
+Two postings in a third theatre, `:forward`. Both only infiltrate, both work
+every system and dominion another faction holds at any distance, and both are
+kept for life:
+
+| Duty | Order of work |
+|---|---|
+| `:scout` | the human sector nearest rebel space first, then inwards |
+| `:deep` | the human sector furthest from rebel space first, then outwards |
+
+Inside a sector both take a system known to be soft (an even chance or
+better against the Intelligence one of our results reported) before one never
+tried, and one known to be hard last, nearest first. Systems the Rebellion
+already sees whole and systems below `erased_train_min_chance` are skipped,
+and the ordinary slot rule spreads agents over targets. With nothing left to
+infiltrate a forward agent practises and scouts on any ground outside rebel
+space.
+
+- **How many.** `erased_scouts_per_player` (0.35, one per three humans) and
+  `erased_deep_per_player` (0.2, one per five), each rounded, and together at
+  most `erased_forward_max_share` (0.3) of the roster with scouts seated
+  first. Against eleven humans and 22 Erased that is 4 scouts and 2 deep
+  infiltrators. Two scouts would touch each of 42 holdings once every few
+  days; six or more would take most of the roster's informers (8 of the 22
+  held any informer points).
+- **Who.** Idle field agents with at least `erased_forward_min_points` (1)
+  informer points, strongest informer first, and between equals the one
+  already on infiltration duty. Scouts are filled before deep infiltrators:
+  the border is where the humans' Intelligence is (i185 dominions 4 to 81,
+  most player systems 0). Home agents and trainees are never taken. A posting
+  lost with its agent is refilled the same way, and while one stands open the
+  hiring score counts informer points twice.
+- **No brake on the Visibility track.** Every success is a point on the
+  Rebellion's Visibility track (i185: milestones at 63, 126 and 199 points for
+  2, 5 and 10 victory points). The user's ruling: let it run, players are good
+  at mitigating that risk. Intelligence 20 to 40 shuts out an informer with
+  one point.
+
+Engine facts this rests on:
+
+- An infiltration takes `infiltration_time` (50 ut at Legacy) × 1 to 2, the
+  longer the closer the odds, and a success costs 8 to 12 cover (4 to 8 on a
+  critical). Cover recovers 0.25 per ut, so against Intelligence 0 a skilled
+  informer stays under cover indefinitely.
+- The system's owner is told nothing unless the agent's cover falls below
+  `cover_threshold` (75): then a "foreign spy discovered" notice, and the
+  agent can neither act nor move until it recovers. A failure costs 20 to 40
+  cover, so it is the failures the humans see.
+- Travel is lane length × `character_movement_factor` (7.2): about 70 ut a
+  hop on the i185 map, 850 ut to the nearest human system and 1,600 to their
+  home sector.
+
+Telemetry: `wave_erased_posted` events, the `erased_posted` counter, the
+`erased_forward_quotas` gauge, and `forward/scout` and `forward/deep` in
+`erased_postings`.
+
 ### Siderians: destabilization and seduction (built 2026-09-30)
 
 Today every Siderian is a capturer: the Warlord only buys proselyte points

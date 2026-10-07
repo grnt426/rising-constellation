@@ -1470,7 +1470,16 @@ defmodule Wave.Warlord.Agent do
   defp maybe_hire_erased(data, ctx, cap) do
     if Warlord.hired_erased_count(data) < cap and Warlord.erased_hire_due?(data) do
       specializations = spy_specializations(data)
-      score = fn character -> Erased.offensive_strength(Map.get(character, :skills), specializations) end
+
+      # While a forward posting stands open, informer points count twice.
+      informer_bonus = if forward_vacancy?(data), do: 1, else: 0
+
+      score = fn character ->
+        skills = Map.get(character, :skills)
+
+        Erased.offensive_strength(skills, specializations) +
+          informer_bonus * Erased.strength(skills, specializations, :spy_infiltrate)
+      end
 
       case hire_agent(data, ctx, :spy, score) do
         {:ok, candidate, home_id} ->
@@ -1581,6 +1590,11 @@ defmodule Wave.Warlord.Agent do
     # decides whether to practise on it.
     {data, ctx} = prepare_dummy(data, ctx, characters)
 
+    # Finished orders are closed out for everyone before anyone is re-posted
+    # or sent again, so a strike is scored under the posting it was ordered on.
+    data = Enum.reduce(characters, data, &settle_erased(&2, view, &1))
+    data = post_forward(data, characters, specializations)
+
     {data, ctx, without_target} =
       Enum.reduce(characters, {data, ctx, 0}, fn character, {d, c, nt} ->
         steer_one_erased(d, c, view, character, specializations, nt)
@@ -1588,6 +1602,61 @@ defmodule Wave.Warlord.Agent do
 
     {Warlord.gauge(data, :erased_without_target, without_target), ctx}
   end
+
+  # Forward postings (Wave.Erased, "Forward postings"): idle field informers
+  # fill the scout and deep-infiltration quotas, the strongest first.
+  defp post_forward(data, characters, specializations) do
+    quotas = forward_quotas(data)
+    data = Warlord.gauge(data, :erased_forward_quotas, quotas)
+    min_points = trunc(knob(data, "erased_forward_min_points", 1))
+
+    characters
+    |> Enum.filter(fn character ->
+      erased_idle?(character) and Map.get(Map.get(data.erased, character.id, %{}), :theatre) == :field and
+        Erased.fit_for_forward?(character.skills, min_points)
+    end)
+    |> Enum.sort_by(fn character ->
+      Erased.forward_rank(
+        Erased.strength(character.skills, specializations, :spy_infiltrate),
+        Map.get(Map.get(data.erased, character.id, %{}), :duty),
+        character.id
+      )
+    end)
+    |> Enum.zip(Erased.forward_vacancies(quotas, Erased.forward_held(data.erased)))
+    |> Enum.reduce(data, fn {character, duty}, acc ->
+      entry = Map.get(acc.erased, character.id, %{})
+
+      log(acc, "wave_erased_posted", character.id, character.system, %{
+        day: Warlord.match_day(acc),
+        theatre: :forward,
+        duty: duty,
+        from_duty: Map.get(entry, :duty),
+        skills: Erased.skill_points(character.skills),
+        level: character.level,
+        quotas: quotas
+      })
+
+      acc
+      |> Warlord.count(:erased_posted)
+      |> Warlord.repost_erased(character.id, :forward, duty)
+    end)
+  end
+
+  defp forward_quotas(data) do
+    room = trunc(map_size(data.erased) * knob(data, "erased_forward_max_share", 0.3))
+
+    Erased.forward_quotas(
+      Warlord.scale_players(data),
+      knob(data, "erased_scouts_per_player", 0.35) * 1.0,
+      knob(data, "erased_deep_per_player", 0.2) * 1.0,
+      room
+    )
+  end
+
+  defp forward_vacancy?(data),
+    do: Erased.forward_vacancies(forward_quotas(data), Erased.forward_held(data.erased)) != []
+
+  defp erased_idle?(character), do: character.action_status == :idle and ActionQueue.empty?(character.actions)
 
   # A hostile reading costs a faction read, one call per human player and a
   # capped sweep of the systems their agents stand in. Held for a few ut so a
@@ -1636,44 +1705,47 @@ defmodule Wave.Warlord.Agent do
     )
   end
 
-  defp steer_one_erased(data, ctx, view, character, specializations, without_target) do
+  # Observe an Erased and, when it stands idle, close out the order it was on.
+  defp settle_erased(data, view, character) do
     discovered? = Spy.discovered?(character.spy.cover.value, data.instance_id)
     data = observe_spy(data, character.id, Erased.bucket(character.action_status, discovered?), character.action_status)
+    entry = Map.get(data.erased, character.id, %{})
 
-    entry = Map.get(data.erased, character.id)
-    idle? = character.action_status == :idle and ActionQueue.empty?(character.actions)
+    if erased_idle?(character) do
+      case Map.get(entry, :stage) do
+        # A strike we ordered has run its course one way or the other: score it.
+        :dispatched -> resolve_strike(data, view, character, entry)
+        # A roamer has arrived: nothing to score, just free its slot.
+        :roaming -> Warlord.erased_released(data, character.id)
+        _ -> data
+      end
+    else
+      data
+    end
+  end
+
+  defp steer_one_erased(data, ctx, view, character, specializations, without_target) do
+    discovered? = Spy.discovered?(character.spy.cover.value, data.instance_id)
 
     cond do
-      not idle? ->
+      not erased_idle?(character) ->
+        {data, ctx, without_target}
+
+      # No offensive skill at all means every roll fails: free the slot.
+      Erased.offensive_strength(character.skills, specializations) <= 0 ->
+        {recall_and_dismiss(data, ctx, character, :erased_released, :erased), ctx, without_target}
+
+      # Discovered. Every coefficient is multiplied to zero until the cover
+      # recovers (Instance.Character.Spy.compute_bonus/3), so striking now
+      # is a guaranteed failure, and the engine will not move a discovered
+      # spy either (Instance.Character.Actions.Jump.pre_validate/2). It lies
+      # low where it stands.
+      discovered? ->
         {data, ctx, without_target}
 
       true ->
-        data =
-          case Map.get(entry, :stage) do
-            # A strike we ordered has run its course one way or the other: score it.
-            :dispatched -> resolve_strike(data, view, character, entry)
-            # A roamer has arrived: nothing to score, just free its slot.
-            :roaming -> Warlord.erased_released(data, character.id)
-            _ -> data
-          end
-
-        cond do
-          # No offensive skill at all means every roll fails: free the slot.
-          Erased.offensive_strength(character.skills, specializations) <= 0 ->
-            {recall_and_dismiss(data, ctx, character, :erased_released, :erased), ctx, without_target}
-
-          # Discovered. Every coefficient is multiplied to zero until the cover
-          # recovers (Instance.Character.Spy.compute_bonus/3), so striking now
-          # is a guaranteed failure, and the engine will not move a discovered
-          # spy either (Instance.Character.Actions.Jump.pre_validate/2). It lies
-          # low where it stands.
-          discovered? ->
-            {data, ctx, without_target}
-
-          true ->
-            data = maybe_graduate(data, character)
-            dispatch_erased(data, ctx, view, character, without_target)
-        end
+        data = maybe_graduate(data, character)
+        dispatch_erased(data, ctx, view, character, without_target)
     end
   end
 
@@ -1718,6 +1790,7 @@ defmodule Wave.Warlord.Agent do
         :removal -> plan_removal(data, view, character, entry, distances)
         :sabotage -> plan_sabotage(data, view, character, entry, distances)
         :training -> plan_practice_infiltration(data, ctx, character, entry, distances)
+        duty when duty in [:scout, :deep] -> plan_forward(data, ctx, view, character, entry, distances)
         _ -> plan_infiltration(data, ctx, view, character, entry, distances)
       end
 
@@ -1944,6 +2017,58 @@ defmodule Wave.Warlord.Agent do
   defp infiltration_rank(%{status: :inhabited_dominion}), do: 0
   defp infiltration_rank(_system), do: 1
 
+  # Forward infiltration works the ground the humans hold wherever it lies,
+  # however long the walk: a scout from the edge nearest rebel space inwards, a
+  # deep infiltrator from the far end outwards. Like field infiltration it
+  # skips what the Rebellion already sees whole and what it has learned is out
+  # of this agent's reach.
+  defp plan_forward(data, ctx, view, character, entry, distances) do
+    min_chance = knob(data, "erased_train_min_chance", 0.25) * 1.0
+    attack = character.spy.infiltrate_coef.value
+    duty = Map.get(entry, :duty)
+
+    candidates =
+      ctx.geo.systems
+      |> Enum.filter(fn system ->
+        Erased.forward_ground?(system, data.bot_faction) and
+          Map.has_key?(distances, system.id) and
+          Erased.worth_infiltrating?(Wave.Recon.visibility(view, system.id))
+      end)
+      |> Enum.map(&{&1, infiltration_chance(data, attack, character.level, &1.id)})
+      |> Enum.reject(fn {_system, chance} -> Erased.practice_odds(chance, min_chance) == :hopeless end)
+
+    chances = Map.new(candidates, fn {system, chance} -> {system.id, chance} end)
+
+    candidates
+    |> Enum.map(&elem(&1, 0))
+    |> admit(data, entry, character, &{:system, &1.id})
+    |> Enum.min_by(
+      &Erased.forward_priority(duty, &1, Geometry.depth_of(ctx.geo, &1), chances[&1.id], Map.fetch!(distances, &1.id)),
+      fn -> nil end
+    )
+    |> case do
+      nil ->
+        nil
+
+      system ->
+        chance = chances[system.id]
+
+        %{
+          action: "infiltrate",
+          target: system.id,
+          target_key: {:system, system.id},
+          odds: chance && Float.round(chance, 3),
+          odds_class: Wave.Intel.odds_class(chance),
+          overlap: overlap(data, character.id, {:system, system.id})
+        }
+    end
+  end
+
+  # A forward agent has no ground of its own to practise or scout on: with
+  # nothing left to infiltrate it uses whatever lies outside rebel space.
+  defp in_theatre?(ctx, system, depth, :forward), do: Geometry.theatre_of(ctx.geo, system, depth) != :home
+  defp in_theatre?(ctx, system, depth, theatre), do: Geometry.theatre_of(ctx.geo, system, depth) == theatre
+
   # --- Erased: practice --------------------------------------------------------
 
   # Idle and still below the level cap: practise. Infiltration is the better
@@ -1987,7 +2112,7 @@ defmodule Wave.Warlord.Agent do
         system.faction != data.bot_faction and
           system.status in [:inhabited_neutral, :inhabited_dominion] and
           Map.has_key?(distances, system.id) and
-          Geometry.theatre_of(ctx.geo, system, depth) == theatre
+          in_theatre?(ctx, system, depth, theatre)
       end)
       |> Enum.map(&{&1, infiltration_chance(data, attack, character.level, &1.id)})
       |> Enum.reject(fn {_system, chance} -> Erased.practice_odds(chance, min_chance) == :hopeless end)
@@ -2239,7 +2364,7 @@ defmodule Wave.Warlord.Agent do
     depth = trunc(knob(data, "erased_field_depth", 2))
 
     ctx.geo.systems
-    |> Enum.filter(&(&1.faction != data.bot_faction and Geometry.theatre_of(ctx.geo, &1, depth) == theatre))
+    |> Enum.filter(&(&1.faction != data.bot_faction and in_theatre?(ctx, &1, depth, theatre)))
     |> Erased.explore_targets(&Wave.Recon.seen?(view, &1), trunc(knob(data, "erased_roam_max_hops", 6)), distances)
   end
 

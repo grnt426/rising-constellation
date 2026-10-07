@@ -193,7 +193,8 @@
             @click="selectBallot(ballot.id)">
             <span class="large">
               {{ seatName(ballot.seat) }}
-              <span>
+              <!-- a referendum's "seat" already names the question -->
+              <span v-if="ballot.question !== 'laws'">
                 <template v-if="ballot.question && ballot.question !== 'elect'">
                   {{ $t(`panel.faction_government.questions.${ballot.question}`) }}
                 </template>
@@ -201,6 +202,11 @@
                   {{ $t(`panel.faction_government.kinds.${ballot.kind}`) }}
                 </template>
               </span>
+            </span>
+            <span
+              class="fg-vote-answer"
+              :class="`is-${answerOf(ballot)}`">
+              {{ $t(`panel.faction_government.answers.${answerOf(ballot)}`) }}
             </span>
             <span class="timer">
               <counter :current="ballot.cooldown.value" />
@@ -250,10 +256,12 @@
         class="has-padding fg-detail">
         <h1 class="panel-default-title">
           {{ seatName(selectedBallot.seat) }}
-          <span v-if="selectedBallot.question && selectedBallot.question !== 'elect'">
-            {{ $t(`panel.faction_government.questions.${selectedBallot.question}`) }}
-          </span>
-          <span v-else>{{ $t(`panel.faction_government.kinds.${selectedBallot.kind}`) }}</span>
+          <template v-if="selectedBallot.question !== 'laws'">
+            <span v-if="selectedBallot.question && selectedBallot.question !== 'elect'">
+              {{ $t(`panel.faction_government.questions.${selectedBallot.question}`) }}
+            </span>
+            <span v-else>{{ $t(`panel.faction_government.kinds.${selectedBallot.kind}`) }}</span>
+          </template>
         </h1>
 
         <div class="panel-content-number-bloc">
@@ -289,6 +297,8 @@
           </div>
         </div>
 
+        <ballot-decision :ballot="selectedBallot" />
+
         <!-- candidacy -->
         <template v-if="selectedBallot.open_candidacy === 'self_only'">
           <button
@@ -321,14 +331,22 @@
           </div>
         </template>
 
-        <!-- candidates + voting -->
+        <!-- candidates + voting (a yes/no vote has no candidates to
+             list: its question is in the block above) -->
         <h1 class="panel-default-title">
-          {{ $t('panel.faction_government.candidates') }}
-          <span>{{ selectedBallot.public.vote_count }} {{ $t('panel.faction_government.votes_cast') }}</span>
+          {{ selectedBallot.kind === 'approval'
+            ? $t('panel.faction_government.your_vote')
+            : $t('panel.faction_government.candidates') }}
+          <span>
+            {{ selectedBallot.public.vote_count }} {{ $t('panel.faction_government.votes_cast') }}
+            <template v-if="selectedBallot.public.abstain_count > 0">
+              · {{ selectedBallot.public.abstain_count }} {{ $t('panel.faction_government.abstentions') }}
+            </template>
+          </span>
         </h1>
 
         <div
-          v-if="selectedBallot.candidates.length === 0"
+          v-if="selectedBallot.candidates.length === 0 && selectedBallot.kind !== 'approval'"
           class="panel-content-text-bloc">
           <div class="body">
             {{ $t('panel.faction_government.no_candidates') }}
@@ -439,6 +457,27 @@
             </button>
           </div>
         </template>
+
+        <!-- The vote stays flagged in the top bar until the player has
+             answered it one way or the other: abstaining is the answer
+             of someone who takes no side. -->
+        <div
+          v-if="answerOf(selectedBallot) !== 'voted'"
+          class="fg-abstain">
+          <template v-if="answerOf(selectedBallot) === 'pending'">
+            <div class="fg-abstain-hint">
+              {{ $t('panel.faction_government.abstain_hint') }}
+            </div>
+            <button @click="abstain(selectedBallot.id)">
+              {{ $t('panel.faction_government.abstain') }}
+            </button>
+          </template>
+          <div
+            v-else
+            class="fg-abstain-hint">
+            {{ $t('panel.faction_government.abstained_hint') }}
+          </div>
+        </div>
       </v-scrollbar>
 
       <!-- result detail: a closed election from the history -->
@@ -475,6 +514,7 @@
 </template>
 
 <script>
+import BallotDecision from '@/game/components/panel/faction/BallotDecision.vue';
 import Counter from '@/game/components/generic/Counter.vue';
 import NumberStepper from '@/game/components/generic/NumberStepper.vue';
 import '@/icons/building/defense_local_dome';
@@ -516,7 +556,6 @@ export default {
   name: 'faction-government-panel',
   data() {
     return {
-      myVotes: {},
       selectedBallotId: null,
       selectedResultId: null,
       nomineeId: null,
@@ -534,6 +573,9 @@ export default {
     faction() { return this.$store.state.game.faction; },
     player() { return this.$store.state.game.player; },
     government() { return this.faction.government; },
+    // The player's own votes and abstentions (store: they also drive the
+    // top bar's "your vote is needed" marker).
+    myVotes() { return this.$store.state.game.governmentVotes || {}; },
     seatKeys() { return ['leader', 'economy', 'military']; },
     appointMode() { return APPOINT_MODE[this.faction.key]; },
     isLeader() {
@@ -595,10 +637,18 @@ export default {
   },
   methods: {
     refresh() {
-      this.$socket.faction.push('get_government', {})
-        .receive('ok', ({ my_votes: myVotes }) => {
-          this.myVotes = myVotes || {};
-        });
+      this.$store.dispatch('game/refreshGovernmentVotes', this);
+    },
+    // Open the detail pane on a ballot (top bar, chat): a vote still
+    // running, or its result once it has closed.
+    showBallot(ballotId) {
+      if (!this.government) return;
+
+      if (this.government.ballots.some((b) => b.id === ballotId)) {
+        this.selectBallot(ballotId);
+      } else if ((this.government.history || []).some((h) => h.ballot_id === ballotId)) {
+        this.selectResult(ballotId);
+      }
     },
     openTree(name) {
       this.$root.$emit('openBottomMiniPanel', name);
@@ -612,6 +662,13 @@ export default {
       return ballot.candidates.some((c) => c.player_id === playerId);
     },
     myVote(ballot) { return this.myVotes[String(ballot.id)] || null; },
+    // Where the player stands on a ballot: 'voted', 'abstained', or
+    // 'pending' while it still waits on them.
+    answerOf(ballot) {
+      const vote = this.myVote(ballot);
+      if (!vote) return 'pending';
+      return vote.abstained ? 'abstained' : 'voted';
+    },
     myChoice(ballot) {
       const vote = this.myVote(ballot);
       return vote ? vote.choice : null;
@@ -702,6 +759,9 @@ export default {
     vote(ballotId, payload) {
       this.push('gov_vote', { ballot_id: ballotId, ...payload });
     },
+    abstain(ballotId) {
+      this.push('gov_abstain', { ballot_id: ballotId });
+    },
     appoint(seat) {
       this.push('gov_appoint', { seat, appointee_id: this.appointees[seat] });
       this.appointees[seat] = null;
@@ -710,10 +770,8 @@ export default {
       this.push('gov_by_election', { seat });
     },
   },
-  mounted() {
-    if (this.government) this.refresh();
-  },
   components: {
+    BallotDecision,
     Counter,
     NumberStepper,
   },

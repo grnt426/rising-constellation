@@ -5,15 +5,6 @@
         <div
           v-if="!isTutorial"
           class="navbar-main-button">
-          <div class="navbar-main-button-toolbox">
-            <div
-              class="button"
-              v-bind:class="{ 'active': isChatOpen }"
-              @click="switchChat">
-              <svgicon class="icon" name="chat" />
-            </div>
-          </div>
-
           <div
             @click="togglePanel('faction')"
             class="navbar-main-button-icon">
@@ -36,6 +27,32 @@
           </template>
         </div>
 
+        <!-- Opens and closes the faction chat. While it is closed, the
+             bubble counts what was said since; open, the chat's own tabs
+             do the counting. A mention of the player (`@Name`) is flagged
+             either way, and the button then leads to it first. -->
+        <div
+          v-if="!isTutorial"
+          class="navbar-button-title has-bubble"
+          :class="{ 'is-icon-button': isMobileView }"
+          v-tooltip="isMobileView ? $t('navbar.topbar.chat_panel') : ''"
+          @click="switchChat">
+          <svgicon
+            v-if="isMobileView"
+            class="icon"
+            name="chat" />
+          <template v-else>
+            {{ $t('navbar.topbar.chat_panel') }}
+          </template>
+          <span
+            v-if="chatBubble"
+            class="navbar-button-bubble"
+            :class="{ 'is-mention': chatBubble.mention, 'is-pulsing': chatPulse }"
+            :aria-label="chatBubble.title">
+            {{ chatBubble.label }}
+          </span>
+        </div>
+
         <div
           v-if="!isTutorial"
           class="navbar-button-title"
@@ -53,7 +70,7 @@
       </div>
 
       <div class="navbar-center">
-        <calendar @click.native="togglePanel('event')" />
+        <government-status />
 
         <div
           class="headband"
@@ -189,7 +206,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import viewport from '@/utils/viewport';
-import Calendar from '@/game/components/navbar/Calendar.vue';
+import GovernmentStatus from '@/game/components/navbar/GovernmentStatus.vue';
 
 import CharacterMarketMiniPanel from '@/game/components/mini-panel/CharacterMarketMiniPanel.vue';
 import VictoryMiniPanel from '@/game/components/mini-panel/VictoryMiniPanel.vue';
@@ -203,6 +220,7 @@ export default {
       // Same starting state as the chat itself (Game.vue): open on
       // desktop, a closed drawer on phones.
       isChatOpen: !viewport.isMobile,
+      chatPulse: false,
       nowTick: Date.now(),
 
       activeMiniPanel: { name: '' },
@@ -229,6 +247,31 @@ export default {
     // Rebel Defense: the bot-run faction's key, null in other modes.
     waveBotFaction() { return this.$store.state.game.instanceInfo.wave_bot_faction || null; },
     dailyResult() { return this.$store.state.game.dailyResult; },
+    // Lines of the faction chat nobody has put in front of the player
+    // yet (counted by Chat.vue). Only shown while the chat is closed.
+    chatUnread() { return this.$store.state.game.chatUnread; },
+    // Messages calling on the player by name that they have not seen.
+    // Shown whether the chat is open or not, and ahead of the plain count.
+    chatMentions() { return this.$store.state.game.chatMentions; },
+    chatBubble() {
+      const cap = (n, max) => (n > max ? `${max}+` : String(n));
+
+      if (this.chatMentions > 0) {
+        return {
+          mention: true,
+          label: this.chatMentions > 1 ? `@${cap(this.chatMentions, 9)}` : '@',
+          title: this.$t('navbar.topbar.chat_mentions', { n: this.chatMentions }),
+        };
+      }
+      if (!this.isChatOpen && this.chatUnread > 0) {
+        return {
+          mention: false,
+          label: cap(this.chatUnread, 99),
+          title: this.$t('navbar.topbar.chat_unread', { n: this.chatUnread }),
+        };
+      }
+      return null;
+    },
     dailyClock() {
       const v = this.victory;
       if (!v || typeof v.ut_time_left !== 'number' || !v.receivedAt) { return null; }
@@ -249,6 +292,13 @@ export default {
   },
   methods: {
     switchChat() {
+      // A mention is waiting: the button goes to it (opening the chat if
+      // need be) instead of toggling. Chat.vue settles it on the way.
+      if (this.chatMentions > 0) {
+        this.$root.$emit('chat:showMention');
+        return;
+      }
+
       this.isChatOpen = !this.isChatOpen;
       this.$root.$emit('changeChatState', this.isChatOpen);
     },
@@ -256,6 +306,15 @@ export default {
     // sighting): keep the button in step.
     onChatState(state) {
       this.isChatOpen = state;
+    },
+    // A mention just came in: one beat of the bubble.
+    onMentionPulse() {
+      clearTimeout(this.chatPulseTimer);
+      this.chatPulse = false;
+      requestAnimationFrame(() => {
+        this.chatPulse = true;
+        this.chatPulseTimer = setTimeout(() => { this.chatPulse = false; }, 1500);
+      });
     },
     togglePanel(name) {
       this.$root.$emit('togglePanel', name);
@@ -338,6 +397,7 @@ export default {
     this.$root.$on('openTopMiniPanel', this.onOpenMiniPanel);
     this.$root.$on('closeTopMiniPanel', this.onCloseMiniPanel);
     this.$root.$on('changeChatState', this.onChatState);
+    this.$root.$on('chat:mentionPulse', this.onMentionPulse);
     this.clockTimer = setInterval(() => { this.nowTick = Date.now(); }, 1000);
   },
   beforeDestroy() {
@@ -345,9 +405,11 @@ export default {
     this.$root.$off('openTopMiniPanel', this.onOpenMiniPanel);
     this.$root.$off('closeTopMiniPanel', this.onCloseMiniPanel);
     this.$root.$off('changeChatState', this.onChatState);
+    this.$root.$off('chat:mentionPulse', this.onMentionPulse);
+    clearTimeout(this.chatPulseTimer);
   },
   components: {
-    Calendar,
+    GovernmentStatus,
     CharacterMarketMiniPanel,
     VictoryMiniPanel,
     MarketMiniPanel,

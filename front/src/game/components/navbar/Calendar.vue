@@ -1,5 +1,7 @@
 <template>
-  <div class="navbar-calendar navbar-central-box">
+  <div
+    class="navbar-calendar"
+    :class="{ 'is-compact': compact }">
     <div class="date">
       <div class="day">
         {{ date.day + 1 }}
@@ -22,9 +24,15 @@
 import Calendar from '@/utils/calendar';
 import TimeMixin from '@/game/mixins/TimeMixin';
 
+// The in-universe date. Drawn by GovernmentStatus, which owns the
+// top-centre box: full size when the game has no faction government,
+// one small line (`compact`) under the leader's name when it has.
 export default {
   name: 'calendar',
   mixins: [TimeMixin],
+  props: {
+    compact: { type: Boolean, default: false },
+  },
   data() {
     return {
       now: 0,

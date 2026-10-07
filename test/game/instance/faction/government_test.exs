@@ -870,6 +870,169 @@ defmodule Instance.Faction.GovernmentTest do
     end
   end
 
+  describe "close event" do
+    test "says who stood and how the ballot was decided, for the result notice" do
+      {government, _events, ctx} = founded(:synelle, players(4))
+      [%{id: ballot_id}] = government.ballots
+
+      {:ok, government, _} = Government.nominate(government, 1, ballot_id, 2, ctx)
+      {:ok, government, _} = Government.cast_vote(government, 1, ballot_id, %{candidate_id: 2}, ctx)
+      {_government, events} = close_open_ballots(government, ctx)
+
+      assert %{kind: :plurality, question: :elect, outcome: :seated, candidates: ["Player 2"], target: nil} =
+               Enum.find(events, &(&1.type == :ballot_closed))
+    end
+
+    test "names the holder a deposition was aimed at" do
+      {government, _events, ctx} = founded(:tetrarchy, players(6))
+      [%{id: ballot_id} = ballot] = government.ballots
+      [candidate | _] = ballot.candidates
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, ballot_id, %{candidate_id: candidate.player_id}, ctx)
+
+      {government, _events} = close_open_ballots(government, ctx)
+      holder = government.seats.leader
+
+      voter = Enum.find(1..6, &(&1 != holder.player_id))
+      {:ok, government, _events} = Government.depose(government, voter, :leader, ctx)
+      [deposition] = government.ballots
+      assert Government.target_name(deposition) == holder.name
+
+      {_government, events} = close_open_ballots(government, ctx)
+      closed = Enum.find(events, &(&1.type == :ballot_closed))
+      assert closed.question == :depose
+      assert closed.target == holder.name
+    end
+  end
+
+  describe "what a vote is about (public.about)" do
+    test "a law referendum carries the proposed set and the leader who proposed it" do
+      {government, _events, ctx} = founded(:myrmezir, players(5))
+
+      leader_ballot = Enum.find(government.ballots, &(&1.seat == :leader))
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot.id, 1, ctx)
+      {:ok, government, _} = Government.cast_vote(government, 2, leader_ballot.id, %{candidate_id: 1}, ctx)
+      {government, _events} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 1
+
+      government = %{government | faction_lexes: [:assembly_charter, :civic_pride]}
+      {:ok, government, _events} = Government.update_laws(government, 1, [:assembly_charter], ctx)
+
+      referendum = Enum.find(government.ballots, &(&1.question == :laws))
+
+      assert %{laws: [:assembly_charter], proposed_by: "Player 1", approval_pct: 50, weighted: false, target: nil} =
+               referendum.public.about
+
+      # and it reaches the client
+      assert Jason.encode!(referendum) =~ ~s("laws":["assembly_charter"])
+    end
+
+    test "a deposition names its target, never the member who called it" do
+      {government, _events, ctx} = founded(:tetrarchy, players(6))
+      [%{id: ballot_id} = ballot] = government.ballots
+      [candidate | _] = ballot.candidates
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, ballot_id, %{candidate_id: candidate.player_id}, ctx)
+
+      {government, _events} = close_open_ballots(government, ctx)
+      holder = government.seats.leader
+      caller = Enum.find(1..6, &(&1 != holder.player_id))
+
+      {:ok, government, _events} = Government.depose(government, caller, :leader, ctx)
+      [deposition] = government.ballots
+
+      assert deposition.public.about.target == holder.name
+      assert deposition.public.about.proposed_by == nil
+      # Tetrarchy votes by rank
+      assert deposition.public.about.weighted
+      # the caller is on record server-side only
+      assert deposition.meta.proposed_by.player_id == caller
+      refute Jason.encode!(deposition) =~ "proposed_by\":\"Player #{caller}"
+    end
+
+    test "a ballot restored from before the field existed gets it back on the next tick" do
+      {government, _events, ctx} = founded(:synelle, players(4))
+      [ballot] = government.ballots
+      stale = %{ballot | public: Map.delete(ballot.public, :about)}
+
+      {government, _events} = Government.advance(Government.backfill(%{government | ballots: [stale]}), 1, ctx)
+
+      assert [%{public: %{about: %{approval_pct: nil}}}] = government.ballots
+    end
+  end
+
+  describe "abstention" do
+    test "answers the ballot without weighing in its tally" do
+      {government, _events, ctx} = founded(:synelle, players(4))
+      [%{id: ballot_id}] = government.ballots
+
+      {:ok, government, _} = Government.nominate(government, 1, ballot_id, 2, ctx)
+      {:ok, government, _} = Government.cast_vote(government, 1, ballot_id, %{candidate_id: 2}, ctx)
+      {:ok, government, events} = Government.abstain(government, 3, ballot_id, ctx)
+
+      assert [%{type: :vote_abstained, ballot_id: ^ballot_id}] = events
+      assert Government.own_votes(government, 3) == %{ballot_id => %{abstained: true}}
+      # a member who has done neither still has nothing on record
+      assert Government.own_votes(government, 4) == %{}
+
+      [ballot] = government.ballots
+      assert ballot.public.vote_count == 1
+      assert ballot.public.abstain_count == 1
+
+      {government, _events} = close_open_ballots(government, ctx)
+      [entry] = government.history
+      assert entry.outcome == :seated
+      assert Enum.find(entry.totals, &(&1.player_id == 2)).amount == 1
+    end
+
+    test "a later vote replaces it; a cast vote can't be abstained away" do
+      {government, _events, ctx} = founded(:synelle, players(4))
+      [%{id: ballot_id}] = government.ballots
+      {:ok, government, _} = Government.nominate(government, 1, ballot_id, 2, ctx)
+
+      {:ok, government, _} = Government.abstain(government, 3, ballot_id, ctx)
+      # abstaining twice is the same answer, not an error
+      {:ok, government, _} = Government.abstain(government, 3, ballot_id, ctx)
+      {:ok, government, _} = Government.cast_vote(government, 3, ballot_id, %{candidate_id: 2}, ctx)
+
+      assert Government.own_votes(government, 3) == %{ballot_id => %{choice: 2}}
+      [ballot] = government.ballots
+      assert ballot.public.abstain_count == 0
+
+      assert {:error, :already_voted} = Government.abstain(government, 3, ballot_id, ctx)
+    end
+
+    test "only members, only on an open ballot" do
+      {government, _events, ctx} = founded(:synelle, players(4))
+      [%{id: ballot_id}] = government.ballots
+
+      assert {:error, :not_a_member} = Government.abstain(government, 99, ballot_id, ctx)
+      assert {:error, :ballot_not_found} = Government.abstain(government, 1, ballot_id + 50, ctx)
+    end
+
+    test "who abstained never reaches the broadcast" do
+      {government, _events, ctx} = founded(:synelle, players(4))
+      [%{id: ballot_id}] = government.ballots
+      {:ok, government, _} = Government.abstain(government, 3, ballot_id, ctx)
+
+      json = Jason.encode!(government)
+
+      refute json =~ "\"abstained\""
+      assert json =~ "\"abstain_count\":1"
+    end
+
+    test "a ballot restored without the abstention list reads as unanswered" do
+      {government, _events, _ctx} = founded(:synelle, players(4))
+      [ballot] = government.ballots
+      restored = %{ballot | meta: Map.delete(ballot.meta, :abstained)}
+
+      refute Ballot.abstained?(restored, 1)
+      assert Ballot.own_vote(restored, 1) == nil
+    end
+  end
+
   describe "cheat fast-forward" do
     # Engine-level counterpart of the Faction.Agent cheat ops
     # (:cheat_gov_skip_founding / :cheat_gov_conclude_elections). Skip =

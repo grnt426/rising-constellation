@@ -1,0 +1,184 @@
+<template>
+  <div class="panel-content is-small">
+    <v-scrollbar
+      @ps-y-reach-end="loadEvents"
+      class="has-padding">
+      <h1 class="panel-default-title">{{ $t('panel.event.title') }}</h1>
+      <div
+        v-for="(month, i) in groupedEvents"
+        :key="i">
+        <h2
+          class="event-title"
+          v-tooltip="realDate(month[0].inserted_at)">
+          {{
+            $t(`data.calendar.${calendar.key}.months_prefix[${month[0].calendarDate.month % 6}]`)
+          }}{{
+            $t(`data.calendar.${calendar.key}.months_name[${Math.floor(month[0].calendarDate.month / 6)}]`)
+          }} {{ month[0].calendarDate.year }}
+        </h2>
+
+        <div
+          class="event-item"
+          v-for="(event, j) in month"
+          :key="`${i}-${j}`">
+          <span class="event-day">
+            <div
+              class="event-day-number"
+              v-if="!month[j - 1] || month[j - 1].calendarDate.day !== event.calendarDate.day"
+              v-tooltip="realDate(event.inserted_at)">
+              {{ event.calendarDate.day + 1 }}
+            </div>
+          </span>
+          <span class="event-text">
+            <span
+              v-if="event.type === 'text'"
+              v-html="$tmd(`notification.text.${event.key}`, event.data)"></span>
+            <template v-else-if="event.type === 'box'">
+              <svgicon :name="`action/${event.key}`" />
+              <svgicon
+                v-show="event.data.side === 'defender'"
+                name="resource/defense" />
+              <span v-html="$tmd(`notification.short_box.${event.key}`, { system: event.data.system.name })"></span>
+              <template v-if="event.data.outcome">
+                <span class="event-text-outcome">
+                  <template v-if="event.key === 'fight'">
+                    {{ $t(`notification.box.fight.outcome.${event.data.outcome}`) }}
+                  </template>
+                  <template v-else>
+                    {{ $t(`notification.box.outcome.${event.data.side}.${event.data.outcome}`) }}
+                  </template>
+                </span>
+              </template>
+            </template>
+            <span
+              v-else-if="event.type === 'faction'"
+              v-html="$t(`event.faction.${event.key}`, event.data)">
+            </span>
+            <span
+              v-else-if="event.type === 'global' && event.key.startsWith('news.')"
+              v-html="renderNewsItem(event)">
+            </span>
+            <span
+              v-else-if="event.type === 'global'"
+              v-html="$t(`event.global.${event.key}`, event.data)">
+            </span>
+          </span>
+          <span class="event-date">{{ event.inserted_at | datetime-long }}</span>
+          <div
+            v-if="event.type === 'box'"
+            class="box-notification-item">
+            <notif-dispatcher :notification="event" />
+          </div>
+        </div>
+      </div>
+    </v-scrollbar>
+  </div>
+</template>
+
+<script>
+import Calendar from '@/utils/calendar';
+import { renderNews } from '@/utils/news';
+import NotifDispatcher from '@/game/components/box-notification/NotifDispatcher.vue';
+
+// The event timeline, a section of the operations drawer. Mounted when
+// its tab is shown (v-if), so each visit loads the latest page afresh.
+export default {
+  name: 'events',
+  data() {
+    return {
+      currentPage: 1,
+      maxPage: 2,
+      loading: false,
+      events: [],
+    };
+  },
+  computed: {
+    time() { return this.$store.state.game.time; },
+    utInSeconds() { return this.$store.getters['game/effectiveSpeedFactor'] / this.$config.TIME.UNIT_TIME_DIVIDER; },
+    calendar() { return this.$store.state.game.data.calendar.find((i) => i.key === 'tetrarch'); },
+    groupedEvents() { return this.groupByMonth(this.events); },
+  },
+  methods: {
+    // The visible date is the in-universe Tetrarch calendar (flavor);
+    // hovering reveals the real wall-clock time the news actually landed,
+    // so the broadcast keeps its character without the numbers being
+    // opaque. Delegates to the `datetime-long` filter, whose formatter is
+    // cached — this runs per event row per re-render.
+    realDate(date) {
+      return this.$options.filters['datetime-long'](date);
+    },
+    renderNewsItem(event) {
+      // In-game viewers get the `.involved` tier when their faction
+      // took part in the story; outsiders get the public wording.
+      // playerFaction, not state.player: this runs during render, and a
+      // state.player read would re-render every event row (markdown +
+      // i18n) on every player replacement while the timeline is open.
+      const viewerFaction = this.$store.state.game.playerFaction;
+
+      return renderNews(this, { key: event.key, data: event.data }, viewerFaction);
+    },
+    loadEvents() {
+      if (!this.loading && this.currentPage <= this.maxPage) {
+        this.loading = true;
+        this.$socket.player
+          .push('get_events', { page: this.currentPage })
+          .receive('ok', (data) => {
+            // Tutorial mode short-circuits in
+            // Portal.Controllers.PlayerChannel#get_events and returns
+            // `{:ok, %{}}` — no `events` key. Without this guard the
+            // `data.events.map` below throws inside Phoenix's
+            // forEach-driven callback dispatch, which aborts the
+            // remaining message handlers and (combined with WDS
+            // reconnect churn in dev) cascades into a black screen.
+            if (!data || !data.events) {
+              this.loading = false;
+              return;
+            }
+            const events = data.events.map((e) => {
+              const utTime = Calendar.datetimeToUtDays(e.inserted_at, this.time, this.utInSeconds);
+              const calendarDate = Calendar.fromUtDays(this.calendar, utTime);
+              
+              e.calendarDate = calendarDate;
+              e.data = JSON.parse(e.data);
+
+              if (e.type === 'global') {
+                e.data.old_faction = e.data.old_faction ? this.$t(`data.faction.${e.data.old_faction}.name`) : '';
+                e.data.new_faction = e.data.new_faction ? this.$t(`data.faction.${e.data.new_faction}.name`) : '';
+              }
+
+              return e;
+            });
+
+            this.events.push(...events);
+            this.currentPage += 1;
+            this.maxPage = data.total_pages;
+            this.loading = false;
+          })
+          .receive('error', (data) => { this.$toastError(data.reason); });
+      }
+    },
+    groupByMonth(events) {
+      const grouped = events.reduce((acc, event) => {
+        const month = `${event.calendarDate.month}`.padStart(2, '0');
+        const key = `${event.calendarDate.year}-${month}`;
+        if (!acc[key]) {
+          acc[key] = [];
+        }
+        acc[key].push(event);
+        return acc;
+      }, {});
+
+      return Object
+        .keys(grouped)
+        .sort((a, b) => b.localeCompare(a))
+        .map((key) => grouped[key]);
+    },
+  },
+  mounted() {
+    this.loadEvents();
+  },
+  components: {
+    NotifDispatcher,
+  },
+};
+</script>

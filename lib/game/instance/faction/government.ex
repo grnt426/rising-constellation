@@ -219,6 +219,7 @@ defmodule Instance.Faction.Government do
     |> Map.put_new(:station_powered, true)
     |> Map.put_new(:gateway_links, [])
     |> Map.put_new(:gateway_counter, 1)
+    |> Map.update(:ballots, [], fn ballots -> Enum.map(ballots, &Ballot.backfill_public/1) end)
   end
 
   @doc "Nomination restrictions lift entirely below the active-member floor."
@@ -920,9 +921,14 @@ defmodule Instance.Faction.Government do
       type: :ballot_closed,
       ballot_id: ballot.id,
       seat: ballot.seat,
+      kind: ballot.kind,
       question: ballot.question,
       outcome: outcome_of(result),
-      winner: winner_of(result)
+      winner: winner_of(result),
+      # Who the vote was about, for the result notice (Discord): the
+      # nominee of a confirmation, the holder a deposition aimed at.
+      candidates: Enum.map(ballot.candidates, & &1.name),
+      target: target_name(ballot)
     }
 
     {government, [close_event | events]}
@@ -935,6 +941,14 @@ defmodule Instance.Faction.Government do
 
   defp winner_of({:winner, winner, _}), do: winner
   defp winner_of(_), do: nil
+
+  @doc "Name of the seat holder a deposition or crisis vote is aimed at, or nil."
+  def target_name(%Ballot{meta: meta}) do
+    case Map.get(meta, :target) do
+      %{name: name} -> name
+      _ -> nil
+    end
+  end
 
   # Post-close results are public as AGGREGATES only (per-candidate
   # totals and shares — the mockup's "number and % of votes gathered"),
@@ -1147,6 +1161,23 @@ defmodule Instance.Faction.Government do
     end
   end
 
+  @doc """
+  Decline to take part in a ballot. Nothing moves in the tally (an
+  approval vote already counts silence against the proposition): the
+  member is only recorded as having answered. Voting afterwards replaces
+  the abstention; a vote already cast can't be withdrawn this way.
+  """
+  def abstain(%Government{} = government, voter_id, ballot_id, ctx) do
+    with %Ballot{} = ballot <- find_ballot(government, ballot_id) || {:error, :ballot_not_found},
+         true <- roster_member?(ctx, voter_id) || {:error, :not_a_member},
+         {:ok, ballot} <- Ballot.abstain(ballot, voter_id) do
+      {:ok, put_ballot(government, ballot), [%{type: :vote_abstained, ballot_id: ballot.id, seat: ballot.seat}]}
+    else
+      {:error, reason} -> {:error, reason}
+      false -> {:error, :invalid}
+    end
+  end
+
   # Instant-trigger ballots (Cardan's loss-of-faith pledge: "instant
   # trigger when reached") close the moment their quorum fills instead of
   # waiting out the deadline. The whole quorum group closes together,
@@ -1346,7 +1377,10 @@ defmodule Instance.Faction.Government do
             {:error, :not_available}
 
           spec ->
-            {government, events} = open_ballots(government, [spec])
+            # who called it stays server-side (Ballot.about/1 names
+            # office holders only)
+            meta = Map.put(Map.get(spec, :meta, %{}), :proposed_by, Rules.roster_candidate(ctx.players, actor_id))
+            {government, events} = open_ballots(government, [Map.put(spec, :meta, meta)])
             {:ok, government, [%{type: :deposition_started, seat: seat, by: actor_id} | events]}
         end
     end
@@ -2320,7 +2354,7 @@ defmodule Instance.Faction.Government do
           candidates: [],
           open_candidacy: nil,
           duration: ctx.constants.government_approval_duration,
-          meta: %{keys: keys}
+          meta: %{keys: keys, proposed_by: Rules.roster_candidate(ctx.players, actor_id)}
         }
 
         {government, events} = open_ballots(government, [spec])

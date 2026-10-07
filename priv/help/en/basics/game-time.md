@@ -18,7 +18,7 @@ sources:
   - lib/data/game/content/calendar.ex:1-13
   - lib/game/instance/time/time.ex:45-48
   - front/src/utils/calendar.js:10-20
-  - front/src/game/components/navbar/Calendar.vue:1-17
+  - front/src/game/components/navbar/Calendar.vue:1-21
   - front/src/locales/en/data.json:439-456
   - lib/game/instance/stellar_system/stellar_system.ex:1833
 status: reviewed

@@ -27,7 +27,7 @@
         v-if="connected">
         <topbar ref="topbar" />
 
-        <chat v-show="!isTutorial && isChatOpen" />
+        <chat :open="!isTutorial && isChatOpen" />
         <notification-center />
         <search-overlay v-if="!isTutorial" />
         <quick-calc v-if="!isTutorial" />
@@ -69,9 +69,9 @@
             v-show="!isTutorial && activePanelName === 'messenger'"
             ref="messenger"
             @close="closePanel" />
-          <event-panel
-            v-show="!isTutorial && activePanelName === 'event'"
-            ref="event"
+          <government-panel
+            v-show="!isTutorial && activePanelName === 'government'"
+            ref="government"
             @close="closePanel" />
         </div>
 
@@ -95,7 +95,7 @@ import RankingPanel from '@/game/components/panel/RankingPanel.vue';
 import FactionPanel from '@/game/components/panel/FactionPanel.vue';
 import HelpPanel from '@/game/components/panel/HelpPanel.vue';
 import MessengerPanel from '@/game/components/panel/MessengerPanel.vue';
-import EventPanel from '@/game/components/panel/EventPanel.vue';
+import GovernmentPanel from '@/game/components/panel/GovernmentPanel.vue';
 import Chat from '@/game/components/Chat.vue';
 import NotificationCenter from '@/game/components/NotificationCenter.vue';
 import SearchOverlay from '@/game/components/SearchOverlay.vue';
@@ -152,7 +152,8 @@ export default {
       somePanelIsOpen: false,
       // Phones: chat starts hidden (it overlays the whole top of the
       // screen there) and lives behind the topbar chat toggle as a
-      // pull-out drawer. Desktop keeps it always-on.
+      // pull-out drawer. Desktop starts with it open; the same toggle
+      // closes it.
       isChatOpen: !viewport.isMobile,
       isSettingsOpen: false,
       // 'credit' | 'technology' | 'ideology' | null — set by Bottombar
@@ -178,9 +179,8 @@ export default {
           name: 'messenger',
           side: 'left',
         }, {
-          name: 'event',
-          side: 'right',
-          excludeSpeeds: ['fast'],
+          name: 'government',
+          side: 'left',
         },
       ],
     };
@@ -365,14 +365,15 @@ export default {
       await copyResourcesForVm(this);
     },
     async togglePanel(name, data) {
-      const panel = this.panels.find((p) => p.name === name);
-
-      if (panel.excludeSpeeds && panel.excludeSpeeds.includes(this.$store.state.game.time.speed)) {
-        return;
-      }
-
       if (this.somePanelIsOpen && this.activePanel.name === name) {
         await this.closePanel();
+      } else {
+        await this.openPanel(name, data);
+      }
+    },
+    async showPanel(name, data) {
+      if (this.somePanelIsOpen && this.activePanel.name === name) {
+        this.$refs[name].open(data);
       } else {
         await this.openPanel(name, data);
       }
@@ -491,6 +492,8 @@ export default {
     };
     this.rootHandlers = {
       togglePanel: (name, data) => { this.togglePanel(name, data); },
+      // Open, or re-aim if already open (a chat chip): never closes.
+      openPanel: (name, data) => { this.showPanel(name, data); },
       closePanel: () => { this.closePanel(); },
       changeChatState: (state) => { this.isChatOpen = state; },
       hoveredResource: (name) => { this.hoveredResource = name; },
@@ -539,7 +542,7 @@ export default {
     FactionPanel,
     HelpPanel,
     MessengerPanel,
-    EventPanel,
+    GovernmentPanel,
     OpenedCharacter,
     OpenedPlayer,
     AgentOrders,

@@ -166,6 +166,48 @@
     }
   }
 
+  // With a government the box reads leader over status in the same
+  // footprint; the seat title and the day/month don't fit a phone bar.
+  .navbar-government:not(.is-plain) {
+    width: 96px;
+
+    .gov-seat {
+      display: none;
+    }
+
+    .gov-name {
+      margin-top: 4px;
+      padding: 0 4px;
+      font-size: 1.2rem;
+      line-height: 17px;
+    }
+
+    .gov-status {
+      font-size: 1rem;
+      line-height: 14px;
+    }
+  }
+
+  .navbar-calendar.is-compact .date {
+    display: block;
+    width: auto;
+    height: auto;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 14px;
+
+    .day,
+    .month {
+      display: none;
+    }
+
+    .year {
+      font-size: inherit;
+      line-height: inherit;
+      padding: 0;
+    }
+  }
+
   // The decorative screen-center crosshair reads as UI noise on a
   // phone (and suggests a cursor the platform doesn't have).
   .map-cross {
@@ -173,15 +215,35 @@
   }
 
   // Chat: a pull-out drawer under the top bar, toggled by the topbar
-  // chat button (it starts closed on phones — Game.vue).
+  // chat button (it starts closed on phones — Game.vue). Fixed height,
+  // no resize grip (Chat.vue binds no inline size here).
   .chat-container {
     top: 42px;
     left: 0;
     right: 0;
     width: auto;
+    min-width: 0;
+    max-width: none;
+    height: min(46vh, 340px);
     background: rgba(10, 12, 15, .96);
     border-bottom: 1px solid rgba(255, 255, 255, .15);
     padding-bottom: 4px;
+    box-shadow: none;
+  }
+
+  // No logo block hanging over the drawer's corner here.
+  .chat-body {
+    padding-top: 0;
+  }
+
+  .chat-messages {
+    padding-top: 8px;
+  }
+
+  // Unread bubble of the chat button: over the icon's corner.
+  .navbar.top .navbar-button-bubble {
+    top: 3px;
+    right: 3px;
   }
 
   /* --- system view: full-screen page between the bars --- */
