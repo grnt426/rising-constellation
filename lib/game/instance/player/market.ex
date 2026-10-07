@@ -498,7 +498,11 @@ defmodule Instance.Player.Market do
          %{character: character} = card <-
            Enum.find(state.character_deck, fn %{character: c} -> c.id == character_id end) ||
              :character_unavailable,
-         false <- deck_card_locked?(card) do
+         false <- deck_card_locked?(card),
+         # agent training: rewires are spent or discarded before a sale, and
+         # an agent waiting for a seat leaves the line first
+         :ok <- if(Character.reallocations(character) > 0, do: :reallocations_unspent, else: :ok),
+         :ok <- if(Player.queued?(card), do: :character_queued, else: :ok) do
       value = character.level * 50_000
       data = Map.put(data, "character", character)
 
@@ -513,6 +517,8 @@ defmodule Instance.Player.Market do
       {:ok, state, Jason.encode!(data), :erlang.term_to_binary(character), value}
     else
       :character_unavailable -> {:error, :character_unavailable}
+      :reallocations_unspent -> {:error, :reallocations_unspent}
+      :character_queued -> {:error, :character_queued}
       true -> {:error, :character_on_cooldown}
       _ -> {:error, :error}
     end

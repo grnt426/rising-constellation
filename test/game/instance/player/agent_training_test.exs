@@ -2,8 +2,8 @@ defmodule Player.AgentTrainingTest do
   @moduledoc """
   Agent training end to end (docs/agent-training.md), through the calls the
   client makes: a deck agent sent to a Delta Polytech or to the university
-  of its type, the course itself, the recall, and the skill points moved
-  with the reallocations it earned.
+  of its type, the course itself and the way home, the skill points moved
+  with the reallocations it earned, and the queue behind a seated student.
 
   Each test boots a full instance through the dev agent-fixture (real
   player, galaxy, system and character agents), as
@@ -102,14 +102,177 @@ defmodule Player.AgentTrainingTest do
     test "sends its student home when it is demolished", %{conn: conn, user1: account} do
       with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
         erased = hire(iid, pid, :spy)
+        navarch = hire(iid, pid, :admiral)
         {body_uid, tile_id} = put_building(iid, home, :university_open, 1)
         assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :polytech, home})
+        assert :ok == Game.call(iid, :player, pid, {:queue_character, navarch.id, :polytech, home, erased.id})
 
         assert %Player{} = Game.call(iid, :player, pid, {:remove_building, home, {body_uid, tile_id}})
 
         wait_until("the student is back in the deck", fn -> erased.id in deck_ids(player_state(iid, pid)) end)
         assert system_state(iid, home).students == []
         refute on_roster(player_state(iid, pid), erased.id)
+
+        # the seat is gone: the agent that waited for it does not take it
+        wait_until("the queued agent lost its place", fn -> queue_of(player_state(iid, pid), navarch.id) == nil end)
+        assert system_state(iid, home).school_queue == []
+        assert navarch.id in deck_ids(player_state(iid, pid))
+        refute on_roster(player_state(iid, pid), navarch.id)
+      end)
+    end
+
+    test "keeps its student during a siege", %{conn: conn, user1: account} do
+      with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
+        erased = hire(iid, pid, :spy)
+        navarch = hire(iid, pid, :admiral)
+        put_building(iid, home, :university_open, 1)
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :polytech, home})
+        assert :ok == Game.call(iid, :player, pid, {:queue_character, navarch.id, :polytech, home, erased.id})
+
+        besiege(iid, home)
+
+        # no recall, by its owner or by the owner of the system (here the same)
+        for order <- [{:deactivate_character, erased.id}, {:eject_student, home, erased.id}] do
+          assert {:error, :no_character_deactivation_under_siege} == Game.call(iid, :player, pid, order)
+        end
+
+        assert %{status: :student} = on_roster(player_state(iid, pid), erased.id)
+        assert [%{id: id}] = system_state(iid, home).students
+        assert id == erased.id
+
+        # an agent in the line never left the deck: it can be pulled out
+        assert :ok == Game.call(iid, :player, pid, {:leave_school_queue, navarch.id})
+        assert queue_of(player_state(iid, pid), navarch.id) == nil
+        wait_until("the line is empty", fn -> system_state(iid, home).school_queue == [] end)
+
+        # but nobody joins a line during a siege
+        assert {:error, :no_character_activation_under_siege} ==
+                 Game.call(iid, :player, pid, {:queue_character, navarch.id, :polytech, home, erased.id})
+
+        assert {:ok, _system, _logs} = Game.call(iid, :stellar_system, home, {:release_siege, 0, 0, :none})
+        assert %Player{} = Game.call(iid, :player, pid, {:deactivate_character, erased.id})
+        assert erased.id in deck_ids(player_state(iid, pid))
+      end)
+    end
+  end
+
+  describe "the queue" do
+    test "seats the agent waiting behind a student as soon as that student leaves",
+         %{conn: conn, user1: account} do
+      with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
+        erased = hire(iid, pid, :spy)
+        navarch = hire(iid, pid, :admiral)
+        put_building(iid, home, :university_open, 1)
+
+        # a free seat is taken, not waited for
+        assert {:error, :school_has_free_seat} ==
+                 Game.call(iid, :player, pid, {:queue_character, navarch.id, :polytech, home, nil})
+
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :polytech, home})
+
+        assert {:error, :student_not_found} ==
+                 Game.call(iid, :player, pid, {:queue_character, navarch.id, :polytech, home, 999_999})
+
+        assert :ok == Game.call(iid, :player, pid, {:queue_character, navarch.id, :polytech, home, erased.id})
+
+        # still in the deck, with its place written on its card; a Polytech
+        # student never has to leave, so the wait has no end
+        player = player_state(iid, pid)
+        assert navarch.id in deck_ids(player)
+        refute on_roster(player, navarch.id)
+        assert queue_of(player, navarch.id) == %{system_id: home, school: :polytech, wait: nil}
+
+        assert [%{id: id, behind: behind, called: false, school: :polytech}] = system_state(iid, home).school_queue
+        assert {id, behind} == {navarch.id, erased.id}
+
+        # it holds its agent slot, and takes no other duty
+        refute Player.character_available_slots?(player, :admiral)
+
+        for order <- [
+              {:activate_character, navarch.id, :governor, home},
+              {:activate_character, navarch.id, :on_board, home},
+              {:enroll_character, navarch.id, :polytech, home},
+              {:queue_character, navarch.id, :polytech, home, erased.id}
+            ] do
+          assert {:error, :character_queued} == Game.call(iid, :player, pid, order)
+        end
+
+        # nor can it be sold
+        offer = %{"type" => "character_deck", "data" => %{"character_id" => navarch.id}, "price" => 20}
+        assert {:error, :character_queued} == Game.call(iid, :player, pid, {:create_offer, offer})
+
+        # one agent behind each student
+        other = %{navarch | id: 999_999}
+
+        assert {:error, :queue_taken} ==
+                 Game.call(iid, :stellar_system, home, {:join_school_queue, other, :polytech, erased.id})
+
+        # the student leaves: the seat is the queued agent's at once
+        assert %Player{} = Game.call(iid, :player, pid, {:deactivate_character, erased.id})
+
+        wait_until("the queued agent is seated", fn ->
+          match?(%{status: :student, training: %{school: :polytech}}, on_roster(player_state(iid, pid), navarch.id))
+        end)
+
+        refute navarch.id in deck_ids(player_state(iid, pid))
+        assert [%{id: seated}] = system_state(iid, home).students
+        assert seated == navarch.id
+        assert system_state(iid, home).school_queue == []
+      end)
+    end
+
+    test "is left by an agent that is dismissed, and emptied by the owner of the system",
+         %{conn: conn, user1: account} do
+      with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
+        erased = hire(iid, pid, :spy)
+        navarch = hire(iid, pid, :admiral)
+        put_building(iid, home, :university_open, 1)
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :polytech, home})
+        assert :ok == Game.call(iid, :player, pid, {:queue_character, navarch.id, :polytech, home, erased.id})
+
+        # only the owner of the system turns agents out
+        assert {:error, :not_system_owner} ==
+                 Game.call(iid, :stellar_system, home, {:eject_student, navarch.id, 999_999})
+
+        assert {:error, :student_not_found} == Game.call(iid, :player, pid, {:eject_student, home, 999_999})
+
+        # an agent waiting: it loses its place and stays in the deck
+        assert :ok == Game.call(iid, :player, pid, {:eject_student, home, navarch.id})
+        wait_until("the queued agent lost its place", fn -> queue_of(player_state(iid, pid), navarch.id) == nil end)
+        assert system_state(iid, home).school_queue == []
+        assert navarch.id in deck_ids(player_state(iid, pid))
+
+        # back in line, then dismissed: the place is free for someone else
+        assert :ok == Game.call(iid, :player, pid, {:queue_character, navarch.id, :polytech, home, erased.id})
+        assert %Player{} = Game.call(iid, :player, pid, {:dismiss_character, navarch.id})
+        refute navarch.id in deck_ids(player_state(iid, pid))
+        wait_until("the line is empty", fn -> system_state(iid, home).school_queue == [] end)
+
+        # a seated student: home it goes
+        assert :ok == Game.call(iid, :player, pid, {:eject_student, home, erased.id})
+        wait_until("the student is back in the deck", fn -> erased.id in deck_ids(player_state(iid, pid)) end)
+        assert system_state(iid, home).students == []
+        refute on_roster(player_state(iid, pid), erased.id)
+      end)
+    end
+
+    test "tells how long the student ahead still has to sit", %{conn: conn, user1: account} do
+      with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
+        erased = hire(iid, pid, :spy)
+        put_building(iid, home, :counterintelligence_open, 1)
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})
+
+        constant = Data.Querier.one(Data.Game.Constant, iid, :main)
+
+        course =
+          constant.university_settle_time +
+            constant.university_max_reallocations * constant.university_reallocation_interval
+
+        # a faction-mate's Erased (the player's own second one would need a second slot)
+        mate = %{live(iid, erased.id) | id: 999_999, level: constant.university_guest_min_level}
+
+        assert {:ok, wait} = Game.call(iid, :stellar_system, home, {:join_school_queue, mate, :university, erased.id})
+        assert wait > 0 and wait <= course
       end)
     end
   end
@@ -140,44 +303,53 @@ defmodule Player.AgentTrainingTest do
         # a seat per level: the Orb-INTEL is full
         assert Instance.StellarSystem.School.summary(system_state(iid, home)).spy == %{slots: 1, used: 1}
 
-        speed_up(iid)
-        wait_until("the course is over", fn -> live(iid, erased.id).training.phase == :graduated end, 600)
-
-        graduate = live(iid, erased.id)
-        assert graduate.training.ended == :completed
-        assert Character.reallocations(graduate) == constant.university_max_reallocations
-        assert graduate.experience.value > erased.experience.value
-
-        # out of class: the seat is free, the fee is gone, the defence is whole
-        wait_until("the school sees the seat free", fn ->
-          Instance.StellarSystem.School.summary(system_state(iid, home)).spy == %{slots: 1, used: 0}
-        end)
-
-        wait_until("the fee is gone", fn ->
-          not Enum.any?(
-            Player.extract_bonus(player_state(iid, pid), [:player]),
-            &match?({:character_tuition, _}, &1.reason)
-          )
-        end)
-
-        assert [%{protection: protection}] = system_state(iid, home).students
-        assert protection == graduate.protection
-
         # the reallocations can only be spent from the deck
         assert {:error, :character_not_in_deck} ==
-                 Game.call(iid, :player, pid, {:reallocate_skills, erased.id, graduate.skills})
+                 Game.call(iid, :player, pid, {:reallocate_skills, erased.id, erased.skills})
 
-        assert %Player{} = Game.call(iid, :player, pid, {:deactivate_character, erased.id})
+        speed_up(iid)
+
+        # the fifth reallocation ends the course and brings the agent home
+        # by itself: nobody recalls it
+        wait_until(
+          "the course is over and the agent home",
+          fn -> erased.id in deck_ids(player_state(iid, pid)) end,
+          600
+        )
+
         recalled = in_deck(player_state(iid, pid), erased.id)
+        assert recalled.status == :in_deck
         assert recalled.training == nil
         assert Character.reallocations(recalled) == constant.university_max_reallocations
+        assert recalled.experience.value > erased.experience.value
 
-        # with reallocations to spend it takes no duty, not even another course
+        # out of class: the seat is free, the fee is gone, the agent is gone
+        refute on_roster(player_state(iid, pid), erased.id)
+        assert system_state(iid, home).students == []
+        assert Instance.StellarSystem.School.summary(system_state(iid, home)).spy == %{slots: 1, used: 0}
+        wait_until("the student's agent is gone", fn -> agent_gone?(iid, erased.id) end)
+
+        refute Enum.any?(
+                 Player.extract_bonus(player_state(iid, pid), [:player]),
+                 &match?({:character_tuition, _}, &1.reason)
+               )
+
+        # with reallocations to spend it cannot be sold
+        offer = %{"type" => "character_deck", "data" => %{"character_id" => erased.id}, "price" => 20}
+
+        wait_until("the agent has rested", fn ->
+          Game.call(iid, :player, pid, {:create_offer, offer}) != {:error, :character_on_cooldown}
+        end)
+
+        assert {:error, :reallocations_unspent} == Game.call(iid, :player, pid, {:create_offer, offer})
+
+        # nor does it take any duty, not even another course or a place in a line
         for order <- [
               {:activate_character, erased.id, :governor, home},
               {:activate_character, erased.id, :on_board, home},
               {:enroll_character, erased.id, :university, home},
-              {:enroll_character, erased.id, :polytech, home}
+              {:enroll_character, erased.id, :polytech, home},
+              {:queue_character, erased.id, :polytech, home, nil}
             ] do
           assert {:error, :reallocations_unspent} == Game.call(iid, :player, pid, order)
         end
@@ -228,18 +400,14 @@ defmodule Player.AgentTrainingTest do
         credit = player_state(iid, pid).credit.value
         assert :ok == Game.call(iid, :player, pid, {:add_resources, -credit - 1_000, 0, 0})
 
-        wait_until("the student is sent out of class", fn ->
-          match?(%{phase: :graduated, ended: :unpaid}, live(iid, erased.id).training)
-        end)
-
-        # the owner's roster follows, and with it the fee leaves the income
-        wait_until("the owner sees the course ended", fn ->
-          match?(%{training: %{ended: :unpaid}}, on_roster(player_state(iid, pid), erased.id))
-        end)
+        # the course stops there and the agent comes home, with what it earned
+        wait_until("the student is sent home", fn -> erased.id in deck_ids(player_state(iid, pid)) end)
 
         player = player_state(iid, pid)
+        refute on_roster(player, erased.id)
         refute Enum.any?(Player.extract_bonus(player, [:player]), &match?({:character_tuition, _}, &1.reason))
-        assert [%{training: %{ended: :unpaid}}] = system_state(iid, home).students
+        assert system_state(iid, home).students == []
+        assert in_deck(player, erased.id).training == nil
       end)
     end
   end
@@ -341,6 +509,20 @@ defmodule Player.AgentTrainingTest do
       skills = character.skills |> List.update_at(from, &(&1 - 1)) |> List.update_at(to, &(&1 + 1))
       assert :ok == Game.call(iid, :player, pid, {:reallocate_skills, character_id, skills})
     end
+  end
+
+  # A siege in the name of an agent that is in the system: a siege whose
+  # besieger is not there is released on the next tick.
+  defp besiege(iid, system_id) do
+    besieger = List.first(system_state(iid, system_id).characters) || flunk("no agent on board in system #{system_id}")
+    Game.cast(iid, :stellar_system, system_id, {:besiege, :conquest, 100_000, besieger.id})
+    wait_until("the system is under siege", fn -> system_state(iid, system_id).siege != nil end)
+  end
+
+  defp queue_of(player, character_id) do
+    Enum.find_value(player.character_deck, fn entry ->
+      if entry.character.id == character_id, do: Player.school_queue(entry)
+    end)
   end
 
   # Flash already runs 120 ut per three minutes; a whole course is 103 ut.

@@ -345,7 +345,7 @@ defmodule Instance.Character.Character do
 
   defp training_penalty(%Character.Character{}, value), do: value
 
-  @doc "Ends a student's university course early; it then waits to be recalled."
+  @doc "Ends a student's university course early; its owner's player agent then sends it home."
   def end_course(%Character.Character{status: :student} = state, reason) do
     training = Map.get(state, :training)
 

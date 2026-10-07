@@ -127,6 +127,28 @@ defmodule Instance.Character.TrainingTest do
     end
   end
 
+  describe "the time a student still has to sit" do
+    test "is the rest of its course, and the longest a queued agent waits" do
+      fresh = Training.new(:university, @c)
+      assert Training.time_left(fresh, 0, @c) == 80 + 5 * 480
+
+      {settling, 0, _, _} = Training.advance(fresh, 0, 30, @c)
+      assert Training.time_left(settling, 0, @c) == 50 + 5 * 480
+
+      {active, 2, _, _} = Training.advance(fresh, 0, 80 + 2 * 480 + 100, @c)
+      assert Training.time_left(active, 2, @c) == 380 + 2 * 480
+
+      {last, 4, _, _} = Training.advance(fresh, 0, 80 + 4 * 480 + 470, @c)
+      assert_in_delta Training.time_left(last, 4, @c), 10, 1.0e-6
+
+      assert Training.time_left(Training.finish(active, :unpaid), 2, @c) == 0.0
+    end
+
+    test "has no end at a Polytech" do
+      assert Training.time_left(Training.new(:polytech, @c), 0, @c) == nil
+    end
+  end
+
   describe "reallocation" do
     # main skill at index 0
     @skills [5, 3, 1, 0, 2, 0]

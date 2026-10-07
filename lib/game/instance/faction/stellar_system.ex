@@ -25,6 +25,9 @@ defmodule Instance.Faction.StellarSystem do
     # each school has — docs/agent-training.md
     field(:students, [%StellarSystem.Character{}])
     field(:schools, map() | nil)
+    # deck agents waiting for a seat: the owner's faction only, whatever
+    # another faction's visibility
+    field(:school_queue, [map()] | nil)
     field(:bodies, [%StellarSystem.StellarBody{}])
     field(:queue, %StellarSystem.ProductionQueue{})
     field(:population, %Core.DynamicValue{})
@@ -89,6 +92,14 @@ defmodule Instance.Faction.StellarSystem do
       if visibility_level >= 5,
         do: Map.put(new_system, :schools, StellarSystem.School.summary(system)),
         else: new_system
+
+    # who waits for a seat is the faction's own business: never shown to
+    # another one, even with full visibility
+    new_system =
+      case Map.get(system, :owner) do
+        %{faction_id: ^faction_id} -> Map.put(new_system, :school_queue, StellarSystem.School.queue(system))
+        _ -> new_system
+      end
 
     # show bodies list over 0 visibility
     new_system =

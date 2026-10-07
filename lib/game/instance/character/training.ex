@@ -12,7 +12,9 @@ defmodule Instance.Character.Training do
       Navarchs). After settling in, experience at twice the governor rate
       and one reallocation per `university_reallocation_interval`, for a
       fee. The course ends when the agent holds `university_max_reallocations`,
-      or when its owner can no longer pay.
+      or when its owner can no longer pay; either way the agent goes straight
+      back to its owner's deck (`:graduated` only lives until the owner's
+      player agent has read it).
 
   A character's `training` is a plain map (it rides in snapshots):
 
@@ -89,7 +91,7 @@ defmodule Instance.Character.Training do
 
   def fee(_type, _level, _training, _constant), do: nil
 
-  @doc "Ends the course where it stands; the agent waits to be recalled."
+  @doc "Ends the course where it stands; the owner's player agent sends the agent home."
   def finish(training, reason), do: %{training | phase: :graduated, elapsed: 0.0, ended: reason}
 
   @doc """
@@ -149,6 +151,32 @@ defmodule Instance.Character.Training do
     do: max(constant.university_reallocation_interval - training.elapsed, 0.0)
 
   def next_event(_training, _constant), do: :never
+
+  @doc """
+  Ut before a student holding `reallocations` leaves its seat by itself: the
+  rest of its course, or nil at a Polytech, which nobody ever has to leave.
+  It is the longest an agent queued behind it can wait.
+  """
+  def time_left(%{school: :university, phase: phase} = training, reallocations, constant)
+      when phase in [:settling, :active] do
+    missing = max(constant.university_max_reallocations - (reallocations || 0), 0)
+
+    case phase do
+      :settling ->
+        max(constant.university_settle_time - training.elapsed, 0.0) +
+          missing * constant.university_reallocation_interval
+
+      :active ->
+        if missing == 0,
+          do: 0.0,
+          else:
+            max(constant.university_reallocation_interval - training.elapsed, 0.0) +
+              (missing - 1) * constant.university_reallocation_interval
+    end
+  end
+
+  def time_left(%{school: :university}, _reallocations, _constant), do: 0.0
+  def time_left(_training, _reallocations, _constant), do: nil
 
   @doc """
   Checks a reallocation of `old` skills into `new` for an agent whose main

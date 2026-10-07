@@ -75,6 +75,9 @@ defmodule Instance.StellarSystem.StellarSystem do
     # Agents in the system's schools (docs/agent-training.md,
     # StellarSystem.School). Postdates the first snapshots: Map.get only.
     field(:students, [%StellarSystem.Character{}], default: [])
+    # Deck agents waiting for a seat, one behind each student at most
+    # (StellarSystem.School, "The queue"). Map.get only, like :students.
+    field(:school_queue, [map()], default: [])
 
     field(:instance_id, integer())
     field(:capital?, boolean())
@@ -316,7 +319,8 @@ defmodule Instance.StellarSystem.StellarSystem do
       {MapSet.new(), [], %{state | siege: nil}}
       |> compute_bonus()
 
-    state
+    # a seat that came free during the siege was held for the queue
+    sync_schools(state)
   end
 
   # `result` is the siege action's Core.Dice outcome (or `:none` when the
@@ -916,8 +920,74 @@ defmodule Instance.StellarSystem.StellarSystem do
     constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
 
     with :ok <- StellarSystem.School.check_enrollment(state, character, constant) do
-      push_character(state, character, :student)
+      # an agent the queue called has arrived: its place in line is used up
+      queue = Enum.reject(StellarSystem.School.queue(state), fn e -> e.id == character.id end)
+
+      state
+      |> Map.put(:school_queue, queue)
+      |> push_character(character, :student)
     end
+  end
+
+  @doc """
+  Puts `character` (in its owner's deck) in line behind the student
+  `behind_id` of `school`. Returns `{:ok, state, wait}`, `wait` being the ut
+  the student ahead still has to sit (nil at a Polytech, which has no end).
+  """
+  def join_school_queue(state, character, school, behind_id) do
+    constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+
+    with {:ok, entry, ahead} <- StellarSystem.School.check_queue(state, character, school, behind_id, constant) do
+      state = Map.put(state, :school_queue, StellarSystem.School.queue(state) ++ [entry])
+      {:ok, state, Instance.Character.Training.time_left(ahead.training, ahead.reallocations, constant)}
+    end
+  end
+
+  @doc "Takes an agent out of the queue, whether it waits or was called (its seat goes to the next)."
+  def leave_school_queue(state, character_id) do
+    {left, queue} = Enum.split_with(StellarSystem.School.queue(state), fn e -> e.id == character_id end)
+
+    case left do
+      [] -> {:error, :character_not_queued}
+      _ -> {:ok, state |> Map.put(:school_queue, queue) |> sync_schools()}
+    end
+  end
+
+  @doc """
+  The system's owner turns an agent out of its schools: a student, who goes
+  home with what it earned, or an agent waiting in the queue. A seated
+  student stays put during a siege, as it would for a recall. Returns
+  `{:ok, state, {:student | :queued, agent}}`.
+  """
+  def eject_student(state, character_id, player_id) do
+    student = Enum.find(StellarSystem.School.students(state), fn s -> s.id == character_id end)
+    queued = Enum.find(StellarSystem.School.queue(state), fn e -> e.id == character_id end)
+
+    cond do
+      state.status != :inhabited_player or is_nil(state.owner) or state.owner.id != player_id ->
+        {:error, :not_system_owner}
+
+      student != nil and state.siege != nil ->
+        {:error, :no_character_deactivation_under_siege}
+
+      student != nil ->
+        {:ok, state} = remove_character(state, student, :student)
+        {:ok, state, {:student, student}}
+
+      queued != nil ->
+        {:ok, state} = leave_school_queue(state, character_id)
+        {:ok, state, {:queued, queued}}
+
+      true ->
+        {:error, :student_not_found}
+    end
+  end
+
+  @doc "Whether the student `character_id` may be recalled: not while the system is under siege."
+  def check_student_recall(state, _character_id) do
+    if state.siege != nil,
+      do: {:error, :no_character_deactivation_under_siege},
+      else: :ok
   end
 
   def update_character(state, character) do
@@ -937,24 +1007,39 @@ defmodule Instance.StellarSystem.StellarSystem do
     end
   end
 
-  # Students who may no longer stay — the system changed hands, or their
-  # school lost the building or level that seated them — are handed back to
-  # their owners, who send them to the deck. A cast, like the station's
-  # reports to its faction: the owner may be the very player whose call
-  # brought us here.
-  defp sync_schools(state) do
-    case Map.get(state, :students, []) do
-      [] ->
-        state
+  # Puts the schools in order after any change (StellarSystem.School.settle/2):
+  #
+  #   * students who may no longer stay — the system changed hands, or their
+  #     school lost the building or level that seated them — are handed back
+  #     to their owners, who send them to the deck;
+  #   * agents queued behind them, or for a school they may no longer use,
+  #     lose their place;
+  #   * a seat that came free (`leaver_id` being who left it) is held for the
+  #     next agent in line, whose owner sends it in.
+  #
+  # All casts, like the station's reports to its faction: the owner may be
+  # the very player whose call brought us here.
+  defp sync_schools(state, leaver_id \\ nil) do
+    if StellarSystem.School.students(state) == [] and StellarSystem.School.queue(state) == [] do
+      state
+    else
+      settled = StellarSystem.School.settle(state, leaver_id)
 
-      students ->
-        {kept, evicted} = StellarSystem.School.settle(state, students)
+      Enum.each(settled.evicted, fn student ->
+        Game.cast(state.instance_id, :player, student.owner.id, {:student_evicted, student.id, :closed})
+      end)
 
-        Enum.each(evicted, fn student ->
-          Game.cast(state.instance_id, :player, student.owner.id, {:student_evicted, student.id})
-        end)
+      Enum.each(settled.cleared, fn entry ->
+        Game.cast(state.instance_id, :player, entry.owner.id, {:school_queue_cleared, entry.id, :closed})
+      end)
 
-        Map.put(state, :students, kept)
+      Enum.each(settled.called, fn entry ->
+        Game.cast(state.instance_id, :player, entry.owner.id, {:school_seat_ready, entry.id, state.id, entry.school})
+      end)
+
+      state
+      |> Map.put(:students, settled.students)
+      |> Map.put(:school_queue, settled.queue)
     end
   end
 
@@ -971,9 +1056,10 @@ defmodule Instance.StellarSystem.StellarSystem do
     {:ok, %{state | characters: characters}}
   end
 
+  # the seat goes to the agent queued behind the one leaving, if any
   def remove_character(state, character, :student) do
     students = Enum.reject(Map.get(state, :students, []), fn c -> c.id == character.id end)
-    {:ok, Map.put(state, :students, students)}
+    {:ok, state |> Map.put(:students, students) |> sync_schools(character.id)}
   end
 
   def add_happiness_penalty(state, reason, value) do
