@@ -4,7 +4,9 @@
        them. A school is its building's icon (the name and the rules are in
        its tooltip) followed by its seats. An empty seat sends a deck agent
        there; a seated agent opens its card, and can be targeted like a
-       governor. -->
+       governor. One deck agent may wait in the queue behind each seated
+       student: hovering the student shows it, or the place to take, above
+       the seat. Only the faction that owns the system is sent the queue. -->
   <div
     v-if="schools.length > 0"
     class="school-box system-content-group">
@@ -32,7 +34,10 @@
               v-for="student in school.students"
               :key="student.id"
               class="school-seat is-taken"
-              :class="[`force-${themeOf(student)}`, { 'is-waiting': !inClass(student), 'has-ring': school.school === 'university' }]">
+              :class="[`force-${themeOf(student)}`, {
+                'has-ring': school.school === 'university',
+                'has-queue': !!queuedBehind(student),
+              }]">
               <!-- one segment per rewire a course can earn, filled as
                    each is earned -->
               <svg
@@ -46,17 +51,56 @@
                   :d="segment"
                   :class="{ 'is-earned': i < earned(student) }" />
               </svg>
-              <div
-                v-tooltip="studentTooltip(student)"
-                class="round-icon is-small is-active has-hover"
-                role="button"
-                tabindex="0"
-                :aria-label="studentLabel(student)"
-                @click="openCharacter(student)"
-                @keydown.enter.prevent="openCharacter(student)">
-                <svgicon :name="`agent/${student.type}`" />
-                <span class="number">{{ student.level }}</span>
-              </div>
+              <!-- the queue behind this student pops up above its icon;
+                   the student's own tooltip then goes below -->
+              <hover-popover
+                class="seat-popover"
+                placement="top"
+                popover-class="school-queue-popover"
+                :disabled="isMobileView || !hasQueuePlace(school, student)">
+                <div
+                  v-tooltip="studentTooltip(school, student)"
+                  class="round-icon is-small is-active has-hover"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="studentLabel(student)"
+                  @click="openCharacter(student)"
+                  @keydown.enter.prevent="openCharacter(student)">
+                  <svgicon :name="`agent/${student.type}`" />
+                  <span class="number">{{ student.level }}</span>
+                </div>
+                <school-queue-slot
+                  slot="popover"
+                  :student="student"
+                  :entry="queuedBehind(student)"
+                  :action="queuedAction(queuedBehind(student))"
+                  @join="enroll(school, student)"
+                  @leave="leaveQueue(queuedBehind(student))"
+                  @eject="leaveQueue(queuedBehind(student))" />
+              </hover-popover>
+              <span
+                v-if="queuedBehind(student)"
+                class="queue-pip"
+                aria-hidden="true"></span>
+              <!-- the popover is out of the tab order: the place in the
+                   queue is also a button of its own for the keyboard -->
+              <button
+                v-if="!isMobileView && canQueue(school) && !queuedBehind(student)"
+                type="button"
+                class="sr-only"
+                @click="enroll(school, student)">
+                {{ $t('galaxy.school.queue_join', { name: student.name }) }}
+              </button>
+              <!-- phones have no hover: the queue sits next to the seat -->
+              <school-queue-slot
+                v-if="isMobileView && hasQueuePlace(school, student)"
+                class="is-inline"
+                :student="student"
+                :entry="queuedBehind(student)"
+                :action="queuedAction(queuedBehind(student))"
+                @join="enroll(school, student)"
+                @leave="leaveQueue(queuedBehind(student))"
+                @eject="leaveQueue(queuedBehind(student))" />
 
               <div
                 v-for="action in targetActions(student)"
@@ -106,7 +150,10 @@
 
 <script>
 import actionValidation from '@/utils/actionValidation';
+import viewport from '@/utils/viewport';
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
+import HoverPopover from '@/game/components/generic/HoverPopover.vue';
+import SchoolQueueSlot from '@/game/components/galaxy/system/SchoolQueueSlot.vue';
 import { SCHOOL_BUILDINGS, inClass, trainingStatus } from '@/game/training';
 
 const TYPES = ['admiral', 'spy', 'speaker'];
@@ -123,10 +170,13 @@ export default {
     };
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
     player() { return this.$store.state.game.player; },
     constant() { return this.$store.state.game.data.constant[0]; },
     selectedCharacter() { return this.$store.state.game.selectedCharacter; },
     students() { return Array.isArray(this.system.students) ? this.system.students : []; },
+    // deck agents waiting for a seat; only sent to the owner's faction
+    queue() { return Array.isArray(this.system.school_queue) ? this.system.school_queue : []; },
     // The ring around a university student: as many arcs as a course earns
     // rewires, drawn clockwise from the top with a gap between them.
     ringSegments() {
@@ -195,6 +245,33 @@ export default {
   },
   methods: {
     inClass(student) { return inClass(student.training); },
+    queuedBehind(student) { return this.queue.find((entry) => entry.behind === student.id) || null; },
+    // A place in the queue is for a school with no free seat, under the
+    // rules of a seat: no siege, and a Polytech is its owner's alone.
+    canQueue(school) { return school.canEnroll && school.free === 0 && school.slots !== null; },
+    // something to show above the seat: who waits, or the place to take
+    hasQueuePlace(school, student) { return !!this.queuedBehind(student) || this.canQueue(school); },
+    // what a click on a queued agent does: its owner takes it out of the
+    // queue, the owner of the system sends it out
+    queuedAction(entry) {
+      if (!entry) return null;
+      if (entry.owner.id === this.player.id) return 'leave';
+      return this.isOwnSystem ? 'eject' : null;
+    },
+    leaveQueue(entry) {
+      const action = this.queuedAction(entry);
+      if (!action) return;
+
+      const push = action === 'leave'
+        ? this.$socket.player.push('leave_school_queue', { character_id: entry.id })
+        : this.$socket.player.push('eject_student', { system_id: this.system.id, character_id: entry.id });
+
+      push.receive('ok', () => {
+        this.$store.dispatch('game/reloadSystem', this.$socket);
+      }).receive('error', (err) => {
+        this.$toastError(err.reason);
+      });
+    },
     // rewires earned so far; hidden from a faction without full visibility
     earned(student) { return student.reallocations || 0; },
     rewiresLine(student) {
@@ -242,13 +319,22 @@ export default {
     feePerLevel(type) {
       return this.constant[`university_fee_${this.feeResource(type)}`];
     },
+    queuedLine(student) {
+      const entry = this.queuedBehind(student);
+      return entry ? `. ${this.$t('galaxy.school.queue_waiting', { name: entry.name })}` : '';
+    },
     studentLabel(student) {
       return `${this.$tc(`data.character.${student.type}.name`, 1)} ${student.name}, `
-        + `${trainingStatus(this, student)}${this.rewiresLine(student)}`;
+        + `${trainingStatus(this, student)}${this.rewiresLine(student)}${this.queuedLine(student)}`;
     },
-    studentTooltip(student) {
+    // below the seat when the queue pops up above it
+    studentTooltip(school, student) {
       const owner = student.owner.id === this.player.id ? '' : ` (${student.owner.name})`;
-      return `${student.name}${owner}: ${trainingStatus(this, student)}${this.rewiresLine(student)}`;
+
+      return {
+        content: `${student.name}${owner}: ${trainingStatus(this, student)}${this.rewiresLine(student)}`,
+        placement: this.hasQueuePlace(school, student) && !this.isMobileView ? 'bottom' : 'top',
+      };
     },
     // A student is a target like a governor: an Erased can remove it, a
     // Siderian can win it over.
@@ -283,7 +369,8 @@ export default {
     openCharacter(student) {
       this.$store.dispatch('game/openCharacter', { vm: this, id: student.id });
     },
-    enroll(school) {
+    // `behind`: the student to wait for, when the seat is not free
+    enroll(school, behind = null) {
       if (!school.canEnroll) return;
 
       this.$root.$emit('openBottomMiniPanel', 'character-deck');
@@ -293,11 +380,14 @@ export default {
         school: school.school,
         type: school.type,
         guest: !this.isOwnSystem,
+        behind: behind ? behind.id : null,
       });
     },
   },
   components: {
     ActionOverview,
+    HoverPopover,
+    SchoolQueueSlot,
   },
 };
 </script>

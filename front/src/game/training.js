@@ -48,9 +48,23 @@ export function trainingStatus(vm, character) {
   if (training.phase === 'settling') return vm.$t('galaxy.school.status_settling');
   if (training.phase === 'active') return vm.$t('galaxy.school.status_active');
 
+  // a course that is over: the agent is on its way back to the deck
   return training.ended === 'unpaid'
     ? vm.$t('galaxy.school.status_unpaid')
     : vm.$t('galaxy.school.status_completed');
+}
+
+// The wait of a deck agent queued for a seat (the deck entry's `queue`):
+// `until` is the latest moment it is seated, as a timestamp, or null behind
+// a Polytech student, who never has to leave.
+export function seatWait(queue, receivedAt, tickToMilisecondFactor, now = Date.now()) {
+  if (!queue) return null;
+  if (!queue.wait || typeof queue.wait.value !== 'number') return { until: null, hours: null, minutes: null };
+
+  const until = (receivedAt || now) + (queue.wait.value * tickToMilisecondFactor);
+  const minutes = Math.max(Math.ceil((until - now) / 60000), 0);
+
+  return { until, minutes, hours: Math.round(minutes / 60) };
 }
 
 // Mirrors Training.check_reallocation/5: null when `draft` is a legal

@@ -68,6 +68,13 @@
           class="card-ribbon">
           {{ trainingRibbon.text }}
         </div>
+        <!-- waiting for a seat at a school: the longest it can take -->
+        <div
+          v-if="seatWait"
+          v-tooltip="seatWaitHint"
+          class="card-ribbon is-queued">
+          {{ seatWaitText }}
+        </div>
         <div
           v-if="reallocationsHeld > 0"
           v-tooltip="$t('card.character.reallocation_hint')"
@@ -351,6 +358,12 @@
             <div class="dashed">{{ $t('card.character.reallocations_unspent') }}</div>
           </div>
           <div
+            v-else-if="queue"
+            v-press="{ disabled: true }"
+            class="button disabled">
+            <div class="dashed">{{ $t('card.character.queued') }}</div>
+          </div>
+          <div
             v-else-if="cooldown && cooldown.value != 0"
             v-press="{ disabled: true }"
             class="button disabled">
@@ -377,7 +390,7 @@
             v-press
             class="button"
             @click="activate">
-            <div>{{ assignment.mode === 'student' ? $t('card.character.enroll') : $t('card.character.deploy') }}</div>
+            <div>{{ $t(`card.character.${assignmentAction}`) }}</div>
           </div>
           <div
             v-else
@@ -386,6 +399,28 @@
             <div class="dashed">{{ $t(`card.character.${character.type}_limit_reached`) }}</div>
           </div>
         </template>
+        <!-- waiting for a seat: out of the queue, or out for good -->
+        <!-- keyed: patched in place, it would inherit the aria-disabled
+             that v-press left on the button it replaces -->
+        <div
+          v-else-if="character.status === 'in_deck' && queue"
+          key="queue-buttons"
+          class="button-container">
+          <div
+            v-press
+            class="button"
+            @click="leaveQueue">
+            <div>{{ $t('card.character.queue_leave') }}</div>
+          </div>
+          <div
+            v-press
+            v-tooltip="$t('card.character.fire')"
+            class="button is-icon"
+            :aria-label="$t('card.character.fire')"
+            @click="dismiss">
+            <div><svgicon name="close" /></div>
+          </div>
+        </div>
         <div
           v-else-if="character.status === 'in_deck' && !assignment"
           v-press
@@ -400,6 +435,15 @@
           @click="deactivate">
           <div>{{ $t('card.character.recall') }}</div>
         </div>
+        <!-- a faction-mate's student in one of the player's schools -->
+        <div
+          v-else-if="hostsStudent"
+          v-press
+          v-tooltip="$t('card.character.eject_hint')"
+          class="button"
+          @click="eject">
+          <div>{{ $t('card.character.eject') }}</div>
+        </div>
       </div>
     </div>
   </div>
@@ -412,7 +456,9 @@ import { agentCardSummary, agentTypeName, fleetStats } from '@/game/a11y/describ
 import viewport from '@/utils/viewport';
 
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
-import { fee, inClass, reallocationProblem, schoolBuilding, trainingStatus, xpFactor } from '@/game/training';
+import {
+  fee, inClass, reallocationProblem, schoolBuilding, seatWait, trainingStatus, xpFactor,
+} from '@/game/training';
 
 export default {
   name: 'character-card',
@@ -433,6 +479,11 @@ export default {
     },
     receivedAt: {
       type: Number,
+      required: false,
+    },
+    // the deck entry's place in a school's queue, if it waits in one
+    queue: {
+      type: Object,
       required: false,
     },
     noAction: {
@@ -474,6 +525,36 @@ export default {
           })
           : null,
       };
+    },
+    // The queue of a school (docs/agent-training.md): how long this deck
+    // agent can have to wait for its seat, at the longest.
+    seatWait() {
+      if (this.character.status !== 'in_deck' || !this.queue) return null;
+      return seatWait(this.queue, this.receivedAt, this.tickToMilisecondFactor);
+    },
+    seatWaitText() {
+      const { until, hours, minutes } = this.seatWait;
+
+      if (until === null) return this.$t('card.character.queue_wait_open');
+      if (minutes <= 0) return this.$t('card.character.queue_wait_due');
+      if (minutes < 120) return this.$t('card.character.queue_wait_minutes', { count: minutes });
+      return this.$t('card.character.queue_wait_hours', { count: hours });
+    },
+    seatWaitHint() {
+      return this.seatWait.until === null
+        ? this.$t('card.character.queue_open_hint')
+        : this.$t('card.character.queue_latest', { date: this.$options.filters['luxon-std'](this.seatWait.until) });
+    },
+    // a student of another player seated in one of this player's systems
+    hostsStudent() {
+      return this.character.status === 'student' && this.character.owner
+        && this.character.owner.id !== this.playerId
+        && this.$store.state.game.player.stellar_systems.some((s) => s.id === this.character.system);
+    },
+    // what the button does with the seat or the post being filled
+    assignmentAction() {
+      if (this.assignment.mode !== 'student') return 'deploy';
+      return this.assignment.behind ? 'queue_join' : 'enroll';
     },
     reallocationsHeld() { return this.character.reallocations || 0; },
     // In the deck, and also while a seat or a post is being filled: an
@@ -528,8 +609,11 @@ export default {
         speaker: 'max_speakers',
       };
 
-      const max = this.$store.state.game.player[bonusName[this.character.type]].value;
-      const current = this.$store.state.game.player.characters.filter((c) => c.type === this.character.type).length;
+      const { player } = this.$store.state.game;
+      const max = player[bonusName[this.character.type]].value;
+      // an agent waiting for a seat holds its slot already
+      const queued = player.character_deck.filter((entry) => entry.queue && entry.character.type === this.character.type).length;
+      const current = player.characters.filter((c) => c.type === this.character.type).length + queued;
 
       return { current, max };
     },
@@ -686,6 +770,7 @@ export default {
           character: this.character,
           mode: this.assignment.mode,
           school: this.assignment.school,
+          behind: this.assignment.behind,
           box: boundingBox,
         });
       }
@@ -710,6 +795,27 @@ export default {
           this.$toastError(err.reason);
         });
       }
+    },
+    leaveQueue() {
+      this.$socket.player.push('leave_school_queue', {
+        character_id: this.character.id,
+      }).receive('ok', () => {
+        this.$store.dispatch('game/reloadSystem', this.$socket);
+      }).receive('error', (err) => {
+        this.$toastError(err.reason);
+      });
+    },
+    // the owner of a school sends a faction-mate's student home
+    eject() {
+      this.$socket.player.push('eject_student', {
+        system_id: this.character.system,
+        character_id: this.character.id,
+      }).receive('ok', () => {
+        this.$emit('deactivated', this.character);
+        this.$store.dispatch('game/reloadSystem', this.$socket);
+      }).receive('error', (err) => {
+        this.$toastError(err.reason);
+      });
     },
     dismiss() {
       if (this.character.status === 'in_deck') {

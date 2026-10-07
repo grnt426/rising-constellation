@@ -101,11 +101,26 @@
       }
     }
 
-    // course over: the agent only waits to be recalled
-    &.is-waiting .round-icon {
-      opacity: .55;
-      border-style: dotted;
+    // the popover wrapper around the seat's icon must not change its box
+    .seat-popover,
+    .seat-popover .trigger,
+    .seat-popover .hover-popover-trigger {
+      display: flex !important;
     }
+
+    // someone waits behind this student: a dot on top of the seat says so
+    // without the pointer
+    .queue-pip {
+      position: absolute;
+      top: -7px; left: 50%;
+      width: 5px; height: 5px;
+      margin-left: -2.5px;
+      border-radius: 100%;
+      background: $white;
+      pointer-events: none;
+    }
+
+    &.has-ring .queue-pip { top: -9px; }
 
     &.is-empty {
       justify-content: center;
@@ -174,12 +189,16 @@
   }
 }
 
-// Phones: a block of the scrolling summary page.
+// Phones: a block of the scrolling summary page. No hover there: the queue
+// sits next to the seat it waits for.
 .mobile-system-view .school-box {
   margin: 0 16px 12px;
   border-bottom: 0;
 
   .school-list { justify-content: flex-start; }
+
+  .school-seat .school-queue.is-inline { margin-left: 6px; }
+  .school-seat .queue-pip { display: none; }
 }
 
 @each $class, $color in $themes-list {

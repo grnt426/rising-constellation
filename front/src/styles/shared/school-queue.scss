@@ -1,0 +1,76 @@
+// The queue behind a student seated at a school (SchoolQueueSlot,
+// docs/agent-training.md): the deck agent waiting for the seat, or the
+// place to take. It pops up above the seat in a popover, which renders in
+// <body>: these rules are top-level, outside .game-context, and stand on
+// their own.
+.school-queue {
+  display: flex;
+  align-items: center;
+
+  .queue-agent,
+  .queue-place {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 100%;
+  }
+
+  // the seat's own look, with the dashed edge of someone not seated yet
+  .queue-agent {
+    border: dashed 3px $light-grey;
+    background: $black;
+
+    .svg-icon {
+      width: 22px; height: 22px;
+      color: $white;
+    }
+
+    .number {
+      position: absolute;
+      bottom: -5px; right: -6px;
+      width: 15px; height: 15px;
+      line-height: 15px;
+      text-align: center;
+      font-size: .9rem;
+      font-weight: bold;
+      color: $black;
+      background: $white;
+      border-radius: 100%;
+    }
+
+    &.has-hover { cursor: pointer; }
+    &.has-hover:hover, &.has-hover:focus { box-shadow: 0 0 0 4px rgba(255, 255, 255, .2); }
+  }
+
+  .queue-place {
+    box-shadow: inset 0 0 0 2px $light-grey;
+    cursor: pointer;
+
+    .seat-plus {
+      font-size: 1.6rem;
+      line-height: 1;
+      color: $white;
+      opacity: .7;
+    }
+
+    &:hover, &:focus { box-shadow: inset 0 0 0 2px $white; }
+    &:hover .seat-plus, &:focus .seat-plus { opacity: 1; }
+  }
+}
+
+@each $class, $color in $themes-list {
+  .school-queue.force-#{$class} .queue-agent {
+    border-color: lighten($color, $color-variant-2);
+    background: darken($color, $color-variant-4);
+  }
+}
+
+.tooltip.popover.school-queue-popover .popover-inner {
+  padding: 7px 9px 9px;
+  background: $grey-default;
+  border: solid 1px $grey-light;
+  box-shadow: 0 0 20px rgba(0, 0, 0, .5);
+}

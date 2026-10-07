@@ -55,11 +55,12 @@
         </div>
         <div class="mpc-card-list">
           <character-card
-            v-for="{ cooldown, character } in characters"
+            v-for="{ cooldown, character, queue } in characters"
             :key="character.id"
             :character="character"
             :theme="theme"
             :cooldown="cooldown"
+            :queue="queue"
             :receivedAt="player.receivedAt"
             :style="{ opacity: cardOpacity(character) }"
             @assign="assign"
@@ -119,7 +120,24 @@ export default {
     },
   },
   methods: {
-    assign({ systemId, character, mode, school, box }) {
+    assign({ systemId, character, mode, school, behind, box }) {
+      // a place in a school's queue: the agent stays in the deck
+      if (mode === 'student' && behind) {
+        this.$socket.player.push('queue_character', {
+          system_id: systemId,
+          character_id: character.id,
+          school,
+          behind,
+        }).receive('ok', () => {
+          this.$store.dispatch('game/reloadSystem', this.$socket);
+          this.$emit('close');
+        }).receive('error', (data) => {
+          this.$toastError(data.reason);
+        });
+
+        return;
+      }
+
       this.frozenCharacters = this.characterDeck;
       this.flyingCard = { ...character };
 
