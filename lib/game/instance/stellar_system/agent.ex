@@ -286,6 +286,73 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
+  # Unlike push_character this one can refuse: the school may have filled
+  # up, been damaged or changed hands since the client looked.
+  @decorate tick_rearm()
+  def on_call({:enroll_student, character}, _, state) do
+    case StellarSystem.enroll_student(state.data, character) do
+      {:ok, data} ->
+        notify_owner_update(state.instance_id, data)
+        {:reply, {:ok, data}, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  # The school queue (StellarSystem.School): a deck agent waits behind a
+  # seated student. The owner's summary does not carry the queue, so there
+  # is nothing to notify.
+  @decorate tick_rearm()
+  def on_call({:join_school_queue, character, school, behind_id}, _, state) do
+    case StellarSystem.join_school_queue(state.data, character, school, behind_id) do
+      {:ok, data, wait} -> {:reply, {:ok, wait}, %{state | data: data}}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  @decorate tick_rearm()
+  def on_call({:leave_school_queue, character_id}, _, state) do
+    case StellarSystem.leave_school_queue(state.data, character_id) do
+      {:ok, data} -> {:reply, :ok, %{state | data: data}}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  # An agent called by the queue could not come after all (dismissed, no
+  # slot left, a course its owner cannot pay): the seat goes to the next.
+  @decorate tick_rearm()
+  def on_cast({:leave_school_queue, character_id}, state) do
+    case StellarSystem.leave_school_queue(state.data, character_id) do
+      {:ok, data} -> {:noreply, %{state | data: data}}
+      {:error, _reason} -> {:noreply, state}
+    end
+  end
+
+  # The owner turns an agent out. Its own owner does the rest: a cast, since
+  # that may be the very player whose call brought us here.
+  @decorate tick_rearm()
+  def on_call({:eject_student, character_id, player_id}, _, state) do
+    case StellarSystem.eject_student(state.data, character_id, player_id) do
+      {:ok, data, {:student, student}} ->
+        Game.cast(state.instance_id, :player, student.owner.id, {:student_evicted, student.id, :ejected})
+        notify_owner_update(state.instance_id, data)
+        {:reply, :ok, %{state | data: data}}
+
+      {:ok, data, {:queued, entry}} ->
+        Game.cast(state.instance_id, :player, entry.owner.id, {:school_queue_cleared, entry.id, :ejected})
+        {:reply, :ok, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @decorate tick_rearm()
+  def on_call({:check_student_recall, character_id}, _, state) do
+    {:reply, StellarSystem.check_student_recall(state.data, character_id), state}
+  end
+
   @decorate tick_rearm()
   def on_call({:remove_character, character, mode}, _, state) do
     {:ok, data} = StellarSystem.remove_character(state.data, character, mode)

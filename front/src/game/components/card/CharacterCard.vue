@@ -62,6 +62,32 @@
         <img
           :src="`data/agents/${character.illustration}`"
           alt="">
+        <div
+          v-if="trainingRibbon"
+          v-tooltip="trainingRibbon.hint"
+          class="card-ribbon">
+          {{ trainingRibbon.text }}
+        </div>
+        <!-- waiting for a seat at a school: the longest it can take -->
+        <div
+          v-if="seatWait"
+          v-tooltip="seatWaitHint"
+          class="card-ribbon is-queued">
+          {{ seatWaitText }}
+        </div>
+        <div
+          v-if="reallocationsHeld > 0"
+          v-tooltip="$t('card.character.reallocation_hint')"
+          class="card-ribbon is-reallocations"
+          :class="{ 'is-clickable': canReallocate, 'is-open': reallocating }"
+          @click.stop="toggleReallocation">
+          <template v-if="reallocating">
+            {{ $t('card.character.reallocation_progress', { moved: reallocationMoved, total: reallocationsHeld }) }}
+          </template>
+          <template v-else>
+            {{ $tc('card.character.reallocations', reallocationsHeld, { count: reallocationsHeld }) }}
+          </template>
+        </div>
       </div>
 
       <div class="card-information">
@@ -94,6 +120,9 @@
                   <dynamic-value
                     v-if="character.status === 'governor'"
                     :initial="character.experience" />
+                  <dynamic-value
+                    v-else-if="studentExperience"
+                    :initial="studentExperience" />
                   <span v-else>
                     {{ character.experience.value | integer }}
                   </span>
@@ -111,18 +140,20 @@
               <div class="is-sparse-y">
                 <div>
                   <div
-                    v-tooltip="$t('card.character.protection')"
-                    class="simple-bonus">
-                    {{ character.protection | obfuscate(character.protection, '░░') }}
+                    v-tooltip="defenseTooltip('protection')"
+                    class="simple-bonus"
+                    :class="{ 'is-cut': isInClass }">
+                    {{ effective(character.protection) | obfuscate(character.protection, '░░') }}
                     <span class="card-diff" v-if="diff && diff.protection - character.protection > 0">
                       +{{ diff.protection - character.protection | integer }}
                     </span>
                     <svgicon name="agent/protection" />
                   </div>
                   <div
-                    v-tooltip="$t('card.character.determination')"
-                    class="simple-bonus">
-                    {{ character.determination | obfuscate(character.determination, '░░') }}
+                    v-tooltip="defenseTooltip('determination')"
+                    class="simple-bonus"
+                    :class="{ 'is-cut': isInClass }">
+                    {{ effective(character.determination) | obfuscate(character.determination, '░░') }}
                     <span class="card-diff" v-if="diff && diff.determination - character.determination > 0">
                       +{{ diff.determination - character.determination | integer }}
                     </span>
@@ -149,7 +180,7 @@
               <div class="card-skills">
                 <template v-if="character.skills">
                   <div
-                    v-for="(skill, i) in character.skills"
+                    v-for="(skill, i) in shownSkills"
                     :key="i"
                     class="card-skill-block">
                     <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
@@ -159,6 +190,20 @@
                       :class="{ 'character-skill-active': data.specializations[i].key === character.specialization }"
                       class="is-sparse-y">
                       <div class="skill-name">{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
+                      <div
+                        v-if="reallocating"
+                        class="skill-reallocation">
+                        <button
+                          type="button"
+                          :disabled="!canTake(i)"
+                          :aria-label="$t('card.character.reallocation_take', { skill: skillName(i) })"
+                          @click.stop="take(i)">&minus;</button>
+                        <button
+                          type="button"
+                          :disabled="!canGive(i)"
+                          :aria-label="$t('card.character.reallocation_give', { skill: skillName(i) })"
+                          @click.stop="give(i)">+</button>
+                      </div>
                       <span
                         v-if="isMobileView"
                         class="skill-value">{{ skill }}</span>
@@ -183,6 +228,8 @@
                               'active': s <= skill,
                               'strong': s === skill,
                               'inactive': s > skill,
+                              'gained': reallocating && s > character.skills[i] && s <= skill,
+                              'lost': reallocating && s > skill && s <= character.skills[i],
                             }">
                           </span>
                         </template>
@@ -276,9 +323,48 @@
             <span class="sr-only">{{ $t('a11y.resource.ideology') }}</span>
           </div>
         </div>
+        <!-- nothing moved yet: the same button gives the rewires up
+             instead, and asks twice -->
+        <div
+          v-else-if="reallocating && reallocationProblem === 'nothing'"
+          v-press
+          v-tooltip="$t('card.character.reallocation_discard_hint')"
+          class="button"
+          :class="{ 'is-armed': discardArmed }"
+          @click="discardReallocations">
+          <div>
+            <template v-if="discardArmed">{{ $t('card.character.reallocation_discard_confirm') }}</template>
+            <template v-else>
+              {{ $tc('card.character.reallocation_discard', reallocationsHeld, { count: reallocationsHeld }) }}
+            </template>
+          </div>
+        </div>
+        <div
+          v-else-if="reallocating"
+          v-press="{ disabled: !!reallocationProblem }"
+          v-tooltip="reallocationProblem ? $t(`card.character.reallocation_problem.${reallocationProblem}`) : null"
+          class="button"
+          :class="{ 'disabled': !!reallocationProblem }"
+          @click="confirmReallocation">
+          <div :class="{ 'dashed': !!reallocationProblem }">{{ $t('card.character.reallocation_confirm') }}</div>
+        </div>
         <template v-else-if="character.status === 'in_deck' && assignment">
+          <!-- rewires first: they can be spent while the agent rests -->
           <div
-            v-if="cooldown && cooldown.value != 0"
+            v-if="reallocationsHeld > 0"
+            v-press="{ disabled: true }"
+            v-tooltip="$t('card.character.reallocation_hint')"
+            class="button disabled">
+            <div class="dashed">{{ $t('card.character.reallocations_unspent') }}</div>
+          </div>
+          <div
+            v-else-if="queue"
+            v-press="{ disabled: true }"
+            class="button disabled">
+            <div class="dashed">{{ $t('card.character.queued') }}</div>
+          </div>
+          <div
+            v-else-if="cooldown && cooldown.value != 0"
             v-press="{ disabled: true }"
             class="button disabled">
             <div class="dashed">
@@ -294,11 +380,17 @@
             </div>
           </div>
           <div
+            v-else-if="schoolRefusal"
+            v-press="{ disabled: true }"
+            class="button disabled">
+            <div class="dashed">{{ schoolRefusal }}</div>
+          </div>
+          <div
             v-else-if="charactersLimit.current < charactersLimit.max"
             v-press
             class="button"
             @click="activate">
-            <div>{{ $t('card.character.deploy') }}</div>
+            <div>{{ $t(`card.character.${assignmentAction}`) }}</div>
           </div>
           <div
             v-else
@@ -307,6 +399,28 @@
             <div class="dashed">{{ $t(`card.character.${character.type}_limit_reached`) }}</div>
           </div>
         </template>
+        <!-- waiting for a seat: out of the queue, or out for good -->
+        <!-- keyed: patched in place, it would inherit the aria-disabled
+             that v-press left on the button it replaces -->
+        <div
+          v-else-if="character.status === 'in_deck' && queue"
+          key="queue-buttons"
+          class="button-container">
+          <div
+            v-press
+            class="button"
+            @click="leaveQueue">
+            <div>{{ $t('card.character.queue_leave') }}</div>
+          </div>
+          <div
+            v-press
+            v-tooltip="$t('card.character.fire')"
+            class="button is-icon"
+            :aria-label="$t('card.character.fire')"
+            @click="dismiss">
+            <div><svgicon name="close" /></div>
+          </div>
+        </div>
         <div
           v-else-if="character.status === 'in_deck' && !assignment"
           v-press
@@ -315,11 +429,20 @@
           <div>{{ $t('card.character.fire') }}</div>
         </div>
         <div
-          v-else-if="character.status === 'governor' && character.owner.id === playerId"
+          v-else-if="['governor', 'student'].includes(character.status) && character.owner.id === playerId"
           v-press
           class="button"
           @click="deactivate">
           <div>{{ $t('card.character.recall') }}</div>
+        </div>
+        <!-- a faction-mate's student in one of the player's schools -->
+        <div
+          v-else-if="hostsStudent"
+          v-press
+          v-tooltip="$t('card.character.eject_hint')"
+          class="button"
+          @click="eject">
+          <div>{{ $t('card.character.eject') }}</div>
         </div>
       </div>
     </div>
@@ -333,6 +456,9 @@ import { agentCardSummary, agentTypeName, fleetStats } from '@/game/a11y/describ
 import viewport from '@/utils/viewport';
 
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
+import {
+  fee, inClass, reallocationProblem, schoolBuilding, seatWait, trainingStatus, xpFactor,
+} from '@/game/training';
 
 export default {
   name: 'character-card',
@@ -355,13 +481,122 @@ export default {
       type: Number,
       required: false,
     },
+    // the deck entry's place in a school's queue, if it waits in one
+    queue: {
+      type: Object,
+      required: false,
+    },
     noAction: {
       type: Boolean,
       default: false,
     },
   },
+  data() {
+    return {
+      // skill points being moved with the agent's neural rewires (the whole
+      // new list), null when the card is not in that mode
+      draftSkills: null,
+      // the Discard button was clicked once and now asks "are you sure?"
+      discardArmed: false,
+    };
+  },
   computed: {
     isMobileView() { return viewport.isMobile; },
+    // Agent training (docs/agent-training.md)
+    isInClass() { return this.character.status === 'student' && inClass(this.character.training); },
+    studentExperience() {
+      if (this.character.status !== 'student' || !this.character.experience) return null;
+
+      const factor = xpFactor(this.character.training, this.constant);
+      return { ...this.character.experience, change: this.character.experience.change * factor };
+    },
+    trainingRibbon() {
+      if (this.character.status !== 'student' || !this.character.training) return null;
+
+      const building = this.$t(`data.building.${schoolBuilding(this.character)}.name`);
+      const cost = fee(this.character, this.constant);
+
+      return {
+        text: `${building} · ${trainingStatus(this, this.character)}`,
+        hint: cost
+          ? this.$t('card.character.training_fee', {
+            amount: this.$options.filters.integer(cost.amount),
+            resource: this.$t(`galaxy.school.fee_${cost.resource}`),
+          })
+          : null,
+      };
+    },
+    // The queue of a school (docs/agent-training.md): how long this deck
+    // agent can have to wait for its seat, at the longest.
+    seatWait() {
+      if (this.character.status !== 'in_deck' || !this.queue) return null;
+      return seatWait(this.queue, this.receivedAt, this.tickToMilisecondFactor);
+    },
+    seatWaitText() {
+      const { until, hours, minutes } = this.seatWait;
+
+      if (until === null) return this.$t('card.character.queue_wait_open');
+      if (minutes <= 0) return this.$t('card.character.queue_wait_due');
+      if (minutes < 120) return this.$t('card.character.queue_wait_minutes', { count: minutes });
+      return this.$t('card.character.queue_wait_hours', { count: hours });
+    },
+    seatWaitHint() {
+      return this.seatWait.until === null
+        ? this.$t('card.character.queue_open_hint')
+        : this.$t('card.character.queue_latest', { date: this.$options.filters['luxon-std'](this.seatWait.until) });
+    },
+    // a student of another player seated in one of this player's systems
+    hostsStudent() {
+      return this.character.status === 'student' && this.character.owner
+        && this.character.owner.id !== this.playerId
+        && this.$store.state.game.player.stellar_systems.some((s) => s.id === this.character.system);
+    },
+    // what the button does with the seat or the post being filled
+    assignmentAction() {
+      if (this.assignment.mode !== 'student') return 'deploy';
+      return this.assignment.behind ? 'queue_join' : 'enroll';
+    },
+    reallocationsHeld() { return this.character.reallocations || 0; },
+    // In the deck, and also while a seat or a post is being filled: an
+    // agent takes no duty until its rewires are spent, so the card that
+    // says so is where they get spent.
+    canReallocate() {
+      return this.character.status === 'in_deck' && !this.character.on_sold
+        && !this.child && !this.noAction && Array.isArray(this.character.skills);
+    },
+    reallocating() { return this.draftSkills !== null; },
+    shownSkills() { return this.draftSkills || this.character.skills; },
+    mainSkillIndex() { return this.data.specializations.findIndex((s) => s.key === this.character.specialization); },
+    reallocationMoved() {
+      if (!this.draftSkills) return 0;
+      return this.draftSkills.reduce((sum, value, i) => sum + Math.max(value - this.character.skills[i], 0), 0);
+    },
+    // points taken that are not placed yet
+    reallocationPool() {
+      if (!this.draftSkills) return 0;
+      const total = (list) => list.reduce((sum, value) => sum + value, 0);
+      return total(this.character.skills) - total(this.draftSkills);
+    },
+    reallocationProblem() {
+      if (!this.draftSkills) return null;
+      return reallocationProblem(this.character.skills, this.draftSkills, this.mainSkillIndex, this.reallocationsHeld);
+    },
+    // why this deck agent cannot take the seat being filled, if it cannot
+    schoolRefusal() {
+      const seat = this.assignment;
+      if (!seat || seat.mode !== 'student') return null;
+
+      if (seat.type && seat.type !== this.character.type) {
+        return this.$t('card.character.school_wrong_type', { agents: this.$tc(`data.character.${seat.type}.name`, 2) });
+      }
+
+      if (seat.school === 'university' && seat.guest
+        && this.character.level < this.constant.university_guest_min_level) {
+        return this.$t('card.character.school_level', { level: this.constant.university_guest_min_level });
+      }
+
+      return null;
+    },
     tickToMilisecondFactor() { return this.$store.getters['game/tickToMilisecondFactor']; },
     speed() { return this.$store.state.game.time.speed; },
     assignment() { return this.$store.state.game.assignment; },
@@ -374,8 +609,11 @@ export default {
         speaker: 'max_speakers',
       };
 
-      const max = this.$store.state.game.player[bonusName[this.character.type]].value;
-      const current = this.$store.state.game.player.characters.filter((c) => c.type === this.character.type).length;
+      const { player } = this.$store.state.game;
+      const max = player[bonusName[this.character.type]].value;
+      // an agent waiting for a seat holds its slot already
+      const queued = player.character_deck.filter((entry) => entry.queue && entry.character.type === this.character.type).length;
+      const current = player.characters.filter((c) => c.type === this.character.type).length + queued;
 
       return { current, max };
     },
@@ -421,7 +659,78 @@ export default {
       return a.credit && a.technology && a.ideology;
     },
   },
+  watch: {
+    // another agent in the same card, or the points were spent
+    'character.id': function onCharacterChanged() { this.draftSkills = null; },
+    // any change of plan takes the question back
+    draftSkills() { this.disarmDiscard(); },
+    reallocationsHeld(held) { if (held === 0) this.draftSkills = null; },
+  },
+  beforeDestroy() {
+    clearTimeout(this.discardTimer);
+  },
   methods: {
+    effective(value) {
+      if (!this.isInClass || typeof value !== 'number') return value;
+      return Math.trunc(value * this.constant.training_defense_factor);
+    },
+    defenseTooltip(stat) {
+      const label = this.$t(`card.character.${stat}`);
+      return this.isInClass ? `${label} (${this.$t('card.character.training_penalty')})` : label;
+    },
+    skillName(i) { return this.$t(`data.character.${this.character.type}.skills[${i}].name`); },
+    toggleReallocation() {
+      if (!this.canReallocate) return;
+      this.draftSkills = this.reallocating ? null : [...this.character.skills];
+    },
+    // a point comes off a skill before it goes onto another
+    canTake(i) {
+      return this.draftSkills[i] > 0
+        && (this.draftSkills[i] > this.character.skills[i]
+          || this.reallocationMoved + this.reallocationPool < this.reallocationsHeld);
+    },
+    canGive(i) {
+      if (this.reallocationPool <= 0 || this.draftSkills[i] >= 12) return false;
+      // giving back a point that was taken is always fine
+      if (this.draftSkills[i] < this.character.skills[i]) return true;
+      return i === this.mainSkillIndex || this.draftSkills[i] < this.draftSkills[this.mainSkillIndex];
+    },
+    take(i) { this.$set(this.draftSkills, i, this.draftSkills[i] - 1); },
+    give(i) { this.$set(this.draftSkills, i, this.draftSkills[i] + 1); },
+    disarmDiscard() {
+      this.discardArmed = false;
+      clearTimeout(this.discardTimer);
+    },
+    // First click asks, second click (within a few seconds) discards.
+    discardReallocations() {
+      if (!this.discardArmed) {
+        this.discardArmed = true;
+        clearTimeout(this.discardTimer);
+        this.discardTimer = setTimeout(() => { this.discardArmed = false; }, 5000);
+        return;
+      }
+
+      this.disarmDiscard();
+      this.$socket.player.push('discard_reallocations', {
+        character_id: this.character.id,
+      }).receive('ok', () => {
+        this.draftSkills = null;
+      }).receive('error', (err) => {
+        this.$toastError(err.reason);
+      });
+    },
+    confirmReallocation() {
+      if (this.reallocationProblem) return;
+
+      this.$socket.player.push('reallocate_skills', {
+        character_id: this.character.id,
+        skills: this.draftSkills,
+      }).receive('ok', () => {
+        this.draftSkills = null;
+      }).receive('error', (err) => {
+        this.$toastError(err.reason);
+      });
+    },
     // Called by the views that open a card (selection, opened character):
     // moves focus to the spoken summary so a screen reader reads it.
     focusSummary() {
@@ -460,6 +769,8 @@ export default {
           systemId: this.assignment.systemId,
           character: this.character,
           mode: this.assignment.mode,
+          school: this.assignment.school,
+          behind: this.assignment.behind,
           box: boundingBox,
         });
       }
@@ -475,7 +786,7 @@ export default {
       }
     },
     deactivate() {
-      if (this.character.status === 'governor' || this.character.status === 'on_board') {
+      if (['governor', 'on_board', 'student'].includes(this.character.status)) {
         this.$socket.player.push('deactivate_character', {
           character_id: this.character.id,
         }).receive('ok', () => {
@@ -484,6 +795,27 @@ export default {
           this.$toastError(err.reason);
         });
       }
+    },
+    leaveQueue() {
+      this.$socket.player.push('leave_school_queue', {
+        character_id: this.character.id,
+      }).receive('ok', () => {
+        this.$store.dispatch('game/reloadSystem', this.$socket);
+      }).receive('error', (err) => {
+        this.$toastError(err.reason);
+      });
+    },
+    // the owner of a school sends a faction-mate's student home
+    eject() {
+      this.$socket.player.push('eject_student', {
+        system_id: this.character.system,
+        character_id: this.character.id,
+      }).receive('ok', () => {
+        this.$emit('deactivated', this.character);
+        this.$store.dispatch('game/reloadSystem', this.$socket);
+      }).receive('error', (err) => {
+        this.$toastError(err.reason);
+      });
     },
     dismiss() {
       if (this.character.status === 'in_deck') {

@@ -7,6 +7,7 @@ defmodule Instance.Player.Player do
   alias Instance.StellarSystem.StellarSystem
   alias Instance.Character.Spy
   alias Instance.Character.Speaker
+  alias Instance.Character.Training
 
   @initial_stats_interval 5
   @delay_before_inactivity 1920
@@ -188,8 +189,34 @@ defmodule Instance.Player.Player do
         %{cooldown: cooldown} -> Core.CooldownValue.next_tick_interval(cooldown)
       end)
 
-    Enum.min([next_stats | [next_policies | next_characters]])
+    Enum.min([next_stats, next_policies, next_unpaid_tuition(state, c) | next_characters])
   end
+
+  # When a resource that pays for a university course runs out, the tick
+  # that notices must not wait for the stats interval.
+  defp next_unpaid_tuition(state, constant) do
+    state
+    |> tuition_resources(constant)
+    |> Enum.map(fn resource ->
+      %{value: value, change: change} = Map.get(state, resource)
+      if change < 0 and value > 0, do: value / -change, else: :never
+    end)
+    |> Enum.min(fn -> :never end)
+  end
+
+  defp tuition_resources(state, constant) do
+    state.characters
+    |> Enum.flat_map(fn character ->
+      case tuition(character, constant) do
+        {resource, _amount} -> [resource]
+        nil -> []
+      end
+    end)
+    |> Enum.uniq()
+  end
+
+  defp tuition(character, constant),
+    do: Training.fee(character.type, character.level, Map.get(character, :training), constant)
 
   # Action handling
 
@@ -643,6 +670,92 @@ defmodule Instance.Player.Player do
     end
   end
 
+  # A deck agent waiting for a seat at a school (docs/agent-training.md,
+  # "The queue") carries, on its deck entry:
+  #
+  #     queue: %{system_id, school, wait: %Core.CooldownValue{} | nil}
+  #
+  # `wait` is the longest it can have to wait (the rest of the course of
+  # the student ahead of it), nil behind a Polytech student, who never has
+  # to leave. The key postdates the first snapshots: Map.get only.
+  def school_queue(deck_entry), do: Map.get(deck_entry, :queue)
+  def queued?(deck_entry), do: school_queue(deck_entry) != nil
+
+  def find_school_queue(%Player.Player{} = state, character_id) do
+    case Enum.find(state.character_deck, fn %{character: c} -> c.id == character_id end) do
+      nil -> nil
+      entry -> school_queue(entry)
+    end
+  end
+
+  @doc """
+  Whether a deck agent may wait for a seat of `school`: the checks of
+  enroll_character/5, made now so that the seat finds an agent able to
+  take it. Returns `{:ok, character}` and commits nothing: the place in
+  line is the system's to grant (see set_school_queue/4).
+  """
+  def queue_character(%Player.Player{} = state, character_id, school) do
+    try do
+      character_cd = Enum.find(state.character_deck, fn %{character: c} -> c.id == character_id end)
+
+      if character_cd == nil, do: throw(:unknown_character)
+      if queued?(character_cd), do: throw(:character_queued)
+
+      constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+      character = check_student!(state, character_cd, school)
+      check_tuition!(state, character, Training.new(school, constant), constant)
+
+      {:ok, character}
+    catch
+      error -> {:error, error}
+    end
+  end
+
+  def set_school_queue(%Player.Player{} = state, character_id, queue) do
+    character_deck =
+      Enum.map(state.character_deck, fn entry ->
+        if entry.character.id == character_id, do: Map.put(entry, :queue, queue), else: entry
+      end)
+
+    %{state | character_deck: character_deck}
+  end
+
+  @doc "Takes a deck agent out of the queue it waits in. Returns `{:ok, state, queue}`."
+  def leave_school_queue(%Player.Player{} = state, character_id) do
+    case find_school_queue(state, character_id) do
+      nil -> {:error, :character_not_queued}
+      queue -> {:ok, set_school_queue(state, character_id, nil), queue}
+    end
+  end
+
+  # What a school asks of a deck agent, whether it sits down now or waits
+  # in line. Throws the reason.
+  defp check_student!(state, character_cd, school) do
+    character = character_cd.character
+
+    if character.on_sold, do: throw(:character_on_sold)
+    if Character.reallocations(character) > 0, do: throw(:reallocations_unspent)
+
+    if not is_nil(character_cd.cooldown) and Core.CooldownValue.locked?(character_cd.cooldown),
+      do: throw(:locked_character)
+
+    if school not in Training.schools(), do: throw(:unknown_school)
+    if not character_available_slots?(state, character.type), do: throw(:not_enough_character_slot)
+    if school == :university and state.is_bankrupt, do: throw(:player_is_bankrupt)
+
+    character
+  end
+
+  # a course nobody can pay for would end on its first tick
+  defp check_tuition!(state, character, training, constant) do
+    case Training.fee(character.type, character.level, training, constant) do
+      {:credit, _amount} -> if state.credit.value <= 0, do: throw(:not_enough_credit)
+      {:technology, _amount} -> if state.technology.value <= 0, do: throw(:not_enough_technology)
+      {:ideology, _amount} -> if state.ideology.value <= 0, do: throw(:not_enough_ideology)
+      nil -> :ok
+    end
+  end
+
   # An agent on assignment changing owner — a board sale or donation on the
   # player market (Market.transfer_offer/3), or the Cheats tab transfer
   # (Instance.Manager {:cheat_transfer_character, ...}) — is two halves, one
@@ -679,6 +792,9 @@ defmodule Instance.Player.Player do
     end
   end
 
+  # An agent that came back from a university with reallocations to spend
+  # takes no duty (governor, the field or a school) until every one is
+  # spent: `:reallocations_unspent`, checked here and in enroll_character/4.
   def activate_character(%Player.Player{} = state, character_id, mode, system_id) do
     try do
       # character with cooldown
@@ -687,6 +803,9 @@ defmodule Instance.Player.Player do
 
       if character_cd == nil, do: throw(:unknown_character)
       if character_cd.character.on_sold, do: throw(:character_on_sold)
+      if Character.reallocations(character_cd.character) > 0, do: throw(:reallocations_unspent)
+      # waiting for a seat: it leaves the queue first
+      if queued?(character_cd), do: throw(:character_queued)
 
       if not is_nil(character_cd.cooldown) and Core.CooldownValue.locked?(character_cd.cooldown),
         do: throw(:locked_character)
@@ -706,6 +825,99 @@ defmodule Instance.Player.Player do
       {:ok, %{state | character_deck: character_deck, characters: characters}, character}
     catch
       error -> {:error, error}
+    end
+  end
+
+  @doc """
+  Sends a deck agent to a school (docs/agent-training.md) of `system_id`,
+  which may be a faction-mate's: the seat itself is the system's to grant
+  (`StellarSystem.enroll_student/2`), so this only checks the player's own
+  side and returns the activated character without committing anything
+  the caller cannot drop.
+
+  An agent may go back to school as often as its owner likes, once the
+  reallocations of its last course are spent (`:reallocations_unspent`).
+
+  `from_queue?: true` is for the agent a school's queue has called: the
+  slot it takes is the one it has held since it joined the line.
+  """
+  def enroll_character(%Player.Player{} = state, character_id, school, system_id, opts \\ []) do
+    try do
+      from_queue? = Keyword.get(opts, :from_queue?, false)
+      character_cd = Enum.find(state.character_deck, fn %{character: c} -> c.id == character_id end)
+
+      if character_cd == nil, do: throw(:unknown_character)
+      if from_queue? and not queued?(character_cd), do: throw(:character_not_queued)
+      if not from_queue? and queued?(character_cd), do: throw(:character_queued)
+
+      state = if from_queue?, do: set_school_queue(state, character_id, nil), else: state
+      constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+
+      character =
+        state
+        |> check_student!(character_cd, school)
+        |> Character.activate({:student, school}, system_id)
+
+      check_tuition!(state, character, character.training, constant)
+
+      character_deck = Enum.reject(state.character_deck, fn %{character: c} -> c.id == character_id end)
+      characters = state.characters ++ [Player.Character.convert(character)]
+
+      {:ok, %{state | character_deck: character_deck, characters: characters}, character}
+    catch
+      error -> {:error, error}
+    end
+  end
+
+  @doc """
+  Moves skill points of an agent in the deck, spending its reallocations
+  (see Character.reallocate_skills/2). `skills` is the new list.
+  """
+  def reallocate_skills(%Player.Player{} = state, character_id, skills) do
+    case Enum.find(state.character_deck, fn %{character: c} -> c.id == character_id end) do
+      nil ->
+        {:error, :character_not_in_deck}
+
+      %{character: %{on_sold: true}} ->
+        {:error, :character_on_sold}
+
+      %{character: character} ->
+        with {:ok, character} <- Character.reallocate_skills(character, skills) do
+          character_deck =
+            Enum.map(state.character_deck, fn entry ->
+              if entry.character.id == character_id, do: %{entry | character: character}, else: entry
+            end)
+
+          {:ok, %{state | character_deck: character_deck}}
+        end
+    end
+  end
+
+  @doc """
+  Gives up every reallocation a deck agent has left, so it can take a duty
+  again without its skills being touched any further.
+  """
+  def discard_reallocations(%Player.Player{} = state, character_id) do
+    case Enum.find(state.character_deck, fn %{character: c} -> c.id == character_id end) do
+      nil ->
+        {:error, :character_not_in_deck}
+
+      %{character: %{on_sold: true}} ->
+        {:error, :character_on_sold}
+
+      %{character: character} ->
+        if Character.reallocations(character) > 0 do
+          character_deck =
+            Enum.map(state.character_deck, fn entry ->
+              if entry.character.id == character_id,
+                do: %{entry | character: Map.put(entry.character, :reallocations, 0)},
+                else: entry
+            end)
+
+          {:ok, %{state | character_deck: character_deck}}
+        else
+          {:error, :nothing_to_discard}
+        end
     end
   end
 
@@ -945,6 +1157,7 @@ defmodule Instance.Player.Player do
          else: change
 
     {change, state} = detect_bankruptcy(state, change)
+    {change, state} = detect_unpaid_tuition(state, change, c)
 
     # update cooldown values
     policies_cd = Core.CooldownValue.next_tick(state.policies_cooldown, elapsed_time)
@@ -966,7 +1179,19 @@ defmodule Instance.Player.Player do
           {[Map.put(character, :cooldown, cd) | deck], change}
       end)
 
-    character_deck = Enum.reverse(character_deck)
+    # the longest an agent in a school queue still has to wait
+    character_deck =
+      character_deck
+      |> Enum.reverse()
+      |> Enum.map(fn entry ->
+        case school_queue(entry) do
+          %{wait: %Core.CooldownValue{} = wait} = queue ->
+            Map.put(entry, :queue, %{queue | wait: Core.CooldownValue.next_tick(wait, elapsed_time)})
+
+          _ ->
+            entry
+        end
+      end)
 
     # check cooldown value change
     change =
@@ -1267,6 +1492,24 @@ defmodule Instance.Player.Player do
         []
       end
 
+    # extract university tuition: a fee per level in the resource of the
+    # student's type, for as long as it is in class
+    character_tuition =
+      if Enum.member?(target, :player) do
+        Enum.flat_map(state.characters, fn character ->
+          case tuition(character, constant) do
+            {resource, amount} when amount > 0 ->
+              bonus = %Core.Bonus{from: :direct_last, value: -amount, type: :add, to: @key_to_pipeline[resource]}
+              [%{reason: {:character_tuition, character.name}, bonus: bonus}]
+
+            _ ->
+              []
+          end
+        end)
+      else
+        []
+      end
+
     # extract fleet maintenance
     fleet_maintenance =
       if Enum.member?(target, :player) do
@@ -1297,6 +1540,7 @@ defmodule Instance.Player.Player do
       dominion_bonuses,
       policy_bonuses,
       character_wages,
+      character_tuition,
       fleet_maintenance,
       faction_bonuses,
       government_bonuses,
@@ -1308,8 +1552,11 @@ defmodule Instance.Player.Player do
     ])
   end
 
+  # An agent waiting for a seat at a school holds its slot from the moment
+  # it joins the line, so that the seat finds it able to come.
   def character_available_slots?(%Player.Player{} = state, character_type) do
-    character_count = Enum.count(state.characters, fn c -> c.type == character_type end)
+    queued = Enum.count(state.character_deck, fn entry -> queued?(entry) and entry.character.type == character_type end)
+    character_count = Enum.count(state.characters, fn c -> c.type == character_type end) + queued
 
     case character_type do
       :admiral -> character_count < state.max_admirals.value
@@ -1343,6 +1590,47 @@ defmodule Instance.Player.Player do
       is_bankrupt == state.is_bankrupt ->
         {change, state}
     end
+  end
+
+  # A university course is paid from income. When the stock of the
+  # resource it is paid in has run dry and is still falling (the same
+  # test as bankruptcy: an empty stock with a positive income is paying
+  # its way), the students paying in it are sent out of class: their
+  # course ends with what they earned so far (ending the course is what
+  # stops the fee) and the agent comes home: the character agent casts its
+  # final state, which Player.Agent answers by recalling it.
+  defp detect_unpaid_tuition(%Player.Player{} = state, change, constant) do
+    unpaid =
+      Enum.filter(state.characters, fn character ->
+        case tuition(character, constant) do
+          {resource, _amount} ->
+            stock = Map.get(state, resource)
+            stock.value <= 0 and stock.change < 0
+
+          nil ->
+            false
+        end
+      end)
+
+    Enum.reduce(unpaid, {change, state}, fn character, {change, state} ->
+      case Game.call(state.instance_id, :character, character.id, {:end_course, :unpaid}) do
+        {:ok, character} ->
+          notif = Notification.Text.new(:character_course_unpaid, character.system, %{character: character.name})
+          Game.cast(state.instance_id, :player, state.id, {:push_notifs, notif})
+
+          {MapSet.put(change, :player_update), update_character(state, character)}
+
+        # the roster entry was stale: the course is already over
+        {:error, :not_on_a_course} ->
+          case Game.call(state.instance_id, :character, character.id, :get_state) do
+            {:ok, character} -> {MapSet.put(change, :player_update), update_character(state, character)}
+            _ -> {change, state}
+          end
+
+        _ ->
+          {change, state}
+      end
+    end)
   end
 
   defp bankruptcy_update_characters(state, change) do

@@ -21,6 +21,13 @@ defmodule Instance.Faction.StellarSystem do
     field(:owner, %StellarSystem.Player{})
     field(:governor, %StellarSystem.Character{} | nil)
     field(:characters, [%StellarSystem.Character{}])
+    # agents in the system's schools, and (own faction only) the seats
+    # each school has — docs/agent-training.md
+    field(:students, [%StellarSystem.Character{}])
+    field(:schools, map() | nil)
+    # deck agents waiting for a seat: the owner's faction only, whatever
+    # another faction's visibility
+    field(:school_queue, [map()] | nil)
     field(:bodies, [%StellarSystem.StellarBody{}])
     field(:queue, %StellarSystem.ProductionQueue{})
     field(:population, %Core.DynamicValue{})
@@ -62,7 +69,7 @@ defmodule Instance.Faction.StellarSystem do
     fields_levels = %{
       0 => [:id, :position, :sector_id, :name, :type, :status, :owner],
       1 => [],
-      2 => [:governor, :characters, :defense, :siege],
+      2 => [:governor, :characters, :students, :defense, :siege],
       3 => [:population, :workforce, :used_workforce, :habitation, :happiness, :population_status, :population_class],
       4 => [:production, :technology, :ideology, :credit, :counter_intelligence],
       5 => [
@@ -79,6 +86,20 @@ defmodule Instance.Faction.StellarSystem do
         :station
       ]
     }
+
+    # seats per school: what a member needs to enrol an agent
+    new_system =
+      if visibility_level >= 5,
+        do: Map.put(new_system, :schools, StellarSystem.School.summary(system)),
+        else: new_system
+
+    # who waits for a seat is the faction's own business: never shown to
+    # another one, even with full visibility
+    new_system =
+      case Map.get(system, :owner) do
+        %{faction_id: ^faction_id} -> Map.put(new_system, :school_queue, StellarSystem.School.queue(system))
+        _ -> new_system
+      end
 
     # show bodies list over 0 visibility
     new_system =
@@ -118,6 +139,13 @@ defmodule Instance.Faction.StellarSystem do
       acc =
         if key == :governor and new_system.governor != nil,
           do: Map.put(acc, key, Character.obfuscate(value, visibility_level)),
+          else: acc
+
+      # filter students: in a school an agent is in plain sight, an Erased
+      # included, whatever its cover was
+      acc =
+        if key == :students and is_list(value),
+          do: Map.put(acc, key, Enum.map(value, fn c -> Character.obfuscate(c, visibility_level) end)),
           else: acc
 
       # filter characters

@@ -29,6 +29,10 @@ defmodule Instance.Player.Character do
     # the system/faction payloads never carry it. default keeps
     # pre-armada snapshots restorable.
     field(:armada, map() | nil, default: nil)
+    # School state of a :student (Instance.Character.Training) — what the
+    # tuition in the owner's income is computed from. Postdates the first
+    # snapshots: Map.get only.
+    field(:training, map() | nil, default: nil)
   end
 
   def convert(character) do
@@ -74,7 +78,8 @@ defmodule Instance.Player.Character do
       army_invasion: army_invasion,
       army_size: army_size,
       is_discovered: is_discovered,
-      armada: Map.get(character, :armada)
+      armada: Map.get(character, :armada),
+      training: Map.get(character, :training)
     }
   end
 end

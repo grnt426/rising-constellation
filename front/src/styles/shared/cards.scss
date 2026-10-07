@@ -381,6 +381,32 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
       transition: transform ease-in-out 500ms;
     }
 
+    // agent training: where a student stands (bottom), and the
+    // neural rewires an agent holds (top)
+    .card-ribbon {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      padding: 3px 8px;
+
+      font-size: 1.2rem;
+      line-height: 1.5rem;
+      text-align: center;
+      color: $white;
+      background: rgba(0, 0, 0, .7);
+
+      &.is-reallocations {
+        top: 0; bottom: auto;
+        font-weight: bold;
+
+        &.is-clickable {
+          cursor: pointer;
+          text-decoration: underline dotted;
+
+          &:hover, &.is-open { background: rgba(0, 0, 0, .9); }
+        }
+      }
+    }
+
     .locked-item {
       .locked-icon {
         position: absolute;
@@ -629,6 +655,41 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
         }
       }
 
+      // moving skill points with neural rewires
+      .skill-reallocation {
+        display: flex;
+        flex: 0 0 auto;
+        margin: 0 4px 0 auto;
+
+        button {
+          width: 14px;
+          height: 14px;
+          margin-left: 2px;
+          padding: 0;
+          border: 0;
+          border-radius: 2px;
+          line-height: 13px;
+          font-size: 1.2rem;
+          font-weight: bold;
+          color: $black;
+          background: $light-grey;
+          cursor: pointer;
+
+          &:hover { background: $white; }
+
+          &:disabled {
+            opacity: .25;
+            cursor: default;
+          }
+        }
+      }
+
+      // a stat cut while the agent is in class: the alert color, never a
+      // faction's (red is Myrmezir's trim)
+      .simple-bonus.is-cut {
+        color: $color-alert;
+      }
+
       .character-skill-points {
         width: 143px;
         display: flex;
@@ -639,6 +700,16 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
           height: 4px;
           background: $black;
           margin-left: 1px;
+
+          &.gained {
+            height: 8px;
+            background: $white !important;
+          }
+          // a point taken away by a rewire: the alert color, for the same reason
+          &.lost {
+            height: 4px;
+            background: $color-alert !important;
+          }
 
           &.active { background: $light-grey; }
           &.strong { background: lighten($light-grey, $color-variant-3); }
@@ -737,6 +808,13 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
       .button {
         margin-left: 12px;
         width: 36px;
+
+        // a square button holding an icon
+        &.is-icon {
+          flex-shrink: 0;
+
+          .svg-icon { width: 16px; height: 16px; }
+        }
 
         &:first-child {
           flex-grow: 1;

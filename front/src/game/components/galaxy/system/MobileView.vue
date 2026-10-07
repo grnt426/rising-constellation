@@ -73,6 +73,10 @@
               :system="system"
               :color="color" />
 
+            <school-box
+              :system="system"
+              :isOwnSystem="isOwnSystem" />
+
             <system-details
               v-if="isVisible"
               :system="system"
@@ -188,6 +192,7 @@ import SystemBodies from '@/game/components/galaxy/system/Bodies.vue';
 import SystemActionsLegacy from '@/game/components/galaxy/system/ActionsLegacy.vue';
 import ProductionBox from '@/game/components/galaxy/system/ProductionBox.vue';
 import StationBox from '@/game/components/galaxy/system/StationBox.vue';
+import SchoolBox from '@/game/components/galaxy/system/SchoolBox.vue';
 import SystemProduction from '@/game/components/galaxy/system/Production.vue';
 import MobileBuildDock from '@/game/components/galaxy/system/MobileBuildDock.vue';
 import MobileAgentDock from '@/game/components/galaxy/system/MobileAgentDock.vue';
@@ -361,6 +366,7 @@ export default {
     SystemActionsLegacy,
     ProductionBox,
     StationBox,
+    SchoolBox,
     SystemProduction,
     MobileBuildDock,
     MobileAgentDock,

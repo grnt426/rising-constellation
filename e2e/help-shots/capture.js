@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { chromium, request } = require('@playwright/test');
 const { Api } = require('../helpers/api');
-const { seedGameCookies } = require('../helpers/game');
+const { seedGameCookies, playerPush, setSpeedCheat } = require('../helpers/game');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const RECIPES_FILE = path.join(__dirname, 'shots.json');
@@ -351,6 +351,75 @@ const scenes = {
     };
   },
 
+  // Agent fixture with the `empire` option and its `schools` sub-option
+  // (DevFixtureController, docs/agent-training.md): home's planet has a
+  // Delta Polytech and a level 2 Orb-INTEL, and the player's Erased is on a
+  // course at the Orb-INTEL, settling in. Getting it there takes a recall,
+  // and a recalled agent rests 40 ticks (two hours at Legacy) before its
+  // next duty: the scene runs the creator's speed cheat at x50 through the
+  // rest, about two and a half minutes, then sets the speed back.
+  training: async ({ browser, baseURL, session }) => {
+    const api = new Api(session.req, baseURL);
+    api.tokens.set(EMAIL, session.token);
+    const fixture = await api.createAgentFixture(
+      EMAIL, { credit: 1000000 }, null, null, null, 'slow', { schools: true, destabilize: false },
+    );
+    if (!fixture.empire || !fixture.empire.schools) {
+      throw new Error('agent-fixture returned no "empire.schools" block: the running server does not have the schools option compiled in');
+    }
+    const { home } = fixture.empire;
+    console.log(`  fixture instance ${fixture.instance_id}: home ${home}, schools `
+      + fixture.empire.schools.buildings.map((b) => `${b.key} level ${b.level}`).join(', '));
+
+    const reg = await api.registrationToken(EMAIL, fixture.instance_id);
+    const start = await api.gameStartPayload(EMAIL, fixture.instance_id, reg.token);
+    const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+    await seedGameCookies(context, baseURL, start);
+
+    const page = await context.newPage();
+    await page.goto(`${baseURL}/portal/game`);
+    await waitConnected(page);
+    await page.waitForTimeout(1500);
+    await openSystemById(page, home);
+
+    const erased = await page.evaluate((sid) => {
+      const { player } = document.querySelector('#app').__vue__.$store.state.game;
+      const agent = player.characters.find((c) => c.type === 'spy' && c.status === 'on_board' && c.system === sid);
+      return agent ? agent.id : null;
+    }, home);
+    if (!erased) throw new Error('the fixture placed no Erased in the home system');
+
+    const recall = await playerPush(page, 'deactivate_character', { character_id: erased });
+    if (!recall.ok) throw new Error(`recalling the Erased failed: ${recall.error}`);
+    console.log('  Erased recalled, waiting out its rest at x50 speed (about 2.5 minutes)');
+    await setSpeedCheat(page, 50);
+    await page.waitForFunction((id) => {
+      const { player } = document.querySelector('#app').__vue__.$store.state.game;
+      const entry = player.character_deck.find(({ character }) => character.id === id);
+      return entry && (!entry.cooldown || entry.cooldown.value === 0);
+    }, erased, { timeout: 300000, polling: 1000 });
+    await setSpeedCheat(page, 1);
+
+    const enroll = await playerPush(page, 'enroll_character', { character_id: erased, school: 'university', system_id: home });
+    if (!enroll.ok) throw new Error(`enrolling the Erased failed: ${enroll.error}`);
+    await openSystemById(page, home);
+    await page.locator('.school-box .school[data-school="spy"] .school-seat.is-taken').waitFor({ state: 'visible', timeout: 15000 });
+
+    return {
+      page,
+      reset: async () => {
+        await page.evaluate(() => document.querySelector('#app').__vue__.$store.dispatch('game/closeCharacter'));
+        await closeTransientUi(page);
+        if (await selectedSystemId(page) !== home) await openSystemById(page, home);
+        await backToBodiesTab(page);
+        await page.evaluate(() => {
+          const el = document.querySelector('.system-content-scrollbar');
+          if (el) el.scrollTop = 0;
+        });
+      },
+    };
+  },
+
   research: async ({ browser, baseURL, session }) => {
     const api = new Api(session.req, baseURL);
     api.tokens.set(EMAIL, session.token);
@@ -494,6 +563,17 @@ async function stageLex(page) {
 }
 
 const prepares = {
+  // The card of the student seated at the Orb-INTEL (training scene).
+  'open-student-card': async (page) => {
+    const seat = page.locator('.school-box .school[data-school="spy"] .school-seat.is-taken .round-icon');
+    if (await seat.count() === 0) throw new Error('prepare: no student seated at the Orb-INTEL');
+    await seat.first().click();
+    await page.locator('.opened-character .card-container .card-ribbon').first().waitFor({ state: 'visible', timeout: 5000 });
+    await page.mouse.move(NEUTRAL_MOUSE.x, NEUTRAL_MOUSE.y);
+    await page.locator('.tooltip.open').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
+    await waitStable(page, '.opened-character .card-container');
+  },
+
   // Patent panel on its first tab (Habitable Planets at Legacy).
   // The dock covers the tree's right end, where each tab's locked patents
   // usually are: use the first tab with a locked patent left of the dock,

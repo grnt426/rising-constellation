@@ -297,6 +297,7 @@
   "card": {
     "building": {
       "about": "About",
+      "course_seats": "Course seats, {agents}",
       "delete": "Destroy (instantaneous and permanent)",
       "level_current": "Current level {n}",
       "level_preview": "Preview level {n}",
@@ -313,6 +314,7 @@
       },
       "repair": "Repair",
       "time_left": "~{n} minutes",
+      "training_seats": "Training seats",
       "unique": "Unique",
       "unique_hint": "Can only build one per star system.",
       "upgrade": "Upgrade"
@@ -329,6 +331,9 @@
       "agent": "Agent",
       "deploy": "Deploy",
       "determination": "Determination",
+      "eject": "Send home",
+      "eject_hint": "Sends this student back to its owner's deck, with what it earned.",
+      "enroll": "Enrol",
       "fire": "Fire (permanent)",
       "gender_age": "{gender}, {age} years old.",
       "gender_female": "Woman",
@@ -340,11 +345,41 @@
       "on_sold": "Character for sale",
       "origin": "Originally from the {culture} regions.",
       "protection": "Protection",
+      "queue_join": "Join the queue",
+      "queue_latest": "Latest time to be seated: {date}",
+      "queue_leave": "Leave the queue",
+      "queue_open_hint": "No latest time: a Delta Polytech student leaves only when it is recalled.",
+      "queue_wait_due": "Seated any moment now",
+      "queue_wait_hours": "{count}hrs to be seated",
+      "queue_wait_minutes": "{count}min to be seated",
+      "queue_wait_open": "Waiting for a seat",
+      "queued": "Waiting for a seat",
+      "reallocation_confirm": "Confirm the new skills",
+      "reallocation_discard": "Discard the rewires | Discard {count} rewire | Discard {count} rewires",
+      "reallocation_discard_confirm": "Are you sure? Discard",
+      "reallocation_discard_hint": "Gives up the rewires this agent has left, for good. Its skills stay as they are and it can take a duty again. To use them instead, take a point from a skill.",
+      "reallocation_give": "Add a point to {skill}",
+      "reallocation_hint": "Earned at a university, one per day of course. An agent takes no new duty and cannot be sold until all are spent or discarded. Click the rewires on its card in the deck: each one moves one skill point from a skill to another. A skill can never pass 12, nor the main skill.",
+      "reallocation_problem": {
+        "main": "No skill may pass the main skill",
+        "maximum": "No skill may pass 12",
+        "nothing": "Take a point from a skill, then give it to another",
+        "short": "Not enough neural rewires",
+        "unplaced": "Place every point you took"
+      },
+      "reallocation_progress": "{moved} of {total} rewires used",
+      "reallocation_take": "Take a point from {skill}",
+      "reallocations": "No neural rewire | {count} neural rewire | {count} neural rewires",
+      "reallocations_unspent": "Spend its neural rewires first",
       "recall": "Recall",
       "salary": "Salary",
+      "school_level": "Level {level} needed in an ally's university",
+      "school_wrong_type": "This school trains {agents}",
       "skill_effect": "{effect} / lvl",
       "speaker_limit_reached": "Siderian limit reached",
-      "spy_limit_reached": "Erased limit reached"
+      "spy_limit_reached": "Erased limit reached",
+      "training_fee": "Course fee: {amount} {resource} per tick",
+      "training_penalty": "halved while in class"
     },
     "closed_system": {
       "construction_queue": "Construction queue",
@@ -792,6 +827,30 @@
         "multi_move_banner": "Tap a system to queue a move there. Double-tap to stop.",
         "multi_move_done": "Done"
       }
+    },
+    "school": {
+      "enroll_polytech": "Send an agent to train here",
+      "enroll_university": "Send a {agent} on a course",
+      "enroll_university_guest": "Send a {agent} of level {level} or more on a course",
+      "fee_credit": "credits",
+      "fee_ideology": "ideology",
+      "fee_technology": "technology",
+      "free_seat": "Free seat",
+      "no_enroll_siege": "No enrolment during a siege",
+      "owner_only": "Only the owner of a Delta Polytech can use it",
+      "polytech_hint": "One seat per Delta Polytech, for its owner's agents. An agent seated here earns experience like a governor. Its Protection and Determination are halved. It cannot be recalled during a siege. One agent may wait in the queue behind it.",
+      "queue_eject": "Click to send it out of the queue",
+      "queue_join": "Queue an agent behind {name}: it takes the seat as soon as it is free",
+      "queue_leave": "Click to take it out of the queue",
+      "queue_waiting": "{name} waits for this seat",
+      "rewires_earned": "{count} of {max} neural rewires",
+      "status_active": "on its course",
+      "status_completed": "course over",
+      "status_polytech": "in training",
+      "status_settling": "settling in",
+      "status_unpaid": "course stopped, fee unpaid",
+      "title": "Schools",
+      "university_hint": "One seat per level, shared by the faction, for {agents}. After settling in, a student earns twice a governor's experience and one neural rewire per day. At five it comes home. Costs {fee} {resource} per tick and per level. Protection and Determination are halved. No recall during a siege. One agent may wait in the queue behind each student."
     }
   },
   "help": {
@@ -1387,7 +1446,10 @@
     },
     "text": {
       "breaking_news": "**Galactic News:** {headline}",
+      "character_course_completed": "**{character}** is back from its course (**{reallocations}** neural rewires)",
+      "character_course_unpaid": "**{character}** sent home: course fee unpaid",
       "character_lvlup": "**{character}** has reached level **{level}**",
+      "character_school_closed": "**{character}** had to leave school",
       "colonization_cancelled": "**{speaker}** cancels colonization of **{system}**",
       "colonization_started": "**{speaker}** commences colonization of **{system}**",
       "conquest_cancelled": "**{admiral}** cancels conquest of **{system}**",
@@ -1412,7 +1474,12 @@
       "receive_resources": "Ressources received from **{player}**",
       "request_fulfilled": "**{buyer}** has fulfilled your request {offer_id}",
       "start_uprising": "Uprisings take root on **{system}**",
-      "system_under_siege": "**{system}** under siege"
+      "system_under_siege": "**{system}** under siege",
+      "character_course_reallocation": "**{character}** has earned a neural rewire",
+      "character_school_ejected": "**{character}** was sent home by the owner of its school",
+      "character_queue_seated": "**{character}** has taken its seat",
+      "character_queue_lost": "**{character}** lost its place in the queue",
+      "character_queue_ejected": "**{character}** was sent out of the queue"
     }
   },
   "panel": {
@@ -1968,7 +2035,9 @@
         "no_entries": "Nothing to show yet.",
         "reports": "Reports"
       },
-      "events": "Events"
+      "events": "Events",
+      "students": "In training",
+      "students_subtitle": "Agents seated in a school"
     },
     "ranking": {
       "best_yield": "Best yield on a system",
@@ -2274,7 +2343,8 @@
       "ship": "Ships",
       "system": "Systems",
       "tradition": "Traditions",
-      "government": "Faction government"
+      "government": "Faction government",
+      "character_tuition": "Course fees"
     },
     "projection_24h": "In 24h",
     "projection_3min": "In 3 min",

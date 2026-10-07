@@ -98,6 +98,21 @@
                 :bonus="levelData.bonus"
                 :body="body"
                 :system="system" />
+
+              <!-- agent training (docs/agent-training.md): the seats this
+                   building gives at the level shown -->
+              <div
+                v-if="trainingSeats"
+                v-tooltip="trainingSeats.hint"
+                class="complex-bonus">
+                <div>{{ trainingSeats.label }}</div>
+                <div>
+                  <strong>{{ trainingSeats.seats }}</strong>
+                  <svgicon
+                    v-if="trainingSeats.icon"
+                    :name="trainingSeats.icon" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -129,6 +144,7 @@
 import CardMixin from '@/game/mixins/CardMixin';
 import HelpButton from '@/game/components/generic/HelpButton.vue';
 import CardComplexBonus from '@/game/components/card/CardComplexBonus.vue';
+import { SCHOOL_BUILDINGS } from '@/game/training';
 
 export default {
   name: 'building-card',
@@ -179,6 +195,33 @@ export default {
     displayLevel() { return this.previewLevel === null ? this.level : this.previewLevel; },
     isPreviewing() { return this.previewLevel !== null && this.previewLevel !== this.level; },
     levelData() { return this.buildingData.levels[this.displayLevel - 1]; },
+    // A Delta Polytech seats one agent whatever its level; a university
+    // seats one agent of its type per level.
+    trainingSeats() {
+      if (this.buildingKey === SCHOOL_BUILDINGS.polytech) {
+        return { label: this.$t('card.building.training_seats'), seats: 1, hint: this.$t('galaxy.school.polytech_hint') };
+      }
+
+      const type = ['admiral', 'spy', 'speaker'].find((t) => SCHOOL_BUILDINGS[t] === this.buildingKey);
+      if (!type) return null;
+
+      const agents = this.$tc(`data.character.${type}.name`, 2);
+      const constant = this.gameData.constant && this.gameData.constant[0];
+      const resource = { admiral: 'technology', spy: 'credit', speaker: 'ideology' }[type];
+
+      return {
+        label: this.$t('card.building.course_seats', { agents }),
+        seats: this.displayLevel,
+        icon: `agent/${type}`,
+        hint: constant
+          ? this.$t('galaxy.school.university_hint', {
+            agents,
+            fee: constant[`university_fee_${resource}`],
+            resource: this.$t(`galaxy.school.fee_${resource}`),
+          })
+          : null,
+      };
+    },
     playerPatents() {
       if (this.cardContext) return this.cardContext.patents();
       return this.$store.state.game.player ? this.$store.state.game.player.patents : null;

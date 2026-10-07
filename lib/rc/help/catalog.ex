@@ -454,7 +454,8 @@ defmodule RC.Help.Catalog do
 
     panels =
       Enum.map_join(levels, fn l ->
-        ~s(<div class="help-bcard-panel" data-level="#{l.level}">#{Enum.map_join(l.bonus, &bonus_row(ctx, &1))}</div>)
+        ~s(<div class="help-bcard-panel" data-level="#{l.level}">) <>
+          ~s(#{Enum.map_join(l.bonus, &bonus_row(ctx, &1))}#{training_row(ctx, b.key, l.level)}</div>)
       end)
 
     costs =
@@ -470,6 +471,38 @@ defmodule RC.Help.Catalog do
       ~s(<div class="help-bcard-illustration"><img src="/img/help/buildings/#{Format.escape(b.illustration)}" alt="" loading="lazy">#{toast}</div>) <>
       ~s(<div class="help-bcard-info">#{pips}#{panels}</div>#{costs}</div></figure>)
   end
+
+  # Agent training (docs/agent-training.md): the seats a school's building
+  # gives at this level, as the in-game card's last row shows them
+  # (BuildingCard.vue `trainingSeats`). The label links to the page that
+  # explains the school once it exists.
+  defp training_row(ctx, key, level) do
+    case Instance.Character.Training.school_of(key) do
+      nil ->
+        ""
+
+      {school, type} ->
+        {label, page, icon} =
+          case school do
+            :polytech ->
+              {ui(ctx, "card.building.training_seats") || "Training seats", "polytech-training", ""}
+
+            :university ->
+              agents = ctx |> data_name(["character", to_string(type), "name"]) |> plural()
+              label = (ui(ctx, "card.building.course_seats") || "Course seats, {agents}") |> String.replace("{agents}", agents)
+              {label, "university-courses", icon_html(ctx, "agent/#{type}", agents)}
+          end
+
+        seats = Instance.Character.Training.seats(school, level)
+
+        ~s(<div class="help-bcard-bonus"><span class="help-bcard-bonus-name">#{link_html(ctx, page, label)}</span>) <>
+          ~s(<span class="help-bcard-bonus-value"><strong>#{seats}</strong>#{icon}</span></div>)
+    end
+  end
+
+  # `"Navarch | Navarchs"` → `"Navarchs"`.
+  defp plural(name) when is_binary(name), do: name |> String.split("|") |> List.last() |> String.trim()
+  defp plural(other), do: to_string(other)
 
   # One bonus as the in-game card shows it (CardComplexBonus.vue): the target's
   # name on the left, the value and the target's icon on the right. A bonus

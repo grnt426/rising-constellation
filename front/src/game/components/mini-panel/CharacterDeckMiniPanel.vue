@@ -55,11 +55,12 @@
         </div>
         <div class="mpc-card-list">
           <character-card
-            v-for="{ cooldown, character } in characters"
+            v-for="{ cooldown, character, queue } in characters"
             :key="character.id"
             :character="character"
             :theme="theme"
             :cooldown="cooldown"
+            :queue="queue"
             :receivedAt="player.receivedAt"
             :style="{ opacity: cardOpacity(character) }"
             @assign="assign"
@@ -119,7 +120,24 @@ export default {
     },
   },
   methods: {
-    assign({ systemId, character, mode, box }) {
+    assign({ systemId, character, mode, school, behind, box }) {
+      // a place in a school's queue: the agent stays in the deck
+      if (mode === 'student' && behind) {
+        this.$socket.player.push('queue_character', {
+          system_id: systemId,
+          character_id: character.id,
+          school,
+          behind,
+        }).receive('ok', () => {
+          this.$store.dispatch('game/reloadSystem', this.$socket);
+          this.$emit('close');
+        }).receive('error', (data) => {
+          this.$toastError(data.reason);
+        });
+
+        return;
+      }
+
       this.frozenCharacters = this.characterDeck;
       this.flyingCard = { ...character };
 
@@ -143,14 +161,20 @@ export default {
         .to(this.$refs.flying, final, 0)
         .to(this.$refs.flying, { opacity: 0, display: 'none', duration: 1 }, 0);
 
-      this.$socket.player.push('activate_character', {
-        system_id: systemId,
-        character_id: character.id,
-        mode,
-      }).receive('ok', () => {
+      // a school (docs/agent-training.md) may stand in a faction-mate's
+      // system, where nothing else tells this client to refresh the view
+      const push = mode === 'student'
+        ? this.$socket.player.push('enroll_character', { system_id: systemId, character_id: character.id, school })
+        : this.$socket.player.push('activate_character', { system_id: systemId, character_id: character.id, mode });
+
+      push.receive('ok', () => {
         setTimeout(() => {
           if (mode === 'on_board') {
             this.$store.dispatch('game/selectCharacter', { vm: this, id: character.id });
+          }
+
+          if (mode === 'student') {
+            this.$store.dispatch('game/reloadSystem', this.$socket);
           }
 
           this.frozenCharacters = [];

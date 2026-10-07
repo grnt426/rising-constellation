@@ -115,6 +115,19 @@ defmodule Data.Game.Constant do
     # other faction-building effect cadences (ut)
     field(:training_center_interval, integer())
     field(:cyber_command_interval, integer())
+
+    # agent training (docs/agent-training.md) — durations in ut, fees per
+    # ut and per agent level
+    field(:polytech_xp_factor, float())
+    field(:university_xp_factor, float())
+    field(:university_settle_time, integer())
+    field(:university_reallocation_interval, integer())
+    field(:university_max_reallocations, integer())
+    field(:university_fee_credit, integer())
+    field(:university_fee_technology, integer())
+    field(:university_fee_ideology, integer())
+    field(:university_guest_min_level, integer())
+    field(:training_defense_factor, float())
   end
 
   def specs do

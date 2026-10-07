@@ -42,11 +42,14 @@ defmodule Instance.Character.Actions.Conversion do
     # get action system location
     {:ok, system} = Game.call(instance_id, :stellar_system, target.system, :get_state)
 
+    # a student in class defends itself with a cut determination
+    determination = Character.effective_determination(target)
+
     # if target is from the same faction than the system, give half of ci for bonus
     defense =
       if not is_nil(system.owner) and system.owner.faction_id == target.owner.faction_id,
-        do: target.determination + system.happiness.value,
-        else: target.determination
+        do: determination + system.happiness.value,
+        else: determination
 
     # deeply negative happiness can push the defense below zero, which
     # Core.Dice.roll rejects (defender >= 0 guard) — floor it like

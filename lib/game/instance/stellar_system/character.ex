@@ -20,6 +20,12 @@ defmodule Instance.StellarSystem.Character do
     # change from owner-only; the armada NAME still rides only the
     # owner's roster payload)
     field(:armada_id, integer() | nil)
+    # the school state of a student (Instance.Character.Training), nil for
+    # everyone else; a student's protection and determination are the cut
+    # values an attacker meets while it is in class
+    field(:training, map() | nil)
+    # reallocations a student has earned so far (the ring around its seat)
+    field(:reallocations, integer() | nil)
   end
 
   def convert(character) do
@@ -40,10 +46,12 @@ defmodule Instance.StellarSystem.Character do
       name: character.name,
       level: character.level,
       owner: character.owner,
-      protection: character.protection,
-      determination: character.determination,
+      protection: Instance.Character.Character.effective_protection(character),
+      determination: Instance.Character.Character.effective_determination(character),
       cover: cover,
-      armada_id: armada_id
+      armada_id: armada_id,
+      training: Map.get(character, :training),
+      reallocations: Map.get(character, :reallocations, 0) || 0
     }
   end
 
@@ -51,10 +59,10 @@ defmodule Instance.StellarSystem.Character do
     new_character = %StellarSystem.Character{}
 
     fields_levels = %{
-      2 => [:id, :type, :name, :level, :owner, :armada_id],
+      2 => [:id, :type, :name, :level, :owner, :armada_id, :training],
       3 => [],
       4 => [:determination],
-      5 => [:protection],
+      5 => [:protection, :reallocations],
       6 => [:cover]
     }
 

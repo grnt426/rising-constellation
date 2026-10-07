@@ -61,20 +61,52 @@
         </div>
       </section>
 
+      <template v-if="students.length > 0">
+        <hr class="panel-default-hr">
+
+        <section>
+          <h1 class="panel-default-title">
+            {{ $t('panel.operations.students') }}
+            <span>{{ $t('panel.operations.students_subtitle') }}</span>
+          </h1>
+
+          <div
+            class="pcb-character"
+            v-for="character in students"
+            :key="`student-${character.id}`"
+            @click="openGovernor(character)">
+            <div class="icon">
+              <svgicon :name="`agent/${character.type}`" />
+            </div>
+            <div class="name">
+              <strong>{{ character.name }}</strong>
+              {{ trainingStatus(character) }}
+            </div>
+            <div class="level">
+              {{ $t('panel.operations.level', { level: character.level }) }}
+            </div>
+          </div>
+        </section>
+      </template>
+
       <div class="anchor"></div>
     </v-scrollbar>
   </div>
 </template>
 
 <script>
+import { trainingStatus } from '@/game/training';
+
 export default {
   name: 'operation-agents-panel',
   computed: {
     theme() { return this.$store.getters['game/theme']; },
     onboards() { return this.$store.state.game.player.characters.filter((c) => c.status === 'on_board'); },
     governors() { return this.$store.state.game.player.characters.filter((c) => c.status === 'governor'); },
+    students() { return this.$store.state.game.player.characters.filter((c) => c.status === 'student'); },
   },
   methods: {
+    trainingStatus(character) { return trainingStatus(this, character); },
     openGovernor(character) {
       this.$emit('close');
       this.$store.dispatch('game/openSystem', { vm: this, id: character.system });

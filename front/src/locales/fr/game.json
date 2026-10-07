@@ -297,6 +297,7 @@
   "card": {
     "building": {
       "about": "À propos",
+      "course_seats": "Places de cursus, {agents}",
       "delete": "Détruire (instantané et définitif)",
       "level_current": "Niveau actuel {n}",
       "level_preview": "Aperçu du niveau {n}",
@@ -313,6 +314,7 @@
       },
       "repair": "Réparer",
       "time_left": "~{n} minutes",
+      "training_seats": "Places de formation",
       "unique": "Unique",
       "unique_hint": "Ne peut être construit qu'une seule fois dans le système stellaire.",
       "upgrade": "Améliorer"
@@ -329,6 +331,9 @@
       "agent": "Agent",
       "deploy": "Déployer",
       "determination": "Détermination",
+      "eject": "Renvoyer",
+      "eject_hint": "Renvoie cet étudiant dans le deck de son propriétaire, avec ce qu'il a gagné.",
+      "enroll": "Inscrire",
       "fire": "Licencier (définitif)",
       "gender_age": "{gender} de {age} ans.",
       "gender_female": "Femme",
@@ -340,11 +345,41 @@
       "on_sold": "Personnage en vente",
       "origin": "Originaire des régions {culture}.",
       "protection": "Protection",
+      "queue_join": "Rejoindre la file",
+      "queue_latest": "Assis au plus tard le : {date}",
+      "queue_leave": "Quitter la file",
+      "queue_open_hint": "Pas de date limite : un étudiant de Delta Polytech ne part que s'il est rappelé.",
+      "queue_wait_due": "Assis d'un instant à l'autre",
+      "queue_wait_hours": "Assis dans {count} h au plus",
+      "queue_wait_minutes": "Assis dans {count} min au plus",
+      "queue_wait_open": "En attente d'une place",
+      "queued": "En attente d'une place",
+      "reallocation_confirm": "Valider les nouvelles compétences",
+      "reallocation_discard": "Abandonner les recâblages | Abandonner {count} recâblage | Abandonner {count} recâblages",
+      "reallocation_discard_confirm": "Vraiment ? Abandonner",
+      "reallocation_discard_hint": "Renonce définitivement aux recâblages qui restent à cet agent. Ses compétences ne changent pas et il peut reprendre une affectation. Pour les utiliser, retirez un point d'une compétence.",
+      "reallocation_give": "Ajouter un point à {skill}",
+      "reallocation_hint": "Gagnés à l'université, un par jour de cursus. Un agent ne prend aucune nouvelle affectation et ne peut pas être vendu tant qu'il lui en reste : utilisez-les ou abandonnez-les. Cliquez sur les recâblages de sa carte dans le deck : chacun déplace un point de compétence d'une compétence à une autre. Une compétence ne dépasse jamais 12, ni la compétence principale.",
+      "reallocation_problem": {
+        "main": "Aucune compétence ne peut dépasser la compétence principale",
+        "maximum": "Aucune compétence ne peut dépasser 12",
+        "nothing": "Retirez un point d'une compétence, puis donnez-le à une autre",
+        "short": "Pas assez de recâblages neuronaux",
+        "unplaced": "Placez tous les points retirés"
+      },
+      "reallocation_progress": "{moved} recâblages utilisés sur {total}",
+      "reallocation_take": "Retirer un point de {skill}",
+      "reallocations": "Aucun recâblage neuronal | {count} recâblage neuronal | {count} recâblages neuronaux",
+      "reallocations_unspent": "Utilisez d'abord ses recâblages neuronaux",
       "recall": "Rappeler",
       "salary": "Salaire",
+      "school_level": "Niveau {level} requis dans l'université d'un allié",
+      "school_wrong_type": "Cette école forme les {agents}",
       "skill_effect": "{effect} / niv",
       "speaker_limit_reached": "Limite de sidérian atteinte",
-      "spy_limit_reached": "Limite d'effacés atteinte"
+      "spy_limit_reached": "Limite d'effacés atteinte",
+      "training_fee": "Frais de cursus : {amount} {resource} par tick",
+      "training_penalty": "divisée par deux pendant les cours"
     },
     "closed_system": {
       "construction_queue": "File d'attente des constructions",
@@ -792,6 +827,30 @@
         "multi_move_banner": "Touchez un système pour y ajouter un déplacement. Double-touchez pour arrêter.",
         "multi_move_done": "Terminer"
       }
+    },
+    "school": {
+      "enroll_polytech": "Envoyer un agent se former ici",
+      "enroll_university": "Inscrire un {agent} à un cursus",
+      "enroll_university_guest": "Inscrire un {agent} de niveau {level} ou plus à un cursus",
+      "fee_credit": "crédits",
+      "fee_ideology": "idéologie",
+      "fee_technology": "technologie",
+      "free_seat": "Place libre",
+      "no_enroll_siege": "Aucune inscription pendant un siège",
+      "owner_only": "Seul le propriétaire d'un Delta Polytech peut l'utiliser",
+      "polytech_hint": "Une place par Delta Polytech, pour les agents de son propriétaire. Un agent assis ici gagne de l'expérience comme un gouverneur. Sa Protection et sa Détermination sont divisées par deux. Il ne peut pas être rappelé pendant un siège. Un agent peut attendre dans la file derrière lui.",
+      "queue_eject": "Cliquez pour le sortir de la file",
+      "queue_join": "Placer un agent dans la file derrière {name} : il prend la place dès qu'elle est libre",
+      "queue_leave": "Cliquez pour le retirer de la file",
+      "queue_waiting": "{name} attend cette place",
+      "rewires_earned": "{count} recâblages neuronaux sur {max}",
+      "status_active": "en cursus",
+      "status_completed": "cursus terminé",
+      "status_polytech": "en formation",
+      "status_settling": "en installation",
+      "status_unpaid": "cursus arrêté, frais impayés",
+      "title": "Écoles",
+      "university_hint": "Une place par niveau, partagée par la faction, pour les {agents}. Une fois installé, un étudiant gagne deux fois l'expérience d'un gouverneur et un recâblage neuronal par jour. Au cinquième, il rentre. Coûte {fee} {resource} par tick et par niveau. Protection et Détermination divisées par deux. Pas de rappel pendant un siège. Un agent peut attendre dans la file derrière chaque étudiant."
     }
   },
   "help": {
@@ -1386,7 +1445,10 @@
       "sabotage": "Sabotage sur **{system}**"
     },
     "text": {
+      "character_course_completed": "**{character}** est de retour de son cursus (**{reallocations}** recâblages neuronaux)",
+      "character_course_unpaid": "**{character}** renvoyé : frais de cursus impayés",
       "character_lvlup": "**{character}** a atteint le niveau **{level}**",
+      "character_school_closed": "**{character}** a dû quitter l'école",
       "colonization_cancelled": "**{admiral}** annule la colonisation de **{system}**",
       "colonization_started": "**{admiral}** commence la colonisation de **{system}**",
       "conquest_cancelled": "**{admiral}** annule la conquête de **{system}**",
@@ -1411,7 +1473,12 @@
       "receive_resources": "Ressources reçues de **{player}**",
       "request_fulfilled": "**{buyer}** a répondu à votre demande {offer_id}",
       "start_uprising": "Des révoltes éclatent sur **{system}**",
-      "system_under_siege": "**{system}** est en état de siège"
+      "system_under_siege": "**{system}** est en état de siège",
+      "character_course_reallocation": "**{character}** a gagné un recâblage neuronal",
+      "character_school_ejected": "**{character}** a été renvoyé par le propriétaire de son école",
+      "character_queue_seated": "**{character}** a pris sa place",
+      "character_queue_lost": "**{character}** a perdu sa place dans la file",
+      "character_queue_ejected": "**{character}** a été sorti de la file"
     }
   },
   "panel": {
@@ -1905,7 +1972,9 @@
         "no_entries": "Rien à afficher pour le moment.",
         "reports": "Rapports"
       },
-      "events": "Événements"
+      "events": "Événements",
+      "students": "En formation",
+      "students_subtitle": "Agents installés dans une école"
     },
     "ranking": {
       "best_yield": "Meilleur rendement sur un système",
@@ -2211,7 +2280,8 @@
       "ship": "Vaisseaux",
       "system": "Systèmes",
       "tradition": "Traditions",
-      "government": "Gouvernement de faction"
+      "government": "Gouvernement de faction",
+      "character_tuition": "Frais de cursus"
     },
     "projection_24h": "Dans 24h",
     "projection_3min": "Dans 3 min",

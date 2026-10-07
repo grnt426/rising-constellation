@@ -676,6 +676,34 @@
       "scene": "empire",
       "width": 226
     },
+    "student-card": {
+      "alt": "The card of an Erased on a university course: its school and stage, its cut Protection and Determination, and the Recall button",
+      "captured": "2026-10-06",
+      "file": "student-card.png",
+      "height": 454,
+      "marks": {
+        "defence": {
+          "h": 0.0465,
+          "w": 0.305,
+          "x": 0.0367,
+          "y": 0.5022
+        },
+        "recall": {
+          "h": 0.0661,
+          "w": 0.96,
+          "x": 0.0167,
+          "y": 0.9339
+        },
+        "status": {
+          "h": 0.0463,
+          "w": 1,
+          "x": 0,
+          "y": 0.3987
+        }
+      },
+      "scene": "training",
+      "width": 300
+    },
     "system-bodies": {
       "alt": "The first stellar bodies of a system, with the population of the inhabited planet",
       "captured": "2026-09-13",
@@ -821,6 +849,34 @@
       },
       "scene": "own-system",
       "width": 629
+    },
+    "system-schools": {
+      "alt": "The Schools row of a system: the Delta Polytech with a free seat, and the Orb-INTEL with a student and a free seat",
+      "captured": "2026-10-06",
+      "file": "system-schools.png",
+      "height": 67,
+      "marks": {
+        "school": {
+          "h": 0.4478,
+          "w": 0.0529,
+          "x": 0.7725,
+          "y": 0.2687
+        },
+        "seat": {
+          "h": 0.4478,
+          "w": 0.0529,
+          "x": 0.6984,
+          "y": 0.2687
+        },
+        "student": {
+          "h": 0.4478,
+          "w": 0.0529,
+          "x": 0.8448,
+          "y": 0.2687
+        }
+      },
+      "scene": "training",
+      "width": 567
     },
     "system-state": {
       "alt": "The state tab of a system: who claims it, population productivity, and the liberate and abandon operations",

@@ -675,8 +675,14 @@ defmodule Instance.Player.Agent do
 
   @decorate tick()
   def on_call({:dismiss_character, character_id}, _, state) do
+    queue = Player.find_school_queue(state.data, character_id)
+
     case Player.dismiss_character(state.data, character_id) do
       {:ok, data} ->
+        # an agent dismissed while it waited for a seat frees its place
+        if queue,
+          do: Game.cast(state.instance_id, :stellar_system, queue.system_id, {:leave_school_queue, character_id})
+
         broadcast_player(state, %{player_player: data})
         {:reply, data, %{state | data: data}}
 
@@ -741,6 +747,148 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # Sends a deck agent to school (docs/agent-training.md). Unlike a
+  # governor or an agent taking the field, a student may go to a
+  # faction-mate's system, and it is that system which grants the seat —
+  # so the seat is taken BEFORE anything is committed here: a refusal
+  # leaves the agent in the deck and starts no process.
+  @decorate tick()
+  def on_call({:enroll_character, character_id, school, system_id}, _, state) do
+    case enroll_character(state, character_id, school, system_id) do
+      {:ok, state} -> {:reply, :ok, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  # Puts a deck agent in line behind the student `behind_id` of a school
+  # that has no free seat (docs/agent-training.md, "The queue"). The agent
+  # stays in the deck; the place is the system's to grant.
+  @decorate tick()
+  def on_call({:queue_character, character_id, school, system_id, behind_id}, _, state) do
+    with {:ok, character} <- Player.queue_character(state.data, character_id, school),
+         {:ok, wait} <-
+           Game.call(
+             state.instance_id,
+             :stellar_system,
+             system_id,
+             {:join_school_queue, character, school, behind_id}
+           ) do
+      wait = if is_number(wait), do: Core.CooldownValue.new(wait), else: nil
+      data = Player.set_school_queue(state.data, character_id, %{system_id: system_id, school: school, wait: wait})
+
+      broadcast_player(state, %{player_player: data})
+      {:reply, :ok, %{state | data: data}}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      # a bare :process_not_found: no such system
+      _ -> {:reply, {:error, :system_not_found}, state}
+    end
+  end
+
+  # The agent's owner takes it out of the line: any time, a siege included,
+  # since the agent never left the deck.
+  @decorate tick()
+  def on_call({:leave_school_queue, character_id}, _, state) do
+    case Player.leave_school_queue(state.data, character_id) do
+      {:ok, data, queue} ->
+        Game.cast(state.instance_id, :stellar_system, queue.system_id, {:leave_school_queue, character_id})
+
+        broadcast_player(state, %{player_player: data})
+        {:reply, :ok, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  # The owner of a system turns an agent out of its schools: a student of
+  # any player, or an agent waiting in the queue. The agent's own owner is
+  # told by the system ({:student_evicted, ...} / {:school_queue_cleared, ...}).
+  @decorate tick()
+  def on_call({:eject_student, system_id, character_id}, _, state) do
+    if Player.own_system?(state.data, system_id) do
+      case Game.call(
+             state.instance_id,
+             :stellar_system,
+             system_id,
+             {:eject_student, character_id, state.data.id}
+           ) do
+        :ok -> {:reply, :ok, state}
+        {:error, reason} -> {:reply, {:error, reason}, state}
+        _ -> {:reply, {:error, :system_not_found}, state}
+      end
+    else
+      {:reply, {:error, :not_system_owner}, state}
+    end
+  end
+
+  # The shared body of an enrolment, asked by the player or by a school's
+  # queue (`from_queue?: true`). Returns `{:ok, state}` or `{:error, reason}`.
+  defp enroll_character(state, character_id, school, system_id, opts \\ []) do
+    with {:ok, _position} <- Game.call(state.instance_id, :stellar_system, system_id, :get_position),
+         {:ok, data, character} <- Player.enroll_character(state.data, character_id, school, system_id, opts),
+         character = Character.update_strike(character, data.is_bankrupt),
+         {:ok, system} <- Game.call(state.instance_id, :stellar_system, system_id, {:enroll_student, character}) do
+      {:ok, supervisor_pid} = Instance.Supervisor.get_pid(state.instance_id)
+      channel = "instance:player:#{state.instance_id}:#{data.id}"
+      character_gen_state = Core.GenState.new(:character, state.instance_id, character.id, character, channel)
+
+      DynamicSupervisor.start_child(supervisor_pid, {Instance.Character.Agent, state: character_gen_state})
+
+      {:ok, time} = Game.call(state.instance_id, :time, :master, :get_state)
+
+      if time.is_running do
+        :ok = Game.call(state.instance_id, :character, character.id, {:start, state.tick.cumulated_pauses})
+      end
+
+      # the school may stand in a faction-mate's system: only an own
+      # system has a summary to refresh
+      data = if Player.own_system?(data, system_id), do: Player.update_stellar_system(data, system), else: data
+
+      # the passive experience rate comes from the owner's lexes
+      bonuses = Player.extract_bonus(data, [:character, :army, :spy, :speaker])
+      character = Game.call(state.instance_id, :character, character.id, {:update_bonuses, :player, bonuses})
+      data = Player.update_character(data, character)
+
+      state = next_tick(%{state | data: data})
+      broadcast_player(state, %{player_player: state.data})
+
+      {:ok, state}
+    else
+      {:error, reason} -> {:error, reason}
+      # a bare :process_not_found: no such system
+      _ -> {:error, :system_not_found}
+    end
+  end
+
+  # Spends the reallocations earned at a university on an agent that is
+  # back in the deck.
+  @decorate tick()
+  def on_call({:reallocate_skills, character_id, skills}, _, state) do
+    case Player.reallocate_skills(state.data, character_id, skills) do
+      {:ok, data} ->
+        broadcast_player(state, %{player_player: data})
+        {:reply, :ok, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  # Gives up the reallocations a deck agent has left (the card's Discard
+  # button, asked twice by the client).
+  @decorate tick()
+  def on_call({:discard_reallocations, character_id}, _, state) do
+    case Player.discard_reallocations(state.data, character_id) do
+      {:ok, data} ->
+        broadcast_player(state, %{player_player: data})
+        {:reply, :ok, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
   @decorate tick()
   def on_call({:deactivate_character, character_id}, _, state) do
     # snapshot the armada affiliation before deactivation wipes it, so
@@ -751,7 +899,13 @@ defmodule Instance.Player.Agent do
         _ -> nil
       end
 
-    case deactivate_character(state, character_id, true) do
+    # a student stays in its seat during a siege
+    recalled =
+      with :ok <- check_student_recall(state, character_id) do
+        deactivate_character(state, character_id, true)
+      end
+
+    case recalled do
       {:ok, state} ->
         case armada_before do
           nil -> :ok
@@ -1222,6 +1376,21 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # A course that is over — the last reallocation earned, or a fee nobody
+  # could pay — sends the student straight back to the deck, siege or not:
+  # the seat is free at once for whoever waits behind it.
+  @decorate tick()
+  def on_cast({:update_character, %Character{status: :student, training: %{phase: :graduated}} = character}, state) do
+    case deactivate_character(state, character.id, true, leaving_system?: true) do
+      {:ok, state} ->
+        {:noreply, state}
+
+      # already gone (a stale cast): nothing to bring home
+      _ ->
+        {:noreply, state}
+    end
+  end
+
   @decorate tick()
   def on_cast({:update_character, %Character{} = character}, state) do
     data = Player.update_character(state.data, character)
@@ -1237,6 +1406,73 @@ defmodule Instance.Player.Agent do
     broadcast_player(state, %{player_player: data})
 
     {:noreply, state}
+  end
+
+  # A school turned one of this player's students out: back to the deck it
+  # goes, with the experience and reallocations it earned. `:closed` when
+  # the system changed hands or the building that seated it was damaged,
+  # demolished or lost a level (StellarSystem.sync_schools/2), `:ejected`
+  # when the system's owner sent it away.
+  @decorate tick()
+  def on_cast({:student_evicted, character_id, reason}, state) do
+    with %{status: :student, name: name, system: system_id} <-
+           Enum.find(state.data.characters, fn c -> c.id == character_id end),
+         {:ok, state} <- deactivate_character(state, character_id, true, leaving_system?: true) do
+      key = if reason == :ejected, do: :character_school_ejected, else: :character_school_closed
+      notif = Notification.Text.new(key, system_id, %{character: name})
+      on_cast({:push_notifs, notif}, state)
+    else
+      _ -> {:noreply, state}
+    end
+  end
+
+  # A seat came free for an agent of this player waiting in a school's
+  # queue: it is sent in at once, as its owner asked when it joined the
+  # line. If it cannot go after all (no slot left, a course nobody can pay)
+  # the place is given up and the seat goes to the next in line.
+  @decorate tick()
+  def on_cast({:school_seat_ready, character_id, system_id, school}, state) do
+    name = deck_character_name(state.data, character_id)
+
+    case enroll_character(state, character_id, school, system_id, from_queue?: true) do
+      {:ok, state} ->
+        notif = Notification.Text.new(:character_queue_seated, system_id, %{character: name})
+        on_cast({:push_notifs, notif}, state)
+
+      {:error, _reason} ->
+        Game.cast(state.instance_id, :stellar_system, system_id, {:leave_school_queue, character_id})
+
+        case Player.leave_school_queue(state.data, character_id) do
+          {:ok, data, _queue} ->
+            state = %{state | data: data}
+            broadcast_player(state, %{player_player: data})
+            notif = Notification.Text.new(:character_queue_lost, system_id, %{character: name})
+            on_cast({:push_notifs, notif}, state)
+
+          # dismissed in the meantime
+          {:error, _reason} ->
+            {:noreply, state}
+        end
+    end
+  end
+
+  # The place this player's agent held in a school's queue is gone: the
+  # seat it waited for was lost (`:closed`) or the system's owner sent the
+  # agent away (`:ejected`). It never left the deck.
+  @decorate tick()
+  def on_cast({:school_queue_cleared, character_id, reason}, state) do
+    case Player.leave_school_queue(state.data, character_id) do
+      {:ok, data, queue} ->
+        state = %{state | data: data}
+        broadcast_player(state, %{player_player: data})
+
+        key = if reason == :ejected, do: :character_queue_ejected, else: :character_queue_lost
+        name = deck_character_name(data, character_id)
+        on_cast({:push_notifs, Notification.Text.new(key, queue.system_id, %{character: name})}, state)
+
+      {:error, _reason} ->
+        {:noreply, state}
+    end
   end
 
   # A stranded :attached armada member self-recovered (the attached-
@@ -1485,6 +1721,28 @@ defmodule Instance.Player.Agent do
       state = next_tick(%{state | data: data})
       broadcast_player(state, %{player_player: state.data})
       {:ok, state}
+    end
+  end
+
+  defp deck_character_name(data, character_id) do
+    case Enum.find(data.character_deck, fn %{character: c} -> c.id == character_id end) do
+      %{character: %{name: name}} -> name
+      nil -> ""
+    end
+  end
+
+  # A student stays in its seat for as long as the system is under siege,
+  # which only the system can tell: the school may be a faction-mate's.
+  defp check_student_recall(state, character_id) do
+    case Enum.find(state.data.characters, fn c -> c.id == character_id end) do
+      %{status: :student, system: system_id} ->
+        case Game.call(state.instance_id, :stellar_system, system_id, {:check_student_recall, character_id}) do
+          {:error, reason} -> {:error, reason}
+          _ -> :ok
+        end
+
+      _ ->
+        :ok
     end
   end
 

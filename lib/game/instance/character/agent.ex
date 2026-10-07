@@ -319,6 +319,30 @@ defmodule Instance.Character.Agent do
     {:reply, data, %{state | data: data}}
   end
 
+  # The owner can no longer pay for a university course (the player
+  # agent's tuition check): the student stops there and waits to be
+  # recalled. The system's roster follows, since the slot is free again —
+  # and so does the owner's, although the reply carries the same state:
+  # the tick that ran just before this body may have cast an update of its
+  # own (settled in, a credit, a level), which the owner will read AFTER
+  # the reply and must not be left with.
+  @decorate tick()
+  def on_call({:end_course, reason}, _from, state) do
+    case Character.end_course(state.data, reason) do
+      {:ok, data} ->
+        Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+        if data.system != nil do
+          Game.cast(state.instance_id, :stellar_system, data.system, {:update_character, data})
+        end
+
+        {:reply, {:ok, data}, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
   def on_call(:get_position, _from, state) do
     instance_id = state.instance_id
     {position, angle} = Character.get_position(state.data, instance_id)

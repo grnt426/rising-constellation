@@ -14,6 +14,7 @@
 @import 'shared/plugins/v-toasted';
 @import 'shared/plugins/v-popover';
 @import 'shared/help-button';
+@import 'shared/school-queue';
 
 @import 'shared/fight-report';
 
@@ -86,6 +87,7 @@
   @import 'game/components/galaxy/system/actions';
   @import 'game/components/galaxy/system/production';
   @import 'game/components/galaxy/system/station';
+  @import 'game/components/galaxy/system/school';
 
   @import 'game/components/galaxy/selection/view';
   @import 'game/components/galaxy/selection/army';

@@ -82,7 +82,17 @@ defmodule Data.Game.Constant.Content.Fast do
         gateway_charge_upkeep_credit: 250,
         gateway_charge_upkeep_technology: 50,
         training_center_interval: 8,
-        cyber_command_interval: 4
+        cyber_command_interval: 4,
+        polytech_xp_factor: 1.0,
+        university_xp_factor: 2.0,
+        university_settle_time: 3,
+        university_reallocation_interval: 20,
+        university_max_reallocations: 5,
+        university_fee_credit: 50,
+        university_fee_technology: 5,
+        university_fee_ideology: 5,
+        university_guest_min_level: 5,
+        training_defense_factor: 0.5
       }
     ]
   end
