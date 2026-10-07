@@ -52,6 +52,27 @@ defmodule Wave do
   def locked_faction?(_instance, _faction), do: false
 
   @doc """
+  Engine hook: a Navarch came out of a fight (`:fight`, with its status) or
+  finished a pillage, bombardment or invasion (with the roll's result). In a
+  Wave Defense game the Rebellion's own Navarchs are reported to the Warlord,
+  which scores the fleet's design by it (`Wave.Doctrine`). Everything else is
+  ignored, and nothing here can fail the caller.
+  """
+  def report_fleet(%{instance_id: instance_id, id: id, owner: %{faction: faction}}, kind, result)
+      when is_integer(instance_id) do
+    if Wave.Config.bot_faction?(instance_id, faction),
+      do: Game.cast(instance_id, :wave, :master, {:fleet_result, id, kind, result})
+
+    :ok
+  rescue
+    _ -> :ok
+  catch
+    _, _ -> :ok
+  end
+
+  def report_fleet(_character, _kind, _result), do: :ok
+
+  @doc """
   Default knobs, merged under whatever `game_data["wave"]` carries. Keys are
   strings because this map round-trips through the instance's jsonb game_data.
 
@@ -166,6 +187,14 @@ defmodule Wave do
       # curve is the leading human faction's sector count on the Citadel map in
       # official match i121, over its 19 sectors (1, 1, 2, 2, 3, 3, 4, 5, 5, 6,
       # 7, 8, 8, 8, 8, 9, 10, 11, 11, 11, 13, 13).
+      # `sector_pace_speedup` runs that clock faster from a given day on:
+      # `[[from_day, factor], ...]` in days elapsed. `[[9, 2], [11, 4]]` halves
+      # the wait between two sector openings from day 9 and halves it again
+      # from day 11. `sector_open_contested_from_day`, when set, lifts the
+      # gate altogether for a neighbouring sector with a human system or
+      # dominion in it from that day on.
+      "sector_pace_speedup" => [],
+      "sector_open_contested_from_day" => nil,
       "sector_share_by_day" => [
         0.0526,
         0.0526,
@@ -328,6 +357,135 @@ defmodule Wave do
       "erased_recon_interval_ut" => 3.0,
       "erased_scan_cap" => 60,
       "erased_probe_cap" => 12,
+
+      # --- fleets --------------------------------------------------------
+      # Fleet Navarchs: hired for a role, given a design players fielded
+      # (Wave.Blueprints), built in a shipyard system and posted. `fleets`
+      # true switches the step on; a game that never sets it raises none.
+      "fleets" => false,
+      # Fleet ceiling, per human player by match day like the agent ceilings
+      # above: the fleets of nine ships or more a player had flying in the
+      # official Legacy matches (the middle of i20, i49, i87 and i121), held
+      # non-decreasing. Fleets stay rare until the frigate patents land around
+      # day 13, then double within three days.
+      "fleets_per_player_by_day" => [
+        0,
+        0.1,
+        0.15,
+        0.2,
+        0.25,
+        0.25,
+        0.3,
+        0.5,
+        0.5,
+        0.55,
+        0.6,
+        0.6,
+        0.7,
+        1,
+        1.7,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2.1,
+        2.5,
+        2.5,
+        3.5,
+        3.5
+      ],
+      # How often the Rebellion hires a fleet Navarch while under the ceiling.
+      "fleet_hire_interval_ut" => 60.0,
+      # A shipyard system lays down one ship per interval (15 real minutes at
+      # Legacy), one fleet at a time.
+      "fleet_ship_interval_ut" => 5.0,
+      # 0 keeps that flat rule. Above 0 a yard also pays for each hull out of
+      # its own production, this many times as fast as a player's system
+      # would, with the interval as the floor: at 1 a Cruiser (120,000
+      # production) ties up a 600-production yard for 200 ut where a scout
+      # swarm still takes 5.
+      "fleet_production_pace" => 0,
+      # Classes that take longer than the interval above: a capital ship
+      # holds the yard for 20 ut, one real hour.
+      "fleet_class_interval_ut" => %{"capital" => 20.0},
+      # Capital ships per fleet. Players never massed them, for their cost:
+      # one or two per fleet in the first days after the patent, three or four
+      # late, six at the very most. The Rebellion may put one in a fleet once a
+      # human fields a capital hull, and one more every 600 ut (30 real hours),
+      # up to the maximum. Capitals of a design past the allowance are built as
+      # the hull the design has most of.
+      "fleet_capital_step_ut" => 600.0,
+      "fleet_capital_max" => 6,
+      # The Rebellion's own designs (Wave.Doctrine). Per role it keeps this
+      # many identities, each a library design fuzzed: `fleet_fuzz_swaps`
+      # tiles take another unlocked hull of their class (or of the class next
+      # to it while that class has only one) and `fleet_fuzz_moves` pairs of
+      # tiles change places.
+      "fleet_identities_per_role" => 2,
+      "fleet_fuzz_swaps" => 3,
+      "fleet_fuzz_moves" => 2,
+      # Every review (a real day) an identity is judged by what its fleets
+      # did since the last one. With at least `fleet_design_min_results`
+      # results: a win share of `fleet_design_win_share` or more is winning,
+      # and it is fuzzed again, lightly; under `fleet_design_lose_share` is
+      # losing, a strike. An identity is replaced from the library when it
+      # has more strikes than `fleet_design_forgiveness`, so one bad day is
+      # forgiven. A winning review clears the strikes.
+      "fleet_review_interval_ut" => 480.0,
+      "fleet_design_min_results" => 2,
+      "fleet_design_win_share" => 0.5,
+      "fleet_design_lose_share" => 0.34,
+      "fleet_design_forgiveness" => 1,
+      # An identity that is not winning is also replaced once what it builds
+      # costs under this share of the cheapest design the library would still
+      # offer its role: the book follows the hulls as they unlock.
+      "fleet_design_outdated_share" => 0.75,
+      "fleet_refuzz_swaps" => 1,
+      "fleet_refuzz_moves" => 1,
+      # The system types whose systems are shipyards: the military type, which
+      # is the one that rolls the shipyards and the academy.
+      "fleet_yard_profiles" => ["defense"],
+      # A yard builds only the hulls whose shipyard stands in the system.
+      # False lets every military system build everything.
+      "fleet_yard_needs_shipyard" => true,
+      # Military dominions count as yards too. A Navarch can only be deployed
+      # in a system the Rebellion runs itself, so a fleet for a dominion yard
+      # walks there first.
+      "fleet_yard_dominions" => true,
+      # Game time between two looks at the yards (which shipyards stand, what
+      # experience each gives).
+      "fleet_yard_refresh_ut" => 120.0,
+      # The stages of a match for the role split, in days elapsed.
+      "fleet_stage_days" => [5, 12],
+      # Share of the fleet roster each role takes, by stage. From what the
+      # players' fleets were seen doing in the official matches: three in ten
+      # stand guard at every stage; sieges and invasions wait for the frigate
+      # and Carrier patents; every siege or invasion fleet has a fleet-killer
+      # to cover it.
+      "fleet_role_weights" => %{
+        "early" => %{"defense" => 40, "raid" => 60},
+        "mid" => %{"defense" => 30, "raid" => 35, "siege" => 5, "screen" => 30},
+        "late" => %{"defense" => 30, "raid" => 25, "siege" => 15, "conquest" => 10, "screen" => 20}
+      },
+      # Of the designs the patents allow for a role, only the costliest share
+      # stays in the draw (at least three designs).
+      "fleet_design_share" => 0.5,
+      # Share of the defense fleets posted in border sectors; the rest stand
+      # inside. Shipyard systems are garrisoned first in both.
+      "fleet_defense_border_share" => 0.6,
+      # The stance a finished fleet takes, by role: Interdiction for the
+      # garrisons, Fury for the screens, Defender for the rest.
+      "fleet_stances" => %{
+        "defense" => "attack_enemies",
+        "raid" => "defend",
+        "siege" => "defend",
+        "conquest" => "defend",
+        "screen" => "attack_everyone"
+      },
+      # A posted fleet that has lost this share of its ships walks back to a
+      # yard and refits.
+      "fleet_refit_share" => 0.35,
 
       # --- economy ------------------------------------------------------
       # The Warlord tops the bot's stock back up to these floors each tick, so

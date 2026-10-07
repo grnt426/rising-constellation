@@ -198,13 +198,27 @@ defmodule Wave.Geometry do
   by sector). A comfortably held sector is left alone so humans can flip it,
   and a frontier sector never draws more agents than it needs.
   """
-  def workable_sectors(%__MODULE__{} = geo, hold_margin, frontier_open?, pending \\ %{}) do
+  def workable_sectors(%__MODULE__{} = geo, hold_margin, frontier_open?, pending \\ %{}, always_open \\ MapSet.new()) do
     geo.takeable
     |> Enum.filter(fn id ->
-      (MapSet.member?(geo.owned, id) or frontier_open?) and
+      (MapSet.member?(geo.owned, id) or frontier_open? or MapSet.member?(always_open, id)) and
         sector_need(geo, id, hold_margin) > Map.get(pending, id, 0)
     end)
     |> MapSet.new()
+  end
+
+  @doc """
+  The sectors next to the faction's own in which another faction holds a
+  system or a dominion. Passed to `workable_sectors/5` as `always_open`, they
+  are worked whatever the sector pace says.
+  """
+  def contested_frontier(%__MODULE__{} = geo) do
+    for system <- geo.systems,
+        system.faction not in [nil, geo.faction],
+        MapSet.member?(geo.takeable, system.sector_id),
+        not MapSet.member?(geo.owned, system.sector_id),
+        into: MapSet.new(),
+        do: system.sector_id
   end
 
   @doc """

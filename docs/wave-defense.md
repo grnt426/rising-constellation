@@ -1002,6 +1002,414 @@ was given `fighter_2`, `transport_1` and six slots, the next survey bought
 enacted two more lexes. The timed purchases then alternated every 60 ut:
 `open_research`, `system_1`, `orbital_prod`, `infiltration`, `infra_open_3`.
 
+### Sector pace: faster, and no gate where the humans stand (2026-10-07)
+
+The Rebellion was taking sectors more slowly than the human faction. Two
+knobs, both empty by default, so a game changes pace only when told to.
+
+**`sector_pace_speedup`** runs the clock the sector allowance reads faster
+from a given day on: `[[from_day, factor], ...]`, in days elapsed
+(`Warlord.pace_elapsed/1`). The allowance curve itself is untouched; the time
+between two of its steps shrinks by the factor.
+
+**`sector_open_contested_from_day`**, once that day has passed, lifts the gate
+for any neighbouring sector in which another faction holds a system or a
+dominion (`Geometry.contested_frontier/1`). Such a sector is worked whatever
+the allowance says. The other limits still apply: it has to touch a sector
+the Rebellion owns, and it draws no more agents than it needs.
+
+For instance 185 the ruling was: halve the interval now, halve it again two
+days later, and from then on no delay for a sector with humans in it. With
+the change taking effect at day 9.0 elapsed (and the live lead of 1.33 days)
+that is
+`{"sector_pace_speedup": [[9.0, 2], [11.0, 4]], "sector_open_contested_from_day": 11.0}`:
+
+| Sectors allowed (of 14) | As it was | With the speedup |
+|---|---|---|
+| 6 | day 9.7 | day 9.3 |
+| 7 | day 13.7 | day 11.2 |
+| 8 | day 15.7 | day 11.7 |
+| 10 (where the curve ends) | day 18.7 | day 12.4 |
+
+The curve was drawn for the 19 sectors of Citadel and ends at 13 of them, so
+on 14 sectors the allowance never passes 10. Past that only the contested
+rule opens anything, which on this map is every sector between the Rebellion
+and the humans once the humans reach it.
+
+### Fleets: designs, roles, shipyards (built 2026-10-07)
+
+The Rebellion can raise fleets. A fleet Navarch is hired for a role, given a
+design that players fielded in that role, built ship by ship in one of the
+Rebellion's shipyard systems, and posted. It does not attack yet: the fleets
+with a job outside the Rebellion's borders muster at the border and wait for
+the orders that come next (see "Not built yet" below).
+
+The step is off unless a game sets the `fleets` knob to `true`.
+
+Code: `Wave.Blueprints` (the players' designs), `Wave.Doctrine` (the
+Rebellion's own variants of them, and how they are judged), `Wave.Fleet`
+(roles, yards, posts; all three pure), the fleet books in `Wave.Warlord`, and
+the "Fleets" section of `Wave.Warlord.Agent`. This replaces sections 5.6 and 7 of the plan below
+where they differ.
+
+#### Where the designs come from
+
+`priv/data/wave/blueprints.json` holds 397 designs, mined from six
+Legacy-speed matches (the four official ones, 20, 49, 87 and 121, and the
+private games 10 and 85). Three exports feed it, 3,545 sightings of a fleet
+at one moment:
+
+| Source | Sightings | What it shows |
+|---|---|---|
+| `player_events`, attacker's row of every pillage, bombardment and conquest | 1,783 | the fleet as it was before the action, and whose system it hit |
+| `player_report` fight reports (313 battles) | 829 | both sides' fleets going in, each Navarch's queue and stance |
+| Instance snapshots (i121 nightly for 22 days, i87 for its last four, the final state of i20 and i49) | 933 | fleets standing somewhere, with the system's owner |
+
+Each sighting is tagged with what the fleet was doing:
+
+| Evidence | A fleet that... | Sightings | Fleets | Players |
+|---|---|---|---|---|
+| `defense` | fought as the defender in a system of its own faction, or stood in one across three snapshots at least two days apart | 239 | 115 | 34 |
+| `raid` | pillaged a player's system or a dominion | 395 | 119 | 37 |
+| `siege` | bombarded one | 254 | 100 | 31 |
+| `conquest` | invaded one, or stood with an invasion queued | 44 | 28 | 13 |
+| `screen` | fought at a system while a teammate's bombardment or invasion of a player's holding ran there | 142 | 32 | 11 |
+| `hunt` | attacked another fleet away from home with nothing else queued | 111 | 89 | 26 |
+| `farm` | pillaged or bombarded a neutral system | 1,105 | 51 | 24 |
+
+Farming is how players train a fleet (eighteen stacks of Scouts with no raid
+strength at all, against a defense of 0 to 3), and it says nothing about
+fighting other players. Those sightings are left out. So are fleets of fewer
+than nine ships and anything carrying a colony ship.
+
+What the roles look like, late game (day 12 on), as medians per sighting and
+the share of the fleets' production by class:
+
+| Role | Ships | Production | Raid | Invasion | Fighters | Corvettes | Frigates | Capitals | Carriers |
+|---|---|---|---|---|---|---|---|---|---|
+| Defense | 17 | 69,456 | 80 | 12 | 16% | 13% | 38% | 29% | 4% |
+| Raid | 18 | 58,256 | 120 | 8 | 5% | 12% | 33% | 47% | 3% |
+| Siege | 18 | 69,052 | 160 | 10 | 4% | 12% | 31% | 49% | 4% |
+| Conquest | 18 | 108,520 | 32 | 212 | 5% | 5% | 30% | 32% | 28% |
+| Screen | 17 | 56,184 | 16 | 12 | 12% | 21% | 48% | 18% | 0% |
+| Hunt | 18 | 51,472 | 36 | 8 | 20% | 13% | 33% | 32% | 2% |
+
+The roles separate where one would expect. Siege fleets carry the most raid
+strength (Gunners and capitals). Conquest fleets are a third Carriers and cost
+half again as much as anything else. Screens carry almost no raid strength
+and no Carriers: they are Assault Frigate walls with Interceptors in the
+first line, the cheapest way to kill what comes to break a siege. Raid and
+siege overlap heavily late (65 of the 125 late fleets seen doing either did
+both); before frigates both are eighteen stacks of Light Corvettes.
+
+**A design is a tile layout of hulls, without stack sizes.** Players build the
+largest stack their merge patents allow, so `18 x fighter_4` stands for
+eighteen stacks of 2, 4, 8 or 16 Interceptors depending on the day, and one
+design serves every stage of a match that has unlocked its hulls. Sightings
+with the same hull mix are merged into one design; its layout is the most
+common one among them, because the tile order is the order the lines deploy
+in. A design keeps its evidence counts, the number of distinct players who
+fielded it and the matches it came from. It carries no player name.
+
+To rebuild the pool: `bin/wave-fleets/extract_fleets.exs` turns snapshots
+into JSON lines, and `bin/wave-fleets/mine_fleets.py <data_dir> --report`
+reads those and the three exports (the queries are in its header) and
+rewrites the file. Both work on copies, never on a live database.
+
+#### Roles and the roster
+
+The Rebellion builds five roles. Hunters are folded into the screens at half
+weight, because both exist to kill fleets:
+
+| Role | Built from | Job |
+|---|---|---|
+| `defense` | defense | stand in a Rebellion system |
+| `raid` | raid | pillage |
+| `siege` | siege | bombard |
+| `conquest` | conquest | invade, with Carriers |
+| `screen` | screen, hunt at half | kill the fleets that come to break a siege |
+
+**How many.** `fleets_per_player_by_day` is a ceiling per human player by
+match day, like the agent ceilings: the fleets of nine ships or more a player
+had flying in the official matches (the middle of the four). It stays low
+until the frigate patents land around day 13, then doubles in three days.
+Unlike the agent ceilings it may be zero.
+
+| Match day | 1 | 4 | 8 | 11 | 13 | 14 | 15 | 16-20 | 22 | 24+ |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Fleets per player | 0 | 0.2 | 0.5 | 0.6 | 0.7 | 1 | 1.7 | 2 | 2.5 | 3.5 |
+| Ceiling against 11 humans | 0 | 2 | 6 | 7 | 8 | 11 | 19 | 22 | 28 | 39 |
+
+**Which.** `fleet_role_weights` splits the ceiling by stage (`fleet_stage_days`
+[5, 12], days elapsed). The shipped weights sit next to what the players'
+fleets were seen doing, counted by each fleet's main role:
+
+| Stage | Defense | Raid | Siege | Conquest | Screen (players: screen + hunt) |
+|---|---|---|---|---|---|
+| Early, players (9 fleets) | 0% | 33% | 44% | 0% | 22% |
+| Early, Rebellion | 40 | 60 | 0 | 0 | 0 |
+| Mid, players (54 fleets) | 31% | 39% | 2% | 2% | 26% |
+| Mid, Rebellion | 30 | 35 | 5 | 0 | 30 |
+| Late, players (241 fleets) | 27% | 30% | 16% | 6% | 21% |
+| Late, Rebellion | 30 | 25 | 15 | 10 | 20 |
+
+The Rebellion follows the players except early, where nine fleets are too few
+to copy and a faction that cannot attack yet is better served by garrisons.
+`Fleet.quotas/2` turns the weights into whole fleets (largest remainder), and
+every `fleet_hire_interval_ut` (60) the next Navarch is hired for the role
+furthest below its share. Of the market ranks the day has unlocked it buys the
+highest level: a commander's level is the only thing about a Navarch that
+reaches the battle.
+
+**Which design.** A fleet is built to one of the Rebellion's own designs for
+its role (next section). Those are taken from the library by
+`Blueprints.pick/6`: the designs with evidence in the role whose hulls are
+unlocked and some yard can build, each resolved to today's largest stacks,
+ranked by what they cost to build. Only the costliest half stays in the draw
+(`fleet_design_share`, at least three designs), so a Rebellion with frigates
+stops laying down corvette swarms. Among those the draw is weighted by
+sightings in the role plus distinct players.
+
+**Only hulls the players have.** A fleet is built from the ship patents the
+humans hold and nothing else. The Warlord reads every human player at each
+yard survey and keeps the union (`human_hulls`; it only grows). A hull is
+unlocked when its patent is in that list, and a stack when its merge patent
+is. What the Rebellion itself holds does not enter into it, so its fleets are
+never a tier ahead of the best-equipped player.
+
+**Capital ships.** Players never massed capitals, for their cost. Counted in
+30-hour steps from the first capital sighted in a match, the fleets that
+carried any carried one or two in the first three steps and never more than
+three; from the thirteenth step on they carried three or four; six or seven
+appeared in two steps only. The Rebellion follows the same slope: a fleet may carry one
+capital ship from the moment a human holds a capital patent, and one more
+every `fleet_capital_step_ut` (600, thirty real hours), up to
+`fleet_capital_max` (6). A design with more capitals than the allowance keeps
+the first ones in tile order; the rest are built as the hull the design has
+most of outside capitals and Carriers. The cap is applied when a fleet is
+laid down, so the same design grows its capitals back as the allowance rises.
+
+#### The Rebellion's own designs
+
+The Rebellion does not field the players' designs as they are. A design it
+takes from the library is fuzzed first, and the variant becomes one of its
+**identities**. It keeps `fleet_identities_per_role` (2) per role and builds
+every fleet of that role from them, so the players meet the same few fleets
+again and have something to solve.
+
+**Fuzzing** (`Doctrine.fuzz/5`) does two things to a tile layout:
+
+| Operation | New identity | Winner, fuzzed again | What it does |
+|---|---|---|---|
+| Swap | `fleet_fuzz_swaps` 3 | `fleet_refuzz_swaps` 1 | One tile takes another unlocked hull of its class. While the players have only one hull of a class unlocked, the tile may take a hull of the class next to it instead (fighter, corvette, frigate). Capitals only trade with capitals. Carriers never change |
+| Move | `fleet_fuzz_moves` 2 | `fleet_refuzz_moves` 1 | Two tiles holding different hulls change places, which changes the line each deploys in |
+
+The number of ships never changes. A design of one hull in every tile, such
+as the eighteen Light Corvette stacks, can only be swapped, and only has
+something to swap with once a second corvette hull or a neighbouring class is
+unlocked.
+
+**Results.** The engine tells the Warlord when one of the Rebellion's Navarchs
+comes out of a fight or finishes an action (`Wave.report_fleet/3`, called from
+the fight and from the end of a pillage, a bombardment and an invasion). A
+fight won, or an action that succeeded, is a win for the identity the fleet
+was built from; a fight lost or fled, or an action that failed, is a loss.
+Every fleet in a battle reports for itself.
+
+**The review.** Every `fleet_review_interval_ut` (480, one real day) each
+identity is judged on its results since the last review:
+
+| Verdict | Condition | What happens |
+|---|---|---|
+| Winning | at least `fleet_design_min_results` (2) results, half or more of them wins (`fleet_design_win_share`) | It is fuzzed again, lightly, and keeps its lineage and its record. Its strikes are cleared |
+| Losing | that many results, under a third wins (`fleet_design_lose_share` 0.34) | A strike. It is replaced only when it has more strikes than `fleet_design_forgiveness` (1): one losing day is forgiven, the second in a row is not |
+| Unproven | fewer results, or between a third and a half | Kept as it is |
+
+A replaced identity makes room for a library design the role's book does not
+hold yet, fuzzed. One more rule keeps the book from going stale: an identity
+that is not winning is also replaced when what it builds today costs less
+than `fleet_design_outdated_share` (0.75) of the cheapest design the library
+would still offer for its role. Without it the corvette walls of day 9 would
+stay in the book for the whole match on the strength of never having fought.
+A winner is kept whatever it costs.
+
+Fleets already flying keep the ships they were built with. Their later
+results still count for their lineage, and a refit refills the tiles they
+have, to the design they were laid down to.
+
+#### Shipyards
+
+Fleets are built in the Rebellion's **military systems**, the type that rolls
+the shipyards and the academy (`fleet_yard_profiles`, `["defense"]`).
+Military dominions count too (`fleet_yard_dominions`). The Warlord reads each
+owned system's type once and looks the yards over again every
+`fleet_yard_refresh_ut` (120).
+
+| Rule | Detail |
+|---|---|
+| A yard builds only what its shipyards allow | A hull needs its own shipyard standing in the system, as it does for a player (`fleet_yard_needs_shipyard`). The Carrier needs none. A design no yard can build is not offered |
+| One ship per yard per interval | `fleet_ship_interval_ut` 5, fifteen real minutes at Legacy, as the plan said. A capital ship takes 20 ut, one real hour (`fleet_class_interval_ut`). A yard serves one fleet at a time, the one that has waited longest; the others queue. A besieged yard builds nothing |
+| Ships leave with the yard's experience | The system's level for the ship's class, exactly as a player's ship would. A yard that built academies launches veterans |
+| No production, no credits | `order_ship` + `put_ship` on the Navarch, the pair the colony ship uses. The patents and the shipyards are the only gates |
+| The yard is picked at hire | Among the yards that can build the whole design: the fewest fleets queued, then the most experience for this design. The Navarch is deployed straight into it. A dominion yard cannot take a deployment, so that Navarch starts at home and walks |
+| Refit | A posted fleet that has lost `fleet_refit_share` (35%) of its ships walks back to a yard, queues, and has its empty tiles refilled. Ships that survived keep their tile and their experience |
+
+`fleet_production_pace` is an option on top of those intervals, off at 0.
+Above 0 a yard also has to pay for each hull out of its own production, as a
+player's system would, that many times as fast, with the interval as the
+floor.
+
+#### Posts
+
+| Role | Where the finished fleet stands | Stance |
+|---|---|---|
+| Defense | Three in five in the Rebellion's border sectors, the rest inside (`fleet_defense_border_share` 0.6). In both, shipyard systems first, then the most productive systems; every post has one fleet before any has two | Interdiction |
+| Screen | The muster point | Fury |
+| Raid, siege, conquest | The muster point | Defender |
+
+The muster point is the Rebellion system in a border sector with the fewest
+lane hops to anything another faction holds, shipyards preferred among
+equals. A fleet thrown off its post by a lost fight walks back; one whose
+post changed hands is posted again.
+
+#### What this looks like in instance 185
+
+Read from the autosave of 2026-10-07 14:27 UTC, match day 9 (4,250 ut
+elapsed), eleven humans. Nothing here was run on the live game.
+
+**The yards.** Ten of the Rebellion's forty holdings are military. None is in
+its home sector.
+
+| Yard | Sector | Kind | Production | Shipyards | Launch level (fighter / corvette / frigate / capital) |
+|---|---|---|---|---|---|
+| Rhos | 11 | system | 478 | 1, 2, 3 | 1 / 1 / 1 / 0 |
+| Astarak | 11 | system | 384 | 1, 2, 3, 4 | 0 / 0 / 0 / 0 |
+| Secila | 12 | system | 729 | 1, 2, 3 | 3 / 2 / 2 / 2 |
+| Sicheris | 12 | system | 648 | 1, 2, 3 | 0 / 0 / 1 / 0 |
+| Taphab | 12 | system | 609 | 1, 2, 3 | 0 / 0 / 0 / 0 |
+| Caltenkat | 12 | dominion | 571 | 1, 3 | 2 / 1 / 2 / 1 |
+| Denak | 12 | dominion | 286 | 1, 3 | 0 / 0 / 0 / 0 |
+| Ndodo | 13 | system | 785 | 1, 2, 3 | 3 / 2 / 2 / 2 |
+| Aquarnan | 13 | dominion | 532 | 1, 2, 3, 4 | 0 / 1 / 1 / 1 |
+| Huankar | 13 | system | 485 | 1, 2, 3 | 1 / 0 / 0 / 0 |
+
+Only Astarak and Aquarnan have a capital shipyard. Once capitals unlock,
+every capital-bearing design queues at those two, and Aquarnan is a dominion.
+
+**What it would lay down today.** The Rebellion holds the fighter patents
+with stacks of 8, Light Corvettes in stacks of 4, and the frigate yard, which
+brings the Assault Frigate. "Player pace" is what the same ships would cost a
+player in a yard of median production (571 per ut): production cost over
+production.
+
+| Role | Designs buildable / in the draw | Most likely draws | Ships | Flat rule | Player pace |
+|---|---|---|---|---|---|
+| Defense | 25 / 13 | 18 x 8 Interceptors (17%); 18 x 4 Light Corvettes (12%); 13 x 8 Interceptors + 5 x 2 Assault Frigates (12%) | 18 | 4.5 h | 2.2 to 5.9 h |
+| Raid | 32 / 16 | 18 x 4 Light Corvettes (23%); 17 of them (12%); 11 corvette stacks + 7 Interceptor stacks (8%) | 17-18 | 4.2 to 4.5 h | 2.5 to 3.7 h |
+| Siege | 26 / 13 | the same corvette walls (17% + 17% + 13%) | 16-18 | 4.0 to 4.5 h | 3.1 to 3.7 h |
+| Screen | 31 / 16 | 13 x 2 Assault Frigates + 4 x 8 Interceptors (32%); the same with 2 or 3 Interceptor stacks (17%, 7%) | 15-17 | 3.8 to 4.2 h | 4.7 to 5.0 h |
+| Conquest | 1 / 1 | 14 x 2 Assault Frigates + 4 x 8 Interceptors (no Carrier patent yet; invasion strength 56) | 18 | 4.5 h | 5.3 h |
+
+Today the flat rule and a player's pace agree: a fleet takes four to five
+hours either way. The draws are the library's; what is laid down is each
+one's fuzzed variant, three tiles and two positions away from it.
+
+**Later.** With every hull unlocked, the costliest half of each role's
+designs:
+
+| Role | Designs in the draw | Median production | Flat rule | Player pace, median | Player pace, dearest |
+|---|---|---|---|---|---|
+| Defense | 65 | 114,760 | 4.5 h | 10 h | 29 h |
+| Raid | 73 | 112,392 | 4.5 h | 10 h | 62 h |
+| Siege | 58 | 115,808 | 4.5 h | 10 h | 62 h |
+| Conquest | 12 | 151,040 | 4.5 h | 13 h | 80 h |
+| Screen | 65 | 117,024 | 4.5 h | 10 h | 34 h |
+
+"Flat rule" is fifteen minutes for every ship. With an hour per capital ship
+and the cap on capitals, a fleet takes 4.5 hours plus 45 minutes per capital:
+5.25 hours with one, 6.75 with three, 9 with the full six. That is still
+faster than a player (a Cruiser alone is 10.5 hours of a 571-production yard),
+and it is the capitals that are rationed, not the time.
+
+**The roster.**
+
+| Match day | Ceiling | Defense | Raid | Siege | Conquest | Screen |
+|---|---|---|---|---|---|---|
+| 9-10 | 6 | 2 | 2 | 0 | 0 | 2 |
+| 11-12 | 7 | 2 | 3 | 0 | 0 | 2 |
+| 13 | 8 | 2 | 2 | 1 | 1 | 2 |
+| 14 | 11 | 3 | 3 | 2 | 1 | 2 |
+| 15 | 19 | 5 | 5 | 3 | 2 | 4 |
+| 16-20 | 22 | 7 | 6 | 3 | 2 | 4 |
+| 22-23 | 28 | 8 | 7 | 4 | 3 | 6 |
+| 24 on | 39 | 11 | 10 | 6 | 4 | 8 |
+
+At one hire per 60 ut the first fleet is complete 4.5 hours after the switch
+is thrown, and the sixth Navarch is hired 15 hours in. With ten yards the
+yards are never the limit: the hire clock is. The jump from 11 to 19 on day
+15 is eight hires, exactly one day of the clock.
+
+**Where they stand.** Sector 13 (Dor-Valon) is the Rebellion's only border
+sector; it touches the unclaimed sector 7 on the way to the humans.
+
+- Defenders, in posting order: Ndodo, Aquarnan, Secila, Huankar, Sicheris,
+  Kuiyan, Mirar, Taphab, Ankenkak, Caltenkat, Begenaf, Zubus Ka. The first
+  three border posts are the three border yards. No post is more than 2.6
+  hours from a yard.
+- Everyone else musters at Aquarnan, 10 lane hops and 34 hours of walking
+  from Nebla, the nearest human system (sector 4).
+- The walk from a yard to the muster point is 0 to 2.7 hours from the yards
+  in the same sector (Aquarnan, Ndodo; 6.8 from Huankar), 10.6 to 15.1 hours
+  from the yards of sector 12, and 20.7 to 23.6 hours from Astarak and Rhos. The yard is
+  picked for its queue and its experience, not for its distance, so a raid
+  fleet laid down at Secila for its level-3 fighters walks 11.4 hours.
+
+On day 9 the humans of instance 185 have one warfleet between them, three
+pairs of Fighter-bombers, and two players who have gone past fighters in the
+ship branch. They are behind the curve the ceiling was drawn from: six full
+fleets today is more than all of them hold together.
+
+#### Telemetry
+
+`instance_event_log` kinds `wave_fleet_hired` (role, design, generation,
+ships, yard, level), `wave_fleet_built` (build time, stance),
+`wave_fleet_posted`, `wave_fleet_refit`, `wave_fleet_lost`,
+`wave_fleet_result` (fight or action, win or loss, design), `wave_design_new`,
+`wave_design_refuzzed`, `wave_design_replaced` (each with the hull mix and the
+record). Counters `fleets_hired`, `fleet_ships_laid`, `fleets_built`,
+`fleets_posted`, `fleets_refit`, `fleets_lost`, `fleet_wins`, `fleet_losses`,
+`designs_new`, `designs_refuzzed`, `designs_replaced`; gauges `yards`,
+`fleet_cap`, `fleet_quotas`, `human_hulls`, `capital_allowance`; the order
+ledger rows `hire:fleet`, `order:fleet_to_yard`, `order:fleet_to_post`. The
+status readout carries the book (`doctrine`: each identity's hull mix,
+generation, record, open window and strikes). The admin page lists each fleet
+with its role, its yard or post, and how much of its design has been laid
+down.
+
+A dev game needs three things before a fleet appears: a human with ship
+patents (`POST .../research`), a military system, and a day on which the
+curve is above zero. `{"fleets": true, "fleets_per_player_by_day": [1],
+"fleet_yard_profiles": ["defense", "production", "credit", "technologic",
+"ideologic"], "fleet_yard_needs_shipyard": false}` removes the last two.
+Verified that way: a human Navarch placed in the yard and ordered to bombard
+it was intercepted by four garrison fleets, each reported its win, and the
+next review fuzzed both identities again.
+
+#### Not built yet
+
+- **Orders.** Raid, siege, conquest and screen fleets muster and wait, so
+  until they are sent out only the garrisons produce results for the review. The
+  targeting of section 1.3 (frontline and deep strikes, pillage or bombard
+  per sortie) is the next piece, and pairing a screen with each siege belongs
+  to it.
+- **Pulling a defender to a siege.** A garrison intercepts what arrives at its
+  own post. It does not march to a neighbour under siege.
+- **Navarch slots.** The bot's cap is the base plus 50. Thirty-nine fleets,
+  the colonisers and the training Navarch fit, with little room.
+- **Upkeep.** A late fleet costs 1,000 to 12,000 credits per ut. The resource
+  floors pay for it; the Rebellion's score reads fleet upkeep as strength, as
+  it does for players.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |

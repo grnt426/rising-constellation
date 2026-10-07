@@ -72,6 +72,22 @@ defmodule Wave.GeometryTest do
       assert Geometry.contact?(with_human(30, :inhabited_player), 2)
     end
 
+    test "a neighbouring sector with a human foothold can be worked while the frontier is closed", %{geo: geo} do
+      assert Geometry.contested_frontier(geo) == MapSet.new()
+
+      # A human dominion in the frontier sector 2; one in the unreachable
+      # sector 3 or inside the Rebellion's own sector 1 opens nothing.
+      contested = with_human(20, :inhabited_dominion)
+      assert Geometry.contested_frontier(contested) == MapSet.new([2])
+      assert Geometry.contested_frontier(with_human(30, :inhabited_player)) == MapSet.new()
+      assert Geometry.contested_frontier(with_human(11, :inhabited_player)) == MapSet.new()
+
+      assert Geometry.workable_sectors(contested, 2, false) == MapSet.new([1, 4, 5])
+
+      assert Geometry.workable_sectors(contested, 2, false, %{}, Geometry.contested_frontier(contested)) ==
+               MapSet.new([1, 2, 4, 5])
+    end
+
     test "a human system or dominion in a neighbouring sector, or in a rebel one, is contact" do
       assert Geometry.contact?(with_human(23, :inhabited_player))
       assert Geometry.contact?(with_human(20, :inhabited_dominion))

@@ -107,6 +107,8 @@ defmodule Instance.Character.Actions.Loot do
       end
 
     # compute earned experience
+    Wave.report_fleet(character, :loot, result)
+
     xp = c.character_base_action_xp * xp_factor
     {_, _, character} = Character.add_experience(character, xp)
 

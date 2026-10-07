@@ -86,6 +86,9 @@ defmodule Instance.Character.Actions.Fight do
 
     f_all = f_attackers ++ f_defenders
 
+    # Wave Defense: the Rebellion scores its fleet designs by how they fare.
+    Enum.each(f_all, fn {status, _side, admiral} -> Wave.report_fleet(admiral, :fight, status) end)
+
     # handle target
     # {updated_defender, should_die?}
     u_defenders =
