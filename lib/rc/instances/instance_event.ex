@@ -47,6 +47,15 @@ defmodule RC.Instances.InstanceEvent do
     wave_dummy_deployed
     wave_dummy_lost
     wave_convert_adopted
+    wave_fleet_hired
+    wave_fleet_built
+    wave_fleet_posted
+    wave_fleet_refit
+    wave_fleet_lost
+    wave_fleet_result
+    wave_design_new
+    wave_design_refuzzed
+    wave_design_replaced
     wave_research
     wave_daily
   )

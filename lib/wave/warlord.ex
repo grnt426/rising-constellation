@@ -30,6 +30,12 @@ defmodule Wave.Warlord do
        Captured dominions vote for the Rebellion in sector ownership, which is
        what lets it take sectors whose neutrals outnumber their open systems.
 
+    4. **Fleets** (only where the `fleets` knob is on) — every
+       `fleet_hire_interval_ut`, while under the fleet ceiling, a Navarch is
+       hired for the fleet role furthest below its share, deployed into a
+       shipyard system and built there one ship per `fleet_ship_interval_ut`.
+       Finished fleets stand guard or muster at the border. See `Wave.Fleet`.
+
   ## Ceilings
 
   One bot player faces a whole faction of humans, so its agent ceilings scale
@@ -145,6 +151,32 @@ defmodule Wave.Warlord do
     # %{seeded: boolean, turn: :patent | :lex, slot_cap: integer, enact: boolean}
     # — see the research section below. Read with Map.get.
     field(:research, map(), default: %{})
+
+    # --- added 2026-10-07 (back-filled by upgrade/1) ---
+    # Fleet Navarchs: %{character_id => %{role:, design:, slots: [{tile, ship_key}],
+    #   stage: :building | :complete | :posted, yard:, post:, since:, laid:}}.
+    field(:fleets, map(), default: %{})
+    # ut accumulated toward the next fleet Navarch hire.
+    field(:fleet_accum, float(), default: 0.0)
+    # %{system_id => profile}: the type each owned system rolled, read once.
+    field(:system_profiles, map(), default: %{})
+    # %{system_id => Wave.Fleet.yard/1}: the shipyard systems as last surveyed,
+    # and the game time of that survey.
+    field(:yards, map(), default: %{})
+    field(:yards_at, float() | nil, default: nil)
+    # %{yard_id => game time its next ship may be laid down}.
+    field(:yard_clock, map(), default: %{})
+    # %{role => [identity]}: the Rebellion's own fleet designs (Wave.Doctrine),
+    # the counter their ids are numbered from, and when the book was last
+    # reviewed.
+    field(:doctrine, map(), default: %{})
+    field(:design_seq, integer(), default: 0)
+    field(:doctrine_at, float() | nil, default: nil)
+    # Every ship-branch patent a human has been seen holding. Fleets are built
+    # from these hulls and no others.
+    field(:human_hulls, list(), default: [])
+    # Game time at which a human was first seen holding a capital hull.
+    field(:capital_since, float() | nil, default: nil)
   end
 
   @added_fields %{
@@ -167,7 +199,18 @@ defmodule Wave.Warlord do
     convert_navarchs: %{},
     research_accum: 0.0,
     survey_accum: 0.0,
-    research: %{}
+    research: %{},
+    fleets: %{},
+    fleet_accum: 0.0,
+    system_profiles: %{},
+    yards: %{},
+    yards_at: nil,
+    yard_clock: %{},
+    doctrine: %{},
+    design_seq: 0,
+    doctrine_at: nil,
+    human_hulls: [],
+    capital_since: nil
   }
 
   def new(instance_id, bot_faction) do
@@ -287,6 +330,7 @@ defmodule Wave.Warlord do
         erased_accum: state.erased_accum + elapsed_time,
         research_accum: state.research_accum + elapsed_time,
         survey_accum: state.survey_accum + elapsed_time,
+        fleet_accum: state.fleet_accum + elapsed_time,
         elapsed: state.elapsed + elapsed_time,
         since_pass: state.since_pass + elapsed_time
     }
@@ -359,7 +403,7 @@ defmodule Wave.Warlord do
         _ -> 1.0
       end
 
-    day = trunc((state.elapsed + lead * ut_per_day) / ut_per_day) + 1
+    day = trunc((pace_elapsed(state) + lead * ut_per_day) / ut_per_day) + 1
 
     state.instance_id
     |> Wave.Config.knob("sector_share_by_day", [])
@@ -367,6 +411,51 @@ defmodule Wave.Warlord do
     |> Kernel.*(total_sectors)
     |> round()
     |> max(1)
+  end
+
+  @doc """
+  The game time the sector pace reads: the elapsed time, run faster from each
+  breakpoint of the `sector_pace_speedup` knob (`[[from_day, factor], ...]`,
+  days elapsed). With `[[9, 2], [11, 4]]` the curve advances two days per day
+  from day 9 and four from day 11, so the wait between two sector openings is
+  halved, then halved again. Without breakpoints it is the elapsed time.
+  """
+  def pace_elapsed(%__MODULE__{} = state) do
+    ut_per_day = positive(Wave.Config.knob(state.instance_id, "ut_per_day", 480.0), 480.0)
+
+    breaks =
+      case Wave.Config.knob(state.instance_id, "sector_pace_speedup", []) do
+        list when is_list(list) ->
+          for [from, factor] <- list, is_number(from), is_number(factor), factor > 0, do: {from * ut_per_day, factor}
+
+        _ ->
+          []
+      end
+
+    warp(state.elapsed, Enum.sort(breaks))
+  end
+
+  @doc "`elapsed` run at each `{from, factor}` breakpoint's factor from that point on (1 before the first)."
+  def warp(elapsed, breaks) when is_number(elapsed) and is_list(breaks) do
+    {total, last, factor} =
+      Enum.reduce(breaks, {0.0, 0.0, 1.0}, fn {from, next}, {total, last, factor} ->
+        from = from |> max(last) |> min(elapsed)
+        {total + (from - last) * factor, from, next}
+      end)
+
+    total + (elapsed - last) * factor
+  end
+
+  @doc """
+  True once `sector_open_contested_from_day` (days elapsed) has passed: from
+  then on a neighbouring sector with any human system or dominion in it is
+  worked without waiting for the sector pace.
+  """
+  def contested_open?(%__MODULE__{} = state) do
+    case Wave.Config.knob(state.instance_id, "sector_open_contested_from_day", nil) do
+      day when is_number(day) -> elapsed_days(state) >= day
+      _ -> false
+    end
   end
 
   # --- stuck orders -------------------------------------------------------------
@@ -526,6 +615,277 @@ defmodule Wave.Warlord do
     |> trunc()
     |> min(ceiling)
     |> max(0)
+  end
+
+  # --- fleets ---------------------------------------------------------------------
+
+  @doc "True when the `fleets` knob lets the Rebellion raise fleets."
+  def fleets_enabled?(%__MODULE__{instance_id: instance_id}), do: Wave.Config.knob(instance_id, "fleets", false) == true
+
+  @doc "Configured fleet Navarch hire cadence in ut."
+  def fleet_interval(%__MODULE__{instance_id: instance_id}) do
+    positive(Wave.Config.knob(instance_id, "fleet_hire_interval_ut", 60.0), 60.0)
+  end
+
+  @doc "Game time a yard takes over one ship."
+  def ship_interval(%__MODULE__{instance_id: instance_id}) do
+    positive(Wave.Config.knob(instance_id, "fleet_ship_interval_ut", 5.0), 5.0)
+  end
+
+  def fleet_hire_due?(%__MODULE__{} = state), do: Map.get(state, :fleet_accum, 0.0) >= fleet_interval(state)
+
+  @doc "Reset the fleet hire clock, keeping any overshoot."
+  def consume_fleet_hire(%__MODULE__{} = state) do
+    Map.put(state, :fleet_accum, max(Map.get(state, :fleet_accum, 0.0) - fleet_interval(state), 0.0))
+  end
+
+  @doc "Hold the fleet hire clock at due, so a full roster banks no burst of hires."
+  def hold_fleet_hire(%__MODULE__{} = state), do: Map.put(state, :fleet_accum, fleet_interval(state))
+
+  @doc "Nothing to hire or nowhere to build: wait a full interval before asking again."
+  def defer_fleet_hire(%__MODULE__{} = state), do: Map.put(state, :fleet_accum, 0.0)
+
+  def fleets(%__MODULE__{} = state), do: Map.get(state, :fleets, %{})
+
+  @doc """
+  The fleets the Rebellion may keep today: the `fleets_per_player_by_day`
+  curve times the humans it faces, rounded. Unlike the agent ceilings it may
+  be zero: early in a match the players have no fleets either.
+  """
+  def fleet_ceiling(%__MODULE__{} = state) do
+    per_player =
+      state.instance_id
+      |> Wave.Config.knob("fleets_per_player_by_day", [])
+      |> curve_value(match_day(state))
+
+    max(round(per_player * scale_players(state)), 0)
+  end
+
+  @doc "Leave a fleet alone for `ut`: an order for it was refused and a retry costs a galaxy reading."
+  def fleet_wait(%__MODULE__{} = state, character_id, ut) when is_number(ut) do
+    case Map.get(fleets(state), character_id) do
+      nil ->
+        state
+
+      entry ->
+        Map.put(state, :fleets, Map.put(fleets(state), character_id, Map.put(entry, :retry_at, state.elapsed + ut)))
+    end
+  end
+
+  @doc "Fleets per role, over every role."
+  def fleet_counts(%__MODULE__{} = state) do
+    base = Map.new(Wave.Fleet.roles(), &{&1, 0})
+
+    state
+    |> fleets()
+    |> Map.values()
+    |> Enum.reduce(base, fn entry, acc -> Map.update(acc, entry.role, 1, &(&1 + 1)) end)
+  end
+
+  @doc "Fleets building (or waiting to build) per yard."
+  def yard_load(%__MODULE__{} = state) do
+    state
+    |> fleets()
+    |> Map.values()
+    |> Enum.filter(&(&1.stage == :building))
+    |> Enum.frequencies_by(& &1.yard)
+  end
+
+  @doc "A new fleet Navarch: its role, the design it was given and the yard that builds it."
+  def track_fleet(%__MODULE__{} = state, character_id, role, design_id, slots, yard_id) do
+    entry = %{
+      role: role,
+      design: design_id,
+      slots: slots,
+      stage: :building,
+      yard: yard_id,
+      post: nil,
+      since: state.elapsed,
+      laid: 0
+    }
+
+    Map.put(state, :fleets, Map.put(fleets(state), character_id, entry))
+  end
+
+  def forget_fleet(%__MODULE__{} = state, character_id),
+    do: Map.put(state, :fleets, Map.delete(fleets(state), character_id))
+
+  @doc "Move a fleet to `stage`, merging `changes` into its entry and restarting its clock."
+  def fleet_stage(%__MODULE__{} = state, character_id, stage, changes \\ %{}) do
+    case Map.get(fleets(state), character_id) do
+      nil ->
+        state
+
+      entry ->
+        entry = entry |> Map.merge(changes) |> Map.merge(%{stage: stage, since: state.elapsed})
+        Map.put(state, :fleets, Map.put(fleets(state), character_id, entry))
+    end
+  end
+
+  # How late a pass may serve a yard before the yard counts as having stood idle.
+  @yard_slack 2.0
+
+  @doc """
+  A ship was laid down for the fleet in `yard_id`: count it and keep the yard
+  busy for `ut` (`Wave.Fleet.ship_ut/4`).
+  """
+  def ship_laid(%__MODULE__{} = state, character_id, yard_id, ut \\ nil) do
+    interval = if is_number(ut) and ut > 0, do: ut * 1.0, else: ship_interval(state)
+    clock = Map.get(state, :yard_clock, %{})
+
+    # A yard a pass served a little late keeps its rhythm; one that stood idle
+    # starts over from now rather than banking the time it did nothing.
+    due = Map.get(clock, yard_id, 0.0)
+    ready = if(state.elapsed - due <= @yard_slack, do: due, else: state.elapsed) + interval
+
+    state = Map.put(state, :yard_clock, Map.put(clock, yard_id, ready))
+
+    case Map.get(fleets(state), character_id) do
+      nil -> state
+      entry -> Map.put(state, :fleets, Map.put(fleets(state), character_id, %{entry | laid: entry.laid + 1}))
+    end
+  end
+
+  @doc "True when `yard_id` may lay down its next ship."
+  def yard_ready?(%__MODULE__{} = state, yard_id) do
+    state.elapsed >= state |> Map.get(:yard_clock, %{}) |> Map.get(yard_id, 0.0)
+  end
+
+  @doc "True when the shipyard survey is older than `interval` (or was never taken)."
+  def yards_due?(%__MODULE__{} = state, interval) when is_number(interval) do
+    case Map.get(state, :yards_at) do
+      nil -> true
+      at -> state.elapsed - at >= interval
+    end
+  end
+
+  @doc "Store a shipyard survey: every owned system's type and the yards among them."
+  def put_yards(%__MODULE__{} = state, profiles, yards) when is_map(profiles) and is_map(yards) do
+    state
+    |> Map.put(:system_profiles, profiles)
+    |> Map.put(:yards, yards)
+    |> Map.put(:yards_at, state.elapsed)
+    |> Map.put(:yard_clock, Map.take(Map.get(state, :yard_clock, %{}), Map.keys(yards)))
+  end
+
+  # --- fleet designs --------------------------------------------------------------
+
+  @doc "The Rebellion's identities for `role`, oldest first."
+  def identities(%__MODULE__{} = state, role), do: state |> Map.get(:doctrine, %{}) |> Map.get(role, [])
+
+  @doc "A fresh lineage id for an identity taken from library design `base_id`."
+  def next_design_id(%__MODULE__{} = state, base_id) do
+    seq = Map.get(state, :design_seq, 0) + 1
+    {"#{base_id}.#{seq}", Map.put(state, :design_seq, seq)}
+  end
+
+  @doc "Add an identity to `role`'s book, or put its new state in place of the old."
+  def put_identity(%__MODULE__{} = state, role, identity) do
+    book = identities(state, role)
+
+    book =
+      if Enum.any?(book, &(&1.id == identity.id)),
+        do: Enum.map(book, &if(&1.id == identity.id, do: identity, else: &1)),
+        else: book ++ [identity]
+
+    # The review clock starts with the first identity.
+    state
+    |> Map.put(:doctrine_at, Map.get(state, :doctrine_at) || state.elapsed)
+    |> Map.put(:doctrine, Map.put(Map.get(state, :doctrine, %{}), role, book))
+  end
+
+  def drop_identity(%__MODULE__{} = state, role, id) do
+    book = Enum.reject(identities(state, role), &(&1.id == id))
+    Map.put(state, :doctrine, Map.put(Map.get(state, :doctrine, %{}), role, book))
+  end
+
+  @doc """
+  A fleet won or lost something: count it for the identity it was built from.
+  Returns `{state, identity}`, or `{state, nil}` for a Navarch that is no fleet
+  or whose identity has left the book.
+  """
+  def fleet_result(%__MODULE__{} = state, character_id, outcome) when outcome in [:win, :loss] do
+    with %{role: role, design: design_id} <- Map.get(fleets(state), character_id),
+         %{} = identity <- Enum.find(identities(state, role), &(&1.id == design_id)) do
+      identity = Wave.Doctrine.record(identity, outcome)
+      {put_identity(state, role, identity), identity}
+    else
+      _ -> {state, nil}
+    end
+  end
+
+  @doc "True when the book of identities is due its review."
+  def review_due?(%__MODULE__{} = state, interval) when is_number(interval) do
+    case Map.get(state, :doctrine_at) do
+      nil -> false
+      at -> state.elapsed - at >= interval
+    end
+  end
+
+  def mark_reviewed(%__MODULE__{} = state), do: Map.put(state, :doctrine_at, state.elapsed)
+
+  @doc """
+  Remember the ship-branch patents the humans hold (the list only grows), and
+  the moment a capital hull first shows up among them.
+  """
+  def learn_hulls(%__MODULE__{} = state, patents, capital?) when is_list(patents) do
+    known = Enum.uniq(Map.get(state, :human_hulls, []) ++ patents)
+    since = Map.get(state, :capital_since) || if(capital?, do: state.elapsed)
+
+    state |> Map.put(:human_hulls, known) |> Map.put(:capital_since, since)
+  end
+
+  def human_hulls(%__MODULE__{} = state), do: Map.get(state, :human_hulls, [])
+
+  @doc """
+  Capital ships a fleet may carry today: one once the humans field a capital
+  hull, one more every `fleet_capital_step_ut` after that, at most
+  `fleet_capital_max`.
+  """
+  def capital_allowance(%__MODULE__{instance_id: instance_id} = state) do
+    step = positive(Wave.Config.knob(instance_id, "fleet_capital_step_ut", 600.0), 600.0)
+
+    cap =
+      case Wave.Config.knob(instance_id, "fleet_capital_max", 6) do
+        n when is_number(n) and n >= 0 -> trunc(n)
+        _ -> 6
+      end
+
+    Wave.Doctrine.capital_allowance(Map.get(state, :capital_since), state.elapsed, step, cap)
+  end
+
+  defp doctrine_view(state) do
+    state
+    |> Map.get(:doctrine, %{})
+    |> Map.new(fn {role, book} ->
+      {role,
+       Enum.map(book, fn identity ->
+         %{
+           id: identity.id,
+           generation: identity.generation,
+           ships: identity.slots |> Enum.map(fn {_tile, hull} -> hull end) |> Enum.frequencies(),
+           wins: identity.total_wins,
+           losses: identity.total_losses,
+           window: [identity.wins, identity.losses],
+           strikes: identity.strikes
+         }
+       end)}
+    end)
+  end
+
+  defp fleet_view(roster) do
+    Map.new(roster, fn {id, entry} ->
+      {id,
+       %{
+         role: entry.role,
+         design: entry.design,
+         stage: entry.stage,
+         yard: entry.yard,
+         post: entry.post,
+         ships: length(entry.slots),
+         laid: entry.laid
+       }}
+    end)
   end
 
   # --- Siderian hiring ----------------------------------------------------------
@@ -1561,6 +1921,10 @@ defmodule Wave.Warlord do
       colonisers: roster_view(state.colonisers),
       siderians: siderian_view(state.siderians),
       erased: erased_view(state.erased),
+      fleets: fleet_view(fleets(state)),
+      doctrine: doctrine_view(state),
+      capital_allowance: capital_allowance(state),
+      yards: state |> Map.get(:yards, %{}) |> Map.keys() |> Enum.sort(),
       training_dummy: training_dummy(state),
       intel_known: map_size(Map.get(state, :erased_intel, %{})),
       research: research_view(state),

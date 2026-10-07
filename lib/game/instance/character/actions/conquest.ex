@@ -142,6 +142,8 @@ defmodule Instance.Character.Actions.Conquest do
 
     took_system? = takeability == :takeable and system_taken? and Instance.Player.Player.available_system_slot?(player)
 
+    Wave.report_fleet(character, :conquest, if(took_system?, do: :success, else: :failure))
+
     if took_system? do
       # remove system from previous player
       if defender != nil do

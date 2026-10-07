@@ -14,8 +14,8 @@ defmodule Wave.Warlord.Agent do
   same player/character/market agent calls a human's client reaches through the
   player channel, so the engine validates every order. What the Warlord adds is
   the bypass layer the bot is entitled to and humans are not: free colony
-  ships, a solvency floor, and (via `Wave.Config`) lifted caps and bankruptcy
-  immunity.
+  ships, warships its shipyard systems lay down without production, a
+  solvency floor, and (via `Wave.Config`) lifted caps and bankruptcy immunity.
 
   ## Cost discipline
 
@@ -38,6 +38,11 @@ defmodule Wave.Warlord.Agent do
   removal, sabotage and infiltration, split between the sectors the Rebellion
   owns and the ones it strikes into. What they may see of a target comes from
   `Wave.Recon` and `Wave.Intel`; what they do about it is `Wave.Erased`.
+
+  Where a game switches fleets on, more Navarchs are hired for a role each
+  (`Wave.Fleet`), given a design players fielded in it (`Wave.Blueprints`),
+  built one ship at a time in a shipyard system and posted. They do not
+  attack yet.
   """
 
   use Core.TickServer
@@ -45,7 +50,7 @@ defmodule Wave.Warlord.Agent do
   require Logger
 
   alias Instance.Character.{ActionQueue, Character, Speaker, Spy}
-  alias Wave.{Erased, Geometry, Nav, Research, Siderian, Warlord}
+  alias Wave.{Blueprints, Doctrine, Erased, Fleet, Geometry, Nav, Research, Siderian, Warlord}
 
   @colony_ship :transport_1
 
@@ -89,6 +94,32 @@ defmodule Wave.Warlord.Agent do
     tick = Core.Tick.start(%{state.tick | cumulated_pauses: cumulated_pauses})
     data = Warlord.upgrade(state.data)
     {:reply, :ok, %{state | tick: tick, data: %{data | connected: false}}}
+  end
+
+  # A fleet Navarch came out of a fight or finished an action (the engine's
+  # `Wave.report_fleet/3`): score the identity it was built from. No tick: a
+  # result must never make the Rebellion act.
+  def on_cast({:fleet_result, character_id, kind, result}, state) do
+    data = Warlord.upgrade(state.data)
+
+    data =
+      with outcome when outcome != nil <- Doctrine.outcome(result),
+           {data, %{} = identity} <- Warlord.fleet_result(data, character_id, outcome) do
+        log(data, "wave_fleet_result", character_id, nil, %{
+          day: Warlord.match_day(data),
+          kind: kind,
+          result: result,
+          outcome: outcome,
+          design: identity.id,
+          generation: identity.generation
+        })
+
+        Warlord.count(data, if(outcome == :win, do: :fleet_wins, else: :fleet_losses))
+      else
+        _ -> data
+      end
+
+    {:noreply, %{state | data: data}}
   end
 
   @decorate tick()
@@ -176,7 +207,11 @@ defmodule Wave.Warlord.Agent do
         (Warlord.siderian_hire_due?(data) and Warlord.hired_siderian_count(data) < Map.get(gauges, :siderian_cap, 1)) or
         (Warlord.erased_hire_due?(data) and Warlord.hired_erased_count(data) < Map.get(gauges, :erased_cap, 1))
 
-    needs_geometry? = refresh? or idle_navarchs != [] or idle_siderians != [] or idle_erased != [] or hire_pending?
+    adrift_fleets = adrift_fleets(data, player, summaries)
+
+    needs_geometry? =
+      refresh? or idle_navarchs != [] or idle_siderians != [] or idle_erased != [] or adrift_fleets != [] or
+        hire_pending?
 
     data =
       with true <- needs_geometry?,
@@ -191,7 +226,10 @@ defmodule Wave.Warlord.Agent do
         hold_margin = trunc(knob(data, "hold_margin", 2))
         sector_of = Map.new(geo.systems, &{&1.id, &1.sector_id})
         pending = Warlord.pending_by_sector(data, sector_of)
-        workable = Geometry.workable_sectors(geo, hold_margin, frontier_open?, pending)
+        # Past `sector_open_contested_from_day` a neighbouring sector the humans
+        # have a foothold in is worked whatever the pace says.
+        contested = if Warlord.contested_open?(data), do: Geometry.contested_frontier(geo), else: MapSet.new()
+        workable = Geometry.workable_sectors(geo, hold_margin, frontier_open?, pending, contested)
 
         ctx = %{
           player: player,
@@ -207,6 +245,7 @@ defmodule Wave.Warlord.Agent do
           data
           |> Warlord.gauge(:sector_allowance, allowance)
           |> Warlord.gauge(:frontier_open, frontier_open?)
+          |> Warlord.gauge(:contested_open, MapSet.size(contested))
           |> Warlord.gauge(:workable_sectors, MapSet.size(workable))
 
         colonisation = Geometry.colonisation_candidates(geo, workable)
@@ -266,6 +305,7 @@ defmodule Wave.Warlord.Agent do
         {data, ctx} = steer_erased(data, ctx, view, idle_erased)
 
         data
+        |> steer_fleets(ctx, adrift_fleets)
         |> tend_convert_navarchs(ctx)
         |> maybe_hire_navarch(ctx, nav_cap)
         |> maybe_hire_siderian(ctx, quotas)
@@ -275,6 +315,7 @@ defmodule Wave.Warlord.Agent do
       end
 
     data
+    |> tend_fleets(player, summaries)
     |> maybe_research(player)
     |> maybe_report_day(player)
   end
@@ -294,7 +335,8 @@ defmodule Wave.Warlord.Agent do
     tracked =
       Enum.map(Map.keys(data.colonisers), &{&1, :navarch}) ++
         Enum.map(Map.keys(data.siderians), &{&1, :siderian}) ++
-        Enum.map(Map.keys(data.erased), &{&1, :erased})
+        Enum.map(Map.keys(data.erased), &{&1, :erased}) ++
+        Enum.map(Map.keys(Warlord.fleets(data)), &{&1, :fleet})
 
     Enum.reduce(tracked, data, fn {id, role}, acc ->
       cond do
@@ -306,6 +348,13 @@ defmodule Wave.Warlord.Agent do
 
         role == :navarch ->
           Warlord.forget(acc, id)
+
+        role == :fleet ->
+          log(acc, "wave_fleet_lost", id, nil, fleet_record(acc, id))
+
+          acc
+          |> Warlord.count(:fleets_lost)
+          |> Warlord.forget_fleet(id)
 
         role == :erased ->
           log(acc, "wave_erased_lost", id, nil, erased_record(acc, id))
@@ -425,7 +474,7 @@ defmodule Wave.Warlord.Agent do
   # so a Rebellion down to one besieged system would otherwise buy an agent it
   # cannot deploy every pass until the deck is full — and a full deck refuses
   # every later hire, long after the siege lifts.
-  defp hire_agent(data, ctx, type, score \\ fn _character -> 1 end) do
+  defp hire_agent(data, ctx, type, score \\ fn _character -> 1 end, deploy_at \\ nil) do
     ranks = Warlord.unlocked_ranks(data)
 
     with {:ok, _deployable} <- deployable_home(ctx.player),
@@ -433,7 +482,7 @@ defmodule Wave.Warlord.Agent do
          {:ok, candidate} <- step(:market, Warlord.pick_candidate(market_by_rank(market, type), ranks, score)),
          {:ok, player} <-
            step(:hire, player_reply(call(data, :player, data.player_id, {:hire_character, candidate.id}))),
-         {:ok, home_id} <- home_system(player || ctx.player),
+         {:ok, home_id} <- deploy_system(player || ctx.player, deploy_at),
          {:ok, _player} <-
            step(
              :activate,
@@ -448,6 +497,16 @@ defmodule Wave.Warlord.Agent do
       error ->
         error
     end
+  end
+
+  # A fleet Navarch is deployed straight into its yard when the Rebellion runs
+  # that system itself and it is not besieged; otherwise at home, like the rest.
+  defp deploy_system(player, nil), do: home_system(player)
+
+  defp deploy_system(player, system_id) do
+    if Enum.any?(player.stellar_systems, &(&1.id == system_id and Map.get(&1, :siege) == nil)),
+      do: {:ok, system_id},
+      else: home_system(player)
   end
 
   # The same check `home_system/1` makes, run before any credit is spent.
@@ -633,6 +692,9 @@ defmodule Wave.Warlord.Agent do
           :navarch ->
             Warlord.forget(data, character_id)
 
+          :fleet ->
+            Warlord.forget_fleet(data, character_id)
+
           :siderian ->
             log(data, "wave_siderian_released", character_id, nil, siderian_record(data, character_id))
             Warlord.forget_siderian(data, character_id)
@@ -684,6 +746,7 @@ defmodule Wave.Warlord.Agent do
         Map.keys(data.colonisers) ++
           Map.keys(data.siderians) ++
           Map.keys(data.erased) ++
+          Map.keys(Warlord.fleets(data)) ++
           Map.keys(Warlord.convert_navarchs(data)) ++ [Warlord.training_dummy(data)]
       )
 
@@ -2567,6 +2630,630 @@ defmodule Wave.Warlord.Agent do
   end
 
   # ---------------------------------------------------------------------------
+  # Fleets: Navarchs hired for a role, built in a shipyard system, then posted
+  # ---------------------------------------------------------------------------
+
+  # The part of the fleet step that needs no galaxy reading: look the yards
+  # over, let each lay down a ship, hire the next Navarch.
+  defp tend_fleets(data, player, summaries) do
+    if Warlord.fleets_enabled?(data) do
+      data
+      |> survey_yards(player)
+      |> review_doctrine()
+      |> build_fleets(player, summaries)
+      |> maybe_hire_fleet(player)
+    else
+      data
+    end
+  end
+
+  # Every owned system's type is read once (it never changes); the military
+  # ones are the yards, and they are read again at every survey for the
+  # shipyards standing there and the experience they give.
+  defp survey_yards(data, player) do
+    if Warlord.yards_due?(data, number(knob(data, "fleet_yard_refresh_ut", 120.0), 120.0)) do
+      dominions = if knob(data, "fleet_yard_dominions", true) != false, do: player.dominions, else: []
+      known = Map.get(data, :system_profiles, %{})
+      old_yards = Map.get(data, :yards, %{})
+      yard_profiles = knob(data, "fleet_yard_profiles", ["defense"])
+
+      {profiles, yards} =
+        Enum.reduce(player.stellar_systems ++ dominions, {%{}, %{}}, fn %{id: id}, {profiles, yards} ->
+          profile = Map.get(known, id)
+
+          if profile != nil and not Fleet.yard_profile?(profile, yard_profiles) do
+            {Map.put(profiles, id, profile), yards}
+          else
+            case call(data, :stellar_system, id, :get_state) do
+              {:ok, system} ->
+                yard? = Fleet.yard_profile?(system.ai_profile, yard_profiles)
+                yards = if yard?, do: Map.put(yards, id, Fleet.yard(system)), else: yards
+                {Map.put(profiles, id, system.ai_profile), yards}
+
+              # Unreadable this time: keep what the last survey said.
+              _ ->
+                profiles = if profile, do: Map.put(profiles, id, profile), else: profiles
+                yards = if yard = Map.get(old_yards, id), do: Map.put(yards, id, yard), else: yards
+                {profiles, yards}
+            end
+          end
+        end)
+
+      data
+      |> survey_hulls()
+      |> Warlord.put_yards(profiles, yards)
+      |> Warlord.gauge(:yards, map_size(yards))
+      |> then(&Warlord.gauge(&1, :capital_allowance, Warlord.capital_allowance(&1)))
+    else
+      data
+    end
+  end
+
+  # One ship per yard per `fleet_ship_interval_ut` (longer for a costly hull
+  # when `fleet_production_pace` is set), for the fleet that has waited there
+  # longest. A besieged yard builds nothing.
+  defp build_fleets(data, player, summaries) do
+    besieged =
+      for system <- player.stellar_systems ++ player.dominions, Map.get(system, :siege) != nil, into: MapSet.new() do
+        system.id
+      end
+
+    data
+    |> Warlord.fleets()
+    |> Enum.filter(fn {id, entry} -> entry.stage == :building and docked?(summaries[id], entry.yard) end)
+    |> Enum.group_by(fn {_id, entry} -> entry.yard end, fn {id, entry} -> {entry.since, id} end)
+    |> Enum.reduce(data, fn {yard_id, queue}, acc ->
+      if Warlord.yard_ready?(acc, yard_id) and not MapSet.member?(besieged, yard_id),
+        do: lay_down(acc, yard_id, Enum.sort(queue)),
+        else: acc
+    end)
+  end
+
+  # Standing in the yard with nothing queued. `:docking` is the moment between
+  # a ship being ordered and landing.
+  defp docked?(%{system: system, action_status: status, actions: actions}, yard_id)
+       when system == yard_id and status in [:idle, :docking],
+       do: is_nil(actions) or ActionQueue.empty?(actions)
+
+  defp docked?(_summary, _yard_id), do: false
+
+  defp lay_down(data, _yard_id, []), do: data
+
+  defp lay_down(data, yard_id, [{_since, id} | rest]) do
+    entry = Map.get(Warlord.fleets(data), id)
+    yard = Map.get(data.yards, yard_id)
+
+    case yard && entry && call(data, :player, data.player_id, {:get_character_state, id}) do
+      %Character{type: :admiral, system: ^yard_id, army: army} = character ->
+        case Fleet.next_ship(entry.slots, army) do
+          # Nothing missing: this fleet is done, the yard serves the next one.
+          nil -> data |> fleet_complete(character, entry) |> lay_down(yard_id, rest)
+          {tile, key} -> lay_ship(data, id, yard, tile, key)
+        end
+
+      _ ->
+        lay_down(data, yard_id, rest)
+    end
+  end
+
+  # The same order_ship + put_ship pair the colony ship uses: no production
+  # queue and no credit. The ship takes the experience the yard gives its
+  # class, as a player's ship would.
+  defp lay_ship(data, character_id, yard, tile, key) do
+    ship = Data.Querier.one(Data.Game.Ship, data.instance_id, key)
+
+    case call(data, :character, character_id, {:order_ship, {nil, tile, key, nil}}) do
+      {:ok, _character} ->
+        Game.cast(data.instance_id, :character, character_id, {:put_ship, tile, Fleet.initial_xp(yard, ship)})
+
+        interval = Fleet.class_interval(ship, Warlord.ship_interval(data), knob(data, "fleet_class_interval_ut", %{}))
+        ut = Fleet.ship_ut(yard, ship, interval, number(knob(data, "fleet_production_pace", 0), 0))
+
+        data
+        |> Warlord.ship_laid(character_id, yard.id, ut)
+        |> Warlord.count(:fleet_ships_laid)
+
+      other ->
+        Warlord.refuse(data, :fleet_ship, reason_of(other))
+    end
+  end
+
+  defp fleet_complete(data, character, entry) do
+    stance = fleet_stance(data, entry.role)
+    call(data, :player, data.player_id, {:update_reaction, character.id, stance})
+
+    log(data, "wave_fleet_built", character.id, character.system, %{
+      day: Warlord.match_day(data),
+      role: entry.role,
+      design: entry.design,
+      ships: length(entry.slots),
+      stance: stance,
+      build_ut: Float.round((data.elapsed - entry.since) / 1, 1)
+    })
+
+    data
+    |> Warlord.fleet_stage(character.id, :complete)
+    |> Warlord.count(:fleets_built)
+  end
+
+  defp fleet_stance(data, role) do
+    name = "fleet_stances" |> then(&knob(data, &1, %{})) |> Map.get(Atom.to_string(role))
+    Enum.find([:flee, :fight_back, :defend, :attack_enemies, :attack_everyone], :defend, &(Atom.to_string(&1) == name))
+  end
+
+  # The roster grows toward the fleet ceiling, one Navarch per
+  # `fleet_hire_interval_ut`, each hired for the role furthest below its share.
+  defp maybe_hire_fleet(data, player) do
+    ceiling = Warlord.fleet_ceiling(data)
+    stage = Research.stage(Warlord.elapsed_days(data), knob(data, "fleet_stage_days", [5, 12]))
+    quotas = Fleet.quotas(ceiling, Fleet.role_weights(knob(data, "fleet_role_weights", %{}), stage))
+
+    data =
+      data
+      |> Warlord.gauge(:fleet_cap, ceiling)
+      |> Warlord.gauge(:fleet_quotas, quotas)
+
+    cond do
+      not Warlord.fleet_hire_due?(data) ->
+        data
+
+      map_size(Warlord.fleets(data)) >= ceiling ->
+        Warlord.hold_fleet_hire(data)
+
+      map_size(data.yards) == 0 ->
+        data |> Warlord.defer_fleet_hire() |> Warlord.refuse(:fleet, :no_yard)
+
+      true ->
+        data |> Warlord.consume_fleet_hire() |> hire_fleet(player, quotas)
+    end
+  end
+
+  defp hire_fleet(data, player, quotas) do
+    env = fleet_env(data)
+
+    # The first role with places open that the Rebellion has, or can take from
+    # the library, a design for.
+    {data, plan} =
+      quotas
+      |> Fleet.role_order(Warlord.fleet_counts(data))
+      |> Enum.reduce_while({data, nil}, fn role, {acc, nil} ->
+        case fleet_design(acc, env, role) do
+          {acc, nil} -> {:cont, {acc, nil}}
+          {acc, {identity, slots}} -> {:halt, {acc, {role, identity, slots}}}
+        end
+      end)
+
+    with {role, identity, slots} <- plan,
+         %{} = yard <- Fleet.pick_yard(env.yards, slots, env.ships, Warlord.yard_load(data), env.needs_shipyard?),
+         {:ok, %{id: id} = navarch, deployed_at} <-
+           hire_agent(data, %{player: player}, :admiral, &navarch_score/1, yard.id) do
+      Logger.info(
+        "[wave] instance #{data.instance_id}: rebellion raised #{role} Navarch #{id} at system #{deployed_at} " <>
+          "for yard #{yard.id} (#{identity.id})"
+      )
+
+      log(data, "wave_fleet_hired", id, deployed_at, %{
+        day: Warlord.match_day(data),
+        role: role,
+        design: identity.id,
+        generation: identity.generation,
+        ships: Enum.map(slots, fn {_tile, key} -> key end),
+        yard: yard.id,
+        level: Map.get(navarch, :level)
+      })
+
+      data
+      |> Warlord.count(:fleets_hired)
+      |> Warlord.order("hire:fleet", :ok)
+      |> Warlord.track_fleet(id, role, identity.id, slots, yard.id)
+    else
+      nil ->
+        data
+        |> Warlord.defer_fleet_hire()
+        |> Warlord.refuse(:fleet, :no_design)
+        |> Warlord.order("hire:fleet", {:error, :no_design})
+
+      {:error, stage, reason} ->
+        data
+        |> Warlord.refuse(stage, reason)
+        |> Warlord.order("hire:fleet", {:error, {stage, reason}})
+    end
+  end
+
+  # What every design decision reads: the catalog, the hulls the humans have
+  # unlocked (the Rebellion builds nothing else), the cap on capital ships and
+  # what the yards can lay down.
+  defp fleet_env(data) do
+    ships = Map.new(Data.Querier.all(Data.Game.Ship, data.instance_id), &{&1.key, &1})
+    patents = Warlord.human_hulls(data)
+    hulls = Blueprints.hulls(ships, patents)
+    yards = Map.values(data.yards)
+    needs_shipyard? = knob(data, "fleet_yard_needs_shipyard", true) != false
+    allowance = Warlord.capital_allowance(data)
+
+    %{
+      ships: ships,
+      patents: patents,
+      yards: yards,
+      needs_shipyard?: needs_shipyard?,
+      share: number(knob(data, "fleet_design_share", 0.5), 0.5),
+      alternatives: Doctrine.alternatives(ships, hulls),
+      allow: fn slots -> Enum.any?(yards, &Fleet.builds?(&1, slots, ships, needs_shipyard?)) end,
+      shape: fn layout ->
+        Doctrine.cap_capitals(layout, ships, allowance, Doctrine.capital_substitute(layout, ships, hulls))
+      end
+    }
+  end
+
+  # A hull layout as the ships a yard would lay down today, or nil when the
+  # hulls are not unlocked or no yard can build them.
+  defp build_slots(env, layout) do
+    case Blueprints.resolve(%{slots: env.shape.(layout)}, env.patents, env.ships) do
+      {:ok, [_ | _] = slots} -> if env.allow.(slots), do: slots
+      _ -> nil
+    end
+  end
+
+  # The design a new fleet of `role` is built to: one of the role's identities
+  # once the book is full, a new one from the library until then.
+  defp fleet_design(data, env, role) do
+    book = Warlord.identities(data, role)
+    usable = for identity <- book, slots = build_slots(env, identity.slots), do: {identity, slots}
+    wanted = max(trunc(number(knob(data, "fleet_identities_per_role", 2), 2)), 1)
+
+    if length(book) >= wanted and usable != [] do
+      {data, Enum.at(usable, min(trunc(roll(data) * length(usable)), length(usable) - 1))}
+    else
+      # A full book with nothing buildable in it gives up its oldest identity.
+      data = if length(book) >= wanted, do: Warlord.drop_identity(data, role, hd(book).id), else: data
+
+      case mint_identity(data, env, role) do
+        {data, nil} -> {data, List.first(usable)}
+        {data, identity} -> {data, {identity, build_slots(env, identity.slots)}}
+      end
+    end
+  end
+
+  # A library design the role's book does not hold yet, fuzzed into an
+  # identity of the Rebellion's own.
+  defp mint_identity(data, env, role) do
+    exclude = data |> Warlord.identities(role) |> Enum.map(& &1.base)
+
+    pick =
+      Blueprints.pick(Blueprints.pool(), role, env.patents, env.ships, roll(data),
+        share: env.share,
+        allow: env.allow,
+        shape: env.shape,
+        exclude: exclude
+      )
+
+    case pick do
+      :none ->
+        {data, nil}
+
+      {:ok, %{design: base}} ->
+        swaps = trunc(number(knob(data, "fleet_fuzz_swaps", 3), 3))
+        moves = trunc(number(knob(data, "fleet_fuzz_moves", 2), 2))
+        {id, data} = Warlord.next_design_id(data, base.id)
+        identity = Doctrine.new(base, id, data.elapsed, env.alternatives, rolls(data, swaps + moves), swaps, moves)
+
+        # Hulls stay in their class, so a fuzz cannot take a design out of a
+        # yard's reach; if it ever did, the design is flown as the players did.
+        identity = if build_slots(env, identity.slots), do: identity, else: %{identity | slots: base.slots}
+
+        log(data, "wave_design_new", nil, nil, design_record(data, role, identity))
+
+        {data |> Warlord.put_identity(role, identity) |> Warlord.count(:designs_new), identity}
+    end
+  end
+
+  # Two dice per fuzz operation.
+  defp rolls(_data, operations) when operations <= 0, do: []
+  defp rolls(data, operations), do: for(_ <- 1..(operations * 2), do: roll(data))
+
+  defp design_record(data, role, identity) do
+    %{
+      day: Warlord.match_day(data),
+      role: role,
+      design: identity.id,
+      base: identity.base,
+      generation: identity.generation,
+      hulls: identity.slots |> Enum.map(fn {_tile, hull} -> hull end) |> Enum.frequencies(),
+      wins: identity.total_wins,
+      losses: identity.total_losses,
+      strikes: identity.strikes
+    }
+  end
+
+  # Once a day the book is read against what its fleets did: winners are
+  # fuzzed again, losers out of forgiveness are replaced from the library, and
+  # so is an identity the library has left behind unless it is winning.
+  defp review_doctrine(data) do
+    if Warlord.review_due?(data, number(knob(data, "fleet_review_interval_ut", 480.0), 480.0)) do
+      env = fleet_env(data)
+
+      Blueprints.roles()
+      |> Enum.reduce(data, fn role, acc ->
+        floor =
+          Blueprints.draw_floor(Blueprints.pool(), role, env.patents, env.ships,
+            share: env.share,
+            allow: env.allow,
+            shape: env.shape
+          )
+
+        acc
+        |> Warlord.identities(role)
+        |> Enum.reduce(acc, &review_identity(&2, env, role, &1, floor))
+      end)
+      |> Warlord.mark_reviewed()
+    else
+      data
+    end
+  end
+
+  defp review_identity(data, env, role, identity, floor) do
+    verdict =
+      Doctrine.verdict(
+        identity,
+        trunc(number(knob(data, "fleet_design_min_results", 2), 2)),
+        number(knob(data, "fleet_design_win_share", 0.5), 0.5),
+        number(knob(data, "fleet_design_lose_share", 0.34), 0.34)
+      )
+
+    # Left behind: what it builds today costs well under the cheapest design
+    # the library would still offer for the role.
+    slots = build_slots(env, identity.slots)
+    slack = number(knob(data, "fleet_design_outdated_share", 0.75), 0.75)
+    outdated? = floor != nil and (slots == nil or Blueprints.production(slots, env.ships) < floor * slack)
+
+    forgiveness = trunc(number(knob(data, "fleet_design_forgiveness", 1), 1))
+
+    case Doctrine.review(identity, verdict, forgiveness: forgiveness, outdated?: outdated?) do
+      {:keep, identity} ->
+        Warlord.put_identity(data, role, identity)
+
+      {:refuzz, identity} ->
+        swaps = trunc(number(knob(data, "fleet_refuzz_swaps", 1), 1))
+        moves = trunc(number(knob(data, "fleet_refuzz_moves", 1), 1))
+        next = Doctrine.refuzz(identity, env.alternatives, rolls(data, swaps + moves), swaps, moves)
+        next = if build_slots(env, next.slots), do: next, else: %{identity | generation: next.generation}
+
+        log(data, "wave_design_refuzzed", nil, nil, design_record(data, role, next))
+
+        data
+        |> Warlord.put_identity(role, next)
+        |> Warlord.count(:designs_refuzzed)
+
+      {:replace, identity} ->
+        log(
+          data,
+          "wave_design_replaced",
+          nil,
+          nil,
+          Map.merge(design_record(data, role, identity), %{verdict: verdict, outdated: outdated?})
+        )
+
+        data
+        |> Warlord.drop_identity(role, identity.id)
+        |> Warlord.count(:designs_replaced)
+        |> mint_identity(env, role)
+        |> elem(0)
+    end
+  end
+
+  # The ship-branch patents the humans hold: the only hulls a fleet is built
+  # from, and the clock the capital allowance runs on.
+  defp survey_hulls(data) do
+    case read_humans(data) do
+      [] ->
+        data
+
+      humans ->
+        held =
+          Research.ship_patents(Data.Querier.all(Data.Game.Patent, data.instance_id), Enum.map(humans, & &1.patents))
+
+        capital? =
+          Data.Game.Ship
+          |> Data.Querier.all(data.instance_id)
+          |> Enum.any?(&(&1.class == :capital and &1.patent in held))
+
+        data = Warlord.learn_hulls(data, held, capital?)
+        Warlord.gauge(data, :human_hulls, length(Warlord.human_hulls(data)))
+    end
+  end
+
+  # Only a commander's level reaches the battle (it feeds the ships' morale),
+  # so of the ranks the day has unlocked the highest level is bought.
+  defp navarch_score(character), do: max(Map.get(character, :level) || 1, 1)
+
+  # The fleets that are idle with somewhere to go: off their yard while
+  # building, finished and not yet posted, away from their post, or mauled.
+  # Steering them needs the galaxy.
+  defp adrift_fleets(data, player, summaries) do
+    if Warlord.fleets_enabled?(data) do
+      held = MapSet.new(player.stellar_systems ++ player.dominions, & &1.id)
+      refit = number(knob(data, "fleet_refit_share", 0.35), 0.35)
+
+      for {id, entry} <- Warlord.fleets(data),
+          summary = summaries[id],
+          roster_idle?(summary),
+          summary.system != nil,
+          Map.get(entry, :retry_at, 0.0) <= data.elapsed,
+          fleet_adrift?(data, entry, summary, held, refit),
+          do: id
+    else
+      []
+    end
+  end
+
+  defp fleet_adrift?(data, %{stage: :building} = entry, summary, _held, _refit),
+    do: summary.system != entry.yard or not Map.has_key?(data.yards, entry.yard)
+
+  defp fleet_adrift?(_data, %{stage: :complete}, _summary, _held, _refit), do: true
+
+  defp fleet_adrift?(_data, %{stage: :posted} = entry, summary, held, refit) do
+    summary.system != entry.post or not MapSet.member?(held, entry.post) or
+      Fleet.missing_share(entry.slots, fleet_size(summary)) >= refit
+  end
+
+  defp fleet_adrift?(_data, _entry, _summary, _held, _refit), do: false
+
+  defp fleet_size(%{army_size: %{filled: filled}}) when is_integer(filled), do: filled
+  defp fleet_size(_summary), do: 0
+
+  defp steer_fleets(data, _ctx, []), do: data
+
+  defp steer_fleets(data, ctx, ids) do
+    posts = fleet_posts(data, ctx)
+
+    Enum.reduce(ids, data, fn id, acc ->
+      entry = Map.get(Warlord.fleets(acc), id)
+      summary = Enum.find(ctx.player.characters, &(&1.id == id))
+
+      if entry && summary, do: steer_fleet(acc, ctx, posts, summary, entry), else: acc
+    end)
+  end
+
+  # Building: walk to the yard, or find another when the yard was lost.
+  defp steer_fleet(data, ctx, _posts, summary, %{stage: :building} = entry) do
+    if Map.has_key?(data.yards, entry.yard) do
+      fleet_travel(data, ctx, summary, entry.yard, "order:fleet_to_yard")
+    else
+      case another_yard(data, entry) do
+        nil -> Warlord.fleet_stage(data, summary.id, :complete)
+        yard -> Warlord.fleet_stage(data, summary.id, :building, %{yard: yard.id})
+      end
+    end
+  end
+
+  # Finished: take a post and walk there.
+  defp steer_fleet(data, ctx, posts, summary, %{stage: :complete} = entry) do
+    case fleet_post(data, posts, entry) do
+      nil ->
+        Warlord.fleet_wait(data, summary.id, 20.0)
+
+      post ->
+        log(data, "wave_fleet_posted", summary.id, post, %{
+          day: Warlord.match_day(data),
+          role: entry.role,
+          design: entry.design,
+          from: summary.system
+        })
+
+        data
+        |> Warlord.fleet_stage(summary.id, :posted, %{post: post})
+        |> Warlord.count(:fleets_posted)
+        |> fleet_travel(ctx, summary, post, "order:fleet_to_post")
+    end
+  end
+
+  # Posted: back to a yard when mauled, to a new post when this one was lost,
+  # back to the post when a lost fight threw it off.
+  defp steer_fleet(data, ctx, posts, summary, %{stage: :posted} = entry) do
+    refit = number(knob(data, "fleet_refit_share", 0.35), 0.35)
+
+    cond do
+      Fleet.missing_share(entry.slots, fleet_size(summary)) >= refit ->
+        case another_yard(data, entry) do
+          nil ->
+            Warlord.fleet_wait(data, summary.id, 120.0)
+
+          yard ->
+            log(data, "wave_fleet_refit", summary.id, yard.id, %{
+              day: Warlord.match_day(data),
+              role: entry.role,
+              design: entry.design,
+              ships_left: fleet_size(summary)
+            })
+
+            data
+            |> Warlord.fleet_stage(summary.id, :building, %{yard: yard.id})
+            |> Warlord.count(:fleets_refit)
+            |> fleet_travel(ctx, summary, yard.id, "order:fleet_to_yard")
+        end
+
+      not MapSet.member?(posts.held, entry.post) ->
+        Warlord.fleet_stage(data, summary.id, :complete, %{post: nil})
+
+      true ->
+        fleet_travel(data, ctx, summary, entry.post, "order:fleet_to_post")
+    end
+  end
+
+  defp steer_fleet(data, _ctx, _posts, _summary, _entry), do: data
+
+  defp another_yard(data, entry) do
+    ships = Map.new(Data.Querier.all(Data.Game.Ship, data.instance_id), &{&1.key, &1})
+    needs_shipyard? = knob(data, "fleet_yard_needs_shipyard", true) != false
+
+    Fleet.pick_yard(Map.values(data.yards), entry.slots, ships, Warlord.yard_load(data), needs_shipyard?)
+  end
+
+  # A move that cannot be ordered is not retried every pass: each retry would
+  # cost a galaxy reading.
+  defp fleet_travel(data, _ctx, %{system: system}, target_id, _kind) when system == target_id, do: data
+
+  defp fleet_travel(data, ctx, summary, target_id, kind) do
+    case travel(data, ctx, summary, target_id) do
+      :ok ->
+        Warlord.order(data, kind, :ok)
+
+      {:error, reason} ->
+        data
+        |> Warlord.refuse(:fleet_move, reason)
+        |> Warlord.order(kind, {:error, reason})
+        |> Warlord.fleet_wait(summary.id, 20.0)
+    end
+  end
+
+  # The Rebellion's systems as posts: border sectors and inner ones, shipyards
+  # first, and the border system nearest the humans, where the fleets with a
+  # job outside muster.
+  defp fleet_posts(data, ctx) do
+    held = ctx.player.stellar_systems ++ ctx.player.dominions
+    yard_ids = data.yards |> Map.keys() |> MapSet.new()
+    {border, core} = Enum.split_with(held, &(Geometry.class_of(ctx.geo, &1) == :border))
+    border = Fleet.rank_posts(border, yard_ids)
+    core = Fleet.rank_posts(core, yard_ids)
+
+    %{border: border, core: core, held: MapSet.new(held, & &1.id), muster: muster_point(data, ctx, border, core)}
+  end
+
+  defp muster_point(data, ctx, border, core) do
+    hostile = for system <- ctx.geo.systems, system.faction not in [nil, data.bot_faction], do: system.id
+    candidates = Enum.take(if(border == [], do: core, else: border), 12)
+
+    nearest =
+      candidates
+      |> Enum.with_index()
+      |> Enum.map(fn {id, rank} ->
+        distances = Nav.hop_distances(ctx.geo.adjacency, id)
+        {hostile |> Enum.map(&Map.get(distances, &1)) |> Enum.reject(&is_nil/1) |> Enum.min(fn -> nil end), rank, id}
+      end)
+      |> Enum.reject(fn {hops, _rank, _id} -> is_nil(hops) end)
+      |> Enum.min(fn -> nil end)
+
+    case nearest do
+      {_hops, _rank, id} -> id
+      nil -> List.first(candidates)
+    end
+  end
+
+  defp fleet_post(data, posts, %{role: :defense}) do
+    posted =
+      for {_id, %{role: :defense, stage: :posted, post: post}} <- Warlord.fleets(data), post != nil, do: post
+
+    Fleet.defense_post(
+      posted,
+      posts.border,
+      posts.core,
+      number(knob(data, "fleet_defense_border_share", 0.6), 0.6)
+    )
+  end
+
+  defp fleet_post(_data, posts, _entry), do: posts.muster
+
+  # ---------------------------------------------------------------------------
   # Research: patents and lexes
   # ---------------------------------------------------------------------------
 
@@ -2899,6 +3586,18 @@ defmodule Wave.Warlord.Agent do
     else
       data
     end
+  end
+
+  defp fleet_record(data, character_id) do
+    entry = Map.get(Warlord.fleets(data), character_id, %{})
+
+    %{
+      day: Warlord.match_day(data),
+      role: Map.get(entry, :role),
+      design: Map.get(entry, :design),
+      stage: Map.get(entry, :stage),
+      post: Map.get(entry, :post)
+    }
   end
 
   defp siderian_record(data, character_id) do

@@ -168,6 +168,21 @@ defmodule Wave.Diagnostics do
         {"evasion hops", get.(:evasions)},
         {"scouting trips", get.(:siderian_scouts)}
       ]),
+      outcome("Fleets", get.(:fleets_hired), [
+        {"built", get.(:fleets_built)},
+        {"posted", get.(:fleets_posted)},
+        {"refits", get.(:fleets_refit)},
+        {"lost", get.(:fleets_lost)},
+        {"ships laid down", get.(:fleet_ships_laid)}
+      ]),
+      outcome("Fleet results", get.(:fleet_wins) + get.(:fleet_losses), [
+        {"won", get.(:fleet_wins)},
+        {"lost", get.(:fleet_losses)}
+      ]),
+      outcome("Fleet designs", get.(:designs_new), [
+        {"fuzzed again", get.(:designs_refuzzed)},
+        {"replaced", get.(:designs_replaced)}
+      ]),
       outcome("Agents lost", nil, [
         {"Siderians", get.(:siderians_lost)},
         {"Erased", get.(:erased_lost)}
@@ -216,7 +231,8 @@ defmodule Wave.Diagnostics do
         {"Navarch", warlord.colonisers},
         {"Reserve Navarch", reserve},
         {"Siderian", Map.get(warlord, :siderians, %{})},
-        {"Erased", Map.get(warlord, :erased, %{})}
+        {"Erased", Map.get(warlord, :erased, %{})},
+        {"Fleet", fleet_roster(warlord)}
       ]
       |> Enum.flat_map(fn {role, roster} ->
         Enum.map(roster, fn {id, entry} -> agent_row(label(role, entry), id, entry, Map.get(engine, id), now, names) end)
@@ -250,7 +266,20 @@ defmodule Wave.Diagnostics do
     Enum.sort_by(tracked, &(-(&1.age_ut || 0))) ++ untracked
   end
 
+  # A fleet reads like the other agents: its yard while it builds, its post
+  # after, and how much of its design has been laid down.
+  defp fleet_roster(warlord) do
+    Map.new(Warlord.fleets(warlord), fn {id, entry} ->
+      {id,
+       Map.merge(entry, %{
+         target: entry.post || entry.yard,
+         duty: "#{length(entry.slots)} ships, #{entry.laid} laid down"
+       })}
+    end)
+  end
+
   # A Siderian's trade and a convert's origin, next to its kind.
+  defp label("Fleet", entry), do: "Fleet · #{entry.role}"
   defp label("Siderian", entry), do: "Siderian · #{Warlord.siderian_role(entry)}" <> convert_suffix(entry)
   defp label(role, entry), do: role <> convert_suffix(entry)
 
