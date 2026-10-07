@@ -7,16 +7,18 @@
 //   - recalls its Erased and sends it to the Orb-INTEL from a free seat
 //     (deck panel, "Enrol"): the seat is taken, the fee is in the credit
 //     income, the agent is on the roster as a student;
-//   - lets the course run (speed cheat): five neural rewires, the
-//     seat free again, the student waiting;
-//   - watches the ring around the seated student: one segment per rewire,
-//     all five lit when the course is over;
-//   - recalls it from its card, then moves skill points from the deck with
-//     the −/+ controls and confirms: the skills and the rewires follow;
+//   - lets the course run (speed cheat) and watches the ring around the
+//     seated student, one segment per rewire: at the fifth the agent is
+//     back in the deck by itself and the seat is free;
+//   - moves skill points from the deck with the −/+ controls and confirms:
+//     the skills and the rewires follow;
 //   - cannot give the agent any duty while a rewire is left; discards the
 //     rest from the card (the button asks twice) and then can;
 //   - seats the same Erased in the Polytech, where it earns experience and
-//     no rewires.
+//     no rewires;
+//   - queues its Navarch behind it from the place shown above the seat: the
+//     Navarch stays in the deck, its card tells the wait and offers to leave
+//     the queue, and it takes the seat the moment the Erased is recalled.
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 const { Api } = require('../helpers/api');
@@ -55,7 +57,7 @@ const school = (page, key) => page.locator(`.school-box .school[data-school="${k
 async function seats(page, key) {
   return {
     taken: await school(page, key).locator('.school-seat.is-taken').count(),
-    free: await school(page, key).locator('.school-seat.is-empty').count(),
+    free: await school(page, key).locator('.school-seats > .school-seat.is-empty').count(),
   };
 }
 
@@ -66,13 +68,14 @@ function roster(page) {
       characters: player.characters.map((c) => ({
         id: c.id, type: c.type, status: c.status, level: c.level, training: c.training || null,
       })),
-      deck: player.character_deck.map(({ character, cooldown }) => ({
+      deck: player.character_deck.map(({ character, cooldown, queue }) => ({
         id: character.id,
         type: character.type,
         skills: character.skills,
         specialization: character.specialization,
         rewires: character.reallocations || 0,
         resting: !!cooldown && cooldown.value !== 0,
+        queue: queue || null,
       })),
       creditDetails: JSON.stringify(player.credit.details),
     };
@@ -110,7 +113,7 @@ test.afterAll(async () => {
   if (api && instanceId) await api.finishInstance(ADMIN.email, instanceId);
 });
 
-test('an Erased goes to university, comes back with neural rewires, and its skills are reallocated', async ({ page, context, baseURL }) => {
+test('an Erased goes to university, comes back with neural rewires, its skills are reallocated, and a Navarch queues behind it', async ({ page, context, baseURL }) => {
   page.setDefaultTimeout(30000);
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error.message)));
@@ -125,7 +128,7 @@ test('an Erased goes to university, comes back with neural rewires, and its skil
   await test.step('the system shows its schools and their seats', async () => {
     expect(await seats(page, 'polytech')).toEqual({ taken: 0, free: 1 });
     expect(await seats(page, 'spy')).toEqual({ taken: 0, free: orbSeats });
-    await expect(school(page, 'spy').locator('.school-seat.is-empty.is-clickable')).toHaveCount(orbSeats);
+    await expect(school(page, 'spy').locator('.school-seats > .school-seat.is-empty.is-clickable')).toHaveCount(orbSeats);
 
     // a school is its building's icon; the tooltip names it
     await school(page, 'spy').locator('.school-building').hover();
@@ -170,7 +173,7 @@ test('an Erased goes to university, comes back with neural rewires, and its skil
   });
 
   await test.step('a free Orb-INTEL seat opens the deck on an Enrol button', async () => {
-    await school(page, 'spy').locator('.school-seat.is-empty').first().click();
+    await school(page, 'spy').locator('.school-seats > .school-seat.is-empty').first().click();
     await expect(deckCard(page, erasedName)).toBeVisible();
     await expect(deckCard(page, erasedName).locator('.card-action .button')).toHaveText('Enrol');
     await shot(page, '02-deck-enrol');
@@ -206,30 +209,32 @@ test('an Erased goes to university, comes back with neural rewires, and its skil
     await expect(card).toHaveCount(0);
   });
 
-  await test.step('the course runs to five rewires and frees the seat', async () => {
-    expect((await setSpeedCheat(page, 50)).ok).toBe(true);
+  await test.step('the ring fills as the course runs; the fifth rewire brings the agent home', async () => {
+    // a rewire every few seconds: slow enough to see the ring fill
+    expect((await setSpeedCheat(page, 10)).ok).toBe(true);
 
-    await expect.poll(async () => {
-      const student = (await roster(page)).characters.find((c) => c.id === erased.id);
-      return student && student.training ? student.training.phase : null;
-    }, { timeout: 180000, intervals: [1000] }).toBe('graduated');
+    await expect.poll(
+      () => school(page, 'spy').locator('.seat-ring path.is-earned').count(),
+      { timeout: 120000, intervals: [200] },
+    ).toBeGreaterThan(0);
+    await shot(page, '05-ring-filling');
+
+    // nobody recalls it: the course ends in the deck
+    await expect.poll(
+      async () => (await roster(page)).deck.some((c) => c.id === erased.id),
+      { timeout: 180000, intervals: [500] },
+    ).toBe(true);
 
     expect((await setSpeedCheat(page, 1)).ok).toBe(true);
 
-    await expect(school(page, 'spy').locator('.school-seat.is-empty')).toHaveCount(orbSeats);
-    await expect(school(page, 'spy').locator('.school-seat.is-taken.is-waiting')).toHaveCount(1);
-    await expect(school(page, 'spy').locator('.seat-ring path.is-earned')).toHaveCount(5);
-    expect((await roster(page)).creditDetails).not.toContain('character_tuition');
-    await shot(page, '05-course-over');
-  });
+    const state = await roster(page);
+    expect(state.deck.find((c) => c.id === erased.id).rewires).toBe(5);
+    expect(state.characters.some((c) => c.id === erased.id)).toBe(false);
+    expect(state.creditDetails).not.toContain('character_tuition');
 
-  await test.step('recall from the card; the deck card offers the rewires', async () => {
-    await school(page, 'spy').locator('.school-seat.is-taken .round-icon').click();
-    await page.locator('.opened-character .card-container .card-action .button').click();
-
-    await expect.poll(async () => (await roster(page)).deck.some((c) => c.id === erased.id)).toBe(true);
     await expect(school(page, 'spy').locator('.school-seat.is-taken')).toHaveCount(0);
-    expect((await roster(page)).deck.find((c) => c.id === erased.id).rewires).toBe(5);
+    await expect(school(page, 'spy').locator('.school-seats > .school-seat.is-empty')).toHaveCount(orbSeats);
+    await shot(page, '05b-course-over');
   });
 
   await test.step('move a skill point with the card controls', async () => {
@@ -283,7 +288,7 @@ test('an Erased goes to university, comes back with neural rewires, and its skil
     await waitRested(page, erased.id);
     // the deck panel covers the list; the seat is clickable once it has closed
     await page.locator('.mp-container .mph-close-button').first().click();
-    await school(page, 'polytech').locator('.school-seat.is-empty').first().click();
+    await school(page, 'polytech').locator('.school-seats > .school-seat.is-empty').first().click();
 
     const card = deckCard(page, erasedName);
     await expect(card.locator('.card-action .button')).toHaveText('Spend its neural rewires first', { ignoreCase: true });
@@ -325,6 +330,123 @@ test('an Erased goes to university, comes back with neural rewires, and its skil
     expect((await roster(page)).creditDetails).not.toContain('character_tuition');
     await expect(school(page, 'polytech').locator('.seat-ring')).toHaveCount(0);
     await shot(page, '09-polytech');
+  });
+
+  const navarch = (await roster(page)).characters.find((c) => c.type === 'admiral' && c.status === 'on_board');
+  expect(navarch, 'the fixture places a Navarch on board').toBeTruthy();
+  const navarchName = (await serverPlayer(page)).characters.find((c) => c.id === navarch.id).name;
+  const taken = school(page, 'polytech').locator('.school-seat.is-taken');
+
+  await test.step('the place behind a seated student shows above it; the deck offers to join the queue', async () => {
+    expect((await playerPush(page, 'deactivate_character', { character_id: navarch.id })).ok).toBe(true);
+    await waitRested(page, navarch.id);
+
+    // nobody waits yet: no dot on the seat, and the place to take on hover
+    await expect(taken.locator('.queue-pip')).toHaveCount(0);
+    await taken.locator('.round-icon').hover();
+    const place = page.locator('.school-queue-popover .school-queue .queue-place');
+    await expect(place).toBeVisible();
+    await shot(page, '10-queue-place');
+    await place.click();
+
+    const card = deckCard(page, navarchName);
+    await expect(card.locator('.card-action .button')).toHaveText('Join the queue', { ignoreCase: true });
+    await shot(page, '11-deck-join-queue');
+    await card.locator('.card-action .button').click();
+
+    await expect.poll(async () => (await roster(page)).deck.find((c) => c.id === navarch.id).queue).toMatchObject({
+      system_id: home, school: 'polytech', wait: null,
+    });
+  });
+
+  await test.step('the queued agent stays in the deck: its seat shows it, its card tells the wait', async () => {
+    // still a deck agent, and no duty for it
+    expect((await roster(page)).characters.some((c) => c.id === navarch.id)).toBe(false);
+
+    for (const [event, payload] of [
+      ['activate_character', { character_id: navarch.id, mode: 'on_board', system_id: home }],
+      ['enroll_character', { character_id: navarch.id, school: 'polytech', system_id: home }],
+    ]) {
+      expect(await playerPush(page, event, payload)).toMatchObject({ ok: false, error: 'character_queued' });
+    }
+
+    // a dot on the seat; the agent itself above it on hover
+    await expect(taken.locator('.queue-pip')).toHaveCount(1);
+    await taken.locator('.round-icon').hover();
+    await expect(page.locator('.school-queue-popover .school-queue .queue-agent')).toBeVisible();
+    await shot(page, '12-queue-shown');
+
+    await page.evaluate(() => {
+      const app = document.querySelector('#app').__vue__;
+      app.$store.commit('game/clearAssignment');
+      app.$root.$emit('openBottomMiniPanel', 'character-deck');
+    });
+
+    const card = deckCard(page, navarchName);
+    // behind a Polytech student the wait has no end
+    await expect(card.locator('.card-ribbon.is-queued')).toHaveText('Waiting for a seat', { ignoreCase: true });
+    await expect(card.locator('.card-action .button').first()).toHaveText('Leave the queue', { ignoreCase: true });
+    await expect(card.locator('.card-action .button.is-icon')).toHaveCount(1);
+    await shot(page, '13-queued-card');
+
+    // behind a university student it is the rest of that student's course:
+    // the card's own wording of 38 hours, and of 25 minutes
+    const wording = (ut) => card.evaluate((el, value) => {
+      const vm = el.__vue__;
+      const { seatWait } = vm.$options.computed;
+      const fake = Object.create(vm, {
+        queue: { value: { wait: { value } } },
+        receivedAt: { value: Date.now() },
+      });
+      Object.defineProperty(fake, 'seatWait', { value: seatWait.call(fake) });
+      return {
+        text: vm.$options.computed.seatWaitText.call(fake),
+        hint: vm.$options.computed.seatWaitHint.call(fake),
+      };
+    }, ut);
+
+    const perHour = await page.evaluate(() => 3600000 / document.querySelector('#app').__vue__.$store.getters['game/tickToMilisecondFactor']);
+    expect((await wording(38 * perHour)).text).toBe('38hrs to be seated');
+    expect((await wording(38 * perHour)).hint).toMatch(/^Latest time to be seated: .*\d/);
+    expect((await wording((25 / 60) * perHour)).text).toBe('25min to be seated');
+  });
+
+  await test.step('leave the queue from the card, join it again', async () => {
+    const card = deckCard(page, navarchName);
+    await card.locator('.card-action .button').first().click();
+
+    await expect.poll(async () => (await roster(page)).deck.find((c) => c.id === navarch.id).queue).toBe(null);
+    await expect(card.locator('.card-ribbon.is-queued')).toHaveCount(0);
+    await page.locator('.mp-container .mph-close-button').first().click();
+    await expect(taken.locator('.queue-pip')).toHaveCount(0);
+
+    expect(await playerPush(page, 'queue_character', {
+      character_id: navarch.id, school: 'polytech', system_id: home, behind: erased.id,
+    })).toMatchObject({ ok: true });
+    await page.evaluate(() => {
+      const app = document.querySelector('#app').__vue__;
+      app.$store.dispatch('game/reloadSystem', app.$socket);
+    });
+    await expect(taken.locator('.queue-pip')).toHaveCount(1);
+  });
+
+  await test.step('the student ahead is recalled: the queued agent takes the seat at once', async () => {
+    expect((await playerPush(page, 'deactivate_character', { character_id: erased.id })).ok).toBe(true);
+
+    await expect.poll(async () => {
+      const student = (await roster(page)).characters.find((c) => c.id === navarch.id);
+      return student ? student.status : null;
+    }).toBe('student');
+
+    const state = await roster(page);
+    expect(state.deck.some((c) => c.id === navarch.id)).toBe(false);
+    expect(state.deck.some((c) => c.id === erased.id)).toBe(true);
+
+    await expect(taken).toHaveCount(1);
+    await expect(taken.locator('.queue-pip')).toHaveCount(0);
+    await taken.locator('.round-icon').click();
+    await expect(page.locator('.opened-character .card-container .title-large')).toContainText(navarchName, { ignoreCase: true });
+    await shot(page, '14-seated-from-queue');
   });
 
   expect(errors).toEqual([]);

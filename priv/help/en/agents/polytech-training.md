@@ -20,6 +20,7 @@ Each [[building/university_open]] in one of your systems gives you one training 
 - The agent gains {rate:character_passive_xp_gain|experience}, the same as a governor.
 - It costs nothing beyond the agent's salary.
 - It gives no neural rewires.
-- The agent stays until you recall it.
+- The agent stays until you recall it. You cannot recall it during a [[siege]].
+- One more agent can wait behind it in the [[school-queue|queue]].
 
 A system with several of these buildings has one seat for each. The building's level does not change the number of seats.

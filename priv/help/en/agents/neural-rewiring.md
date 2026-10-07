@@ -26,6 +26,6 @@ For example, with two rewires:
 
     skills 5, 3, 1 → 7, 2, 0
 
-An agent with a rewire left takes no new duty. You cannot make it a governor, send it to the field or send it back to a school. Spend every rewire first, or discard the ones you do not want.
+An agent with a rewire left takes no new duty. You cannot make it a governor, send it to the field or send it back to a school. You cannot sell it either. Spend every rewire first, or discard the ones you do not want.
 
 Discarded rewires are lost for good. The agent's skills stay as they are.

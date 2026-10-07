@@ -7,7 +7,7 @@ terms: [university, course, course fee, tuition]
 aliases: [university, course-fee]
 related: [agent-training, neural-rewiring, polytech-training]
 length: long
-length_reason: one page owns the three universities, the stages of a course, the fee, non-payment and the rules for faction-mates
+length_reason: one page owns the three universities, the stages of a course, its end, the fee, non-payment and the rules for faction-mates
 sources:
   - lib/game/instance/character/training.ex
   - lib/game/instance/character/character.ex
@@ -30,11 +30,13 @@ Each level of the building gives one seat. In a Flash game every building has on
 1. The student settles in for {duration:university_settle_time}. It pays the fee and gains nothing yet.
 2. Then it gains experience {const:university_xp_factor} times as fast as a governor.
 3. Every {duration:university_reallocation_interval} on the course gives one neural rewire.
-4. The course ends when the agent holds {const:university_max_reallocations} rewires.
+4. The course ends when the agent holds {const:university_max_reallocations} rewires. The agent goes back to your deck at once.
 
 {shot:student-card#status,defence,recall|A student's card: its school and stage (1), its cut Protection and Determination (2) and the Recall button (3).}
 
-After the course the student pays no fee and gains nothing more. Its seat is free for another agent. It waits in the system until you recall it.
+The agent comes home by itself, even during a [[siege]]. Its seat goes to the agent waiting behind it in the [[school-queue|queue]], if there is one.
+
+You can recall a student before the end of its course, except during a siege. It keeps the rewires it earned so far.
 
 {shot:system-schools#student|The ring around a student has one segment for each rewire of a course. A segment lights up when the rewire is earned.}
 
@@ -46,8 +48,10 @@ The fee is part of your income, like a salary. It follows the agent's level, so 
 
     a level 10 Siderian: 10 × {rate:university_fee_ideology|ideology} = {rate:50|ideology}
 
-If your stock of that resource is empty and still falling, the course stops. The student keeps the rewires it earned and waits to be recalled.
+If your stock of that resource is empty and still falling, the course stops. The student goes back to your deck with the rewires it earned.
 
 ## Faction-mates
 
-A player of your faction can send an agent to your university. That agent must be level {const:university_guest_min_level} or higher. Each faction-mate can hold one seat for each university building in the system. They pay the fee themselves.
+A player of your faction can send an agent to your university. That agent must be level {const:university_guest_min_level} or higher. Your whole faction shares the seats of the university. Each player pays the fee of their own agents.
+
+As the owner you can send any student home. See [[agent-training]].
