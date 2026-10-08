@@ -70,6 +70,24 @@ defmodule Wave.Erased do
   alone until it has earned a level, and nothing infiltrates a system the
   Rebellion can already see in full.
 
+  ## Staying hidden
+
+  An infiltration costs cover even when it works, and an agent below the
+  discovery threshold is shown to the system's owner, loses every skill and
+  cannot leave. Two rules keep an informer from handing itself over:
+
+    * **Cover first** — it does not infiltrate until its cover stands
+      `erased_infiltrate_cover_margin` (12, the most a success costs) above
+      the threshold, so only a failure gives it away. Removal and sabotage
+      cost more than any cover absorbs and are not held.
+    * **Cool-off** — after a failure at odds below `erased_fail_cooloff_chance`
+      (75%) in a system somebody holds, that system is left alone for
+      `erased_fail_cooloff_ut` by every Erased whose own odds there are below
+      that line too, and the agent works other ground once it can move. At
+      those odds the owner, who has just been shown the agent, is a building
+      or two from shutting it out. At better odds a failure is bad luck and it
+      goes again; neutral ground has nobody to answer and is never cooled.
+
   ## Between strikes
 
   An Erased whose duty has nothing to strike does not stand still. Below
@@ -416,6 +434,57 @@ defmodule Wave.Erased do
       chance -> {0, -chance, hops, system.id}
     end
   end
+
+  # --- cover and failures -------------------------------------------------------
+
+  # What an infiltration costs in cover
+  # (Instance.Character.Actions.Infiltrate.finish/2): a success at most 12, a
+  # failure at least 20. Anything past the midpoint was a failure.
+  @infiltration_success_cost 12
+  @infiltration_failure_cost 20
+  @max_cover 100
+
+  @doc """
+  True when an agent has the cover to infiltrate quietly: at least `margin`
+  above the discovery `threshold`, so a success leaves it hidden. A margin no
+  cover can reach asks for full cover instead.
+
+  Cover only recovers while an agent stands idle, so waiting for it costs no
+  tempo: it is the same rest, taken before the attempt instead of after it,
+  and taken unseen.
+  """
+  def covered_for_infiltration?(cover, threshold, margin)
+      when is_number(cover) and is_number(threshold) and is_number(margin),
+      do: cover >= min(threshold + margin, @max_cover)
+
+  def covered_for_infiltration?(_cover, _threshold, _margin), do: true
+
+  @doc """
+  True when an infiltration failed, read off the cover it cost: the attacker's
+  result report is not kept, but a failure always costs more than a success.
+  `nil` when either reading is missing.
+  """
+  def infiltration_failed?(cover_before, cover_after) when is_number(cover_before) and is_number(cover_after),
+    do: cover_before - cover_after > (@infiltration_success_cost + @infiltration_failure_cost) / 2
+
+  def infiltration_failed?(_cover_before, _cover_after), do: nil
+
+  @doc """
+  True while a system is off limits to this agent after a failure there.
+
+  `failed_ago` is the game time since one of our infiltrations last failed at
+  modest odds in the system (nil when none has), `chance` this agent's own
+  odds against the Intelligence that failure reported. An agent below
+  `cooloff_chance` stays away for `cooloff_ut`; one at or above it is not
+  held back.
+  """
+  def cooling_off?(chance, failed_ago, cooloff_chance, cooloff_ut)
+      when is_number(chance) and is_number(failed_ago),
+      do: chance < cooloff_chance and failed_ago < cooloff_ut
+
+  def cooling_off?(_chance, _failed_ago, _cooloff_chance, _cooloff_ut), do: false
+
+  # --- strike priorities --------------------------------------------------------
 
   @doc """
   Rank sabotage targets: fleets besieging something the Rebellion holds come

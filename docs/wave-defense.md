@@ -535,12 +535,12 @@ Engine facts this rests on:
 
 - An infiltration takes `infiltration_time` (50 ut at Legacy) × 1 to 2, the
   longer the closer the odds, and a success costs 8 to 12 cover (4 to 8 on a
-  critical). Cover recovers 0.25 per ut, so against Intelligence 0 a skilled
-  informer stays under cover indefinitely.
+  critical). Cover recovers 0.25 per ut while the agent stands idle (see
+  "Staying hidden" below).
 - The system's owner is told nothing unless the agent's cover falls below
   `cover_threshold` (75): then a "foreign spy discovered" notice, and the
   agent can neither act nor move until it recovers. A failure costs 20 to 40
-  cover, so it is the failures the humans see.
+  cover.
 - Travel is lane length × `character_movement_factor` (7.2): about 70 ut a
   hop on the i185 map, 850 ut to the nearest human system and 1,600 to their
   home sector.
@@ -548,6 +548,49 @@ Engine facts this rests on:
 Telemetry: `wave_erased_posted` events, the `erased_posted` counter, the
 `erased_forward_quotas` gauge, and `forward/scout` and `forward/deep` in
 `erased_postings`.
+
+#### Staying hidden (2026-10-08)
+
+The first scout to reach human ground (instance 185, system 106) made three
+attempts in under fourteen hours and was shown to the owner after every one,
+including the two that worked. Two of the engine facts above were wrong in a
+way that mattered:
+
+- Cover recovers only while a spy stands idle: the character tick calls
+  `Spy.increase_cover/3` on an empty action queue and never while it travels
+  or acts.
+- The Warlord ordered the next infiltration the moment cover was back above
+  75. A success costs 8 to 12, so every attempt ended below the threshold: a
+  "foreign spy discovered" notice, skills at zero, and two to five real hours
+  in the owner's system unable to leave. The owner could remove it at will,
+  and read every attempt as a failure.
+
+Two rules now (user decisions, 2026-10-08), both in `Wave.Erased`:
+
+1. **Cover first.** No infiltration is ordered until the agent's cover is
+   `erased_infiltrate_cover_margin` (12) above the threshold, 87 at the
+   defaults, so only a failure gives the agent away. This costs no tempo: it
+   is the same 40 ut of rest per success, taken before the attempt and unseen
+   instead of after it and exposed. Time moves from the `resting` bucket to
+   `idle`. Removal and sabotage cost 10 to 30 on a success and are not held.
+2. **Cool-off after a failure at modest odds.** When an infiltration fails in
+   a system somebody holds and the agent's odds against the Intelligence it
+   just met are below `erased_fail_cooloff_chance` (75%), the system is left
+   alone for `erased_fail_cooloff_ut` (480, a day at Legacy) by every Erased
+   whose own odds there are below that line. The user's reasoning: an owner
+   who sees a modest chance of success raises Intelligence by enough to make
+   it a coin flip, so going straight back is walking into it. At 75% or
+   better a failure is bad luck and the agent goes again. Neutral systems
+   have no owner to answer and are never cooled, so practice is unchanged.
+
+A failure is read off the cover it cost (a success never costs more than 12,
+a failure never less than 20), and the odds are recomputed from the skill the
+agent went in with, because by the time the attempt is scored it is
+discovered and its skills read zero.
+
+Telemetry: `wave_erased_dispatched` carries `attack` for an infiltration, and
+`wave_erased_resolved` carries `failed`, `odds_now` and, when the system went
+on cool-off, `cooloff`.
 
 ### Siderians: destabilization and seduction (built 2026-09-30)
 
