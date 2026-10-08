@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  serverNow, liveRemaining, queueFinishTimes, formatCountdown,
+  serverNow, liveRemaining, liveElapsed, queueFinishTimes, formatCountdown,
 } from '../clock.js';
 
 // Speed factor 18: one unit of game time = 10 s of wall time.
@@ -94,4 +94,25 @@ test('formatCountdown: "w D x H y M zs", leading zero units left out', () => {
   assert.equal(formatCountdown((86400 + 3 * 60 + 12) * 1000), '1 D 0 H 3 M 12s');
   assert.equal(formatCountdown((3 * 86400 + 4 * 3600 + 5 * 60 + 6) * 1000), '3 D 4 H 5 M 6s');
   assert.equal(formatCountdown(-5000), '0s');
+});
+
+test('liveElapsed carries a count forward from the clock reading it was taken at', () => {
+  // 10 units counted when the clock read 470_000; it reads 500_000 now
+  assert.equal(liveElapsed(10, 470000, running, FACTOR, 1000000), 13);
+  assert.equal(liveElapsed(10, 470000, running, FACTOR, 1000000 + (2 * UNIT)), 15);
+});
+
+test('liveElapsed stands still while paused, and never goes back', () => {
+  const paused = { ...running, is_running: false };
+  assert.equal(liveElapsed(10, 470000, paused, FACTOR, 1060000), 13);
+  // a reading from after the clock we hold (a fresher copy than our time)
+  assert.equal(liveElapsed(10, 530000, running, FACTOR, 1000000), 10);
+});
+
+test('liveElapsed is the count as sent without a reading or a clock', () => {
+  assert.equal(liveElapsed(10, null, running, FACTOR, 1000000), 10);
+  assert.equal(liveElapsed(10, undefined, running, FACTOR, 1000000), 10);
+  assert.equal(liveElapsed(10, 470000, undefined, FACTOR, 1000000), 10);
+  assert.equal(liveElapsed(10, 470000, running, undefined, 1000000), 10);
+  assert.equal(liveElapsed(undefined, 470000, running, FACTOR, 1000000), 0);
 });

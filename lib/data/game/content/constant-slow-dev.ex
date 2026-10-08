@@ -88,7 +88,7 @@ defmodule Data.Game.Constant.Content.Slow.Dev do
         university_fee_credit: 50,
         university_fee_technology: 5,
         university_fee_ideology: 5,
-        university_guest_min_level: 5,
+        university_min_level: 5,
         training_defense_factor: 0.5
       }
     ]

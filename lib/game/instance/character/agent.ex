@@ -34,11 +34,31 @@ defmodule Instance.Character.Agent do
   # per agent life via `Instance.Manager.start`, and (b) the live monotonic
   # frame is whatever monotonic clock the just-started tick will use, so
   # this is the moment the new frame becomes authoritative.
+  #
+  # A student's training carries a reading of the same clock (see
+  # Instance.Character.Training, `at`). It is re-anchored here too, and when
+  # that moved it (first start after enrolment, or a restore in a new BEAM)
+  # the copies its owner and its system hold are told. Only the `training`
+  # map travels, not the character: the owner is often in the middle of the
+  # call that started this agent, and would otherwise read a whole
+  # character older than the one it is about to store.
   def on_call({:start, cumulated_pauses}, _from, state) do
     factor = state.tick.factor
     data = rebase_in_flight_actions(state.data, factor, cumulated_pauses)
+    {data, moved?} = Character.anchor_training(data, Instance.Time.Time.now(cumulated_pauses))
+    if moved?, do: send_training_anchor(state.instance_id, data)
     tick = Core.Tick.start(%{state.tick | cumulated_pauses: cumulated_pauses})
     {:reply, :ok, %{state | tick: tick, data: data}}
+  end
+
+  defp send_training_anchor(instance_id, %Character{} = data) do
+    training = Map.get(data, :training)
+
+    if data.owner != nil,
+      do: Game.cast(instance_id, :player, data.owner.id, {:training_anchor, data.id, training})
+
+    if data.system != nil,
+      do: Game.cast(instance_id, :stellar_system, data.system, {:training_anchor, data.id, training})
   end
 
   defp rebase_in_flight_actions(%Character{actions: nil} = data, _factor, _cumulated_pauses), do: data

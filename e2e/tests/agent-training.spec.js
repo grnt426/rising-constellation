@@ -7,6 +7,12 @@
 //   - recalls its Erased and sends it to the Orb-INTEL from a free seat
 //     (deck panel, "Enrol"): the seat is taken, the fee is in the credit
 //     income, the agent is on the roster as a student;
+//   - watches it settle in: a ring fills around its seat, the seat's
+//     tooltip says that nothing is earned yet and for how long, the agent
+//     is in the agents list with its school's icon (and the list's training
+//     toggle shows only students, then leaves them out), and its opened
+//     card lists settling in as its one action with the moment it ends,
+//     and says what its halved Protection is halved from;
 //   - lets the course run (speed cheat) and watches the ring around the
 //     seated student, one segment per rewire: at the fifth the agent is
 //     back in the deck by itself and the seat is free;
@@ -180,6 +186,8 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
   });
 
   await test.step('enrol: the seat is taken and the fee is in the income', async () => {
+    // settling in lasts 3 ut at Flash speed, 4.5 s: slowed down to be looked at
+    expect((await setSpeedCheat(page, 0.25)).ok).toBe(true);
     await deckCard(page, erasedName).locator('.card-action .button').click();
 
     await expect(school(page, 'spy').locator('.school-seat.is-taken')).toHaveCount(1);
@@ -191,11 +199,116 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     expect(student.training.school).toBe('university');
     expect(state.creditDetails).toContain('character_tuition');
 
-    // the ring around the student: one segment per rewire, none earned yet
-    const ring = school(page, 'spy').locator('.school-seat.is-taken .seat-ring path');
-    await expect(ring).toHaveCount(5);
-    await expect(school(page, 'spy').locator('.seat-ring path.is-earned')).toHaveCount(0);
+    // settling in: one ring to fill, and no segment of the course yet
+    const seat = school(page, 'spy').locator('.school-seat.is-taken');
+    await expect(seat.locator('.seat-ring.is-settling .settle-fill')).toHaveCount(1);
+    await expect(seat.locator('.seat-ring path')).toHaveCount(0);
     await shot(page, '03-enrolled');
+  });
+
+  await test.step('settling in: the ring fills, and the seat, the agents list and the card say so', async () => {
+    const seat = school(page, 'spy').locator('.school-seat.is-taken');
+    const tooltip = (text) => page.locator('.tooltip .tooltip-inner', { hasText: text });
+
+    // the ring is drawn over as the time passes
+    const drawn = () => seat.locator('.settle-fill')
+      .evaluate((el) => parseFloat(el.getAttribute('stroke-dasharray')));
+    const first = await drawn();
+    await expect.poll(drawn, { timeout: 15000, intervals: [500] }).toBeGreaterThan(first);
+
+    // the seat: nothing earned yet, and for how long
+    await seat.locator('.round-icon').hover();
+    await expect(tooltip('settling in')).toContainText('XP and neural rewires are earned after settling in');
+    await expect(tooltip('settling in')).toContainText(/\d+s left/);
+    await shot(page, '03b-settling-seat');
+    if (SHOTS) {
+      // the ring is 44 px across: enlarged for the review
+      await page.evaluate(() => { document.querySelector('.school-box .school-list').style.zoom = 4; });
+      await page.locator('.school-box').screenshot({ path: path.join(SHOTS, '03b-ring.png') });
+      await page.evaluate(() => { document.querySelector('.school-box .school-list').style.zoom = ''; });
+    }
+    await page.mouse.move(700, 620);
+
+    // the agents list: the student is in it, with its school's icon, its
+    // stage and the time left
+    const lines = page.locator('.list-panel.is-right .card-container.closed');
+    const line = lines.filter({ hasText: erasedName });
+    await expect(line).toHaveCount(1);
+    await expect(line.locator('.card-header-toast.is-training')).toBeVisible();
+    await expect(line.locator('.title-small.is-training')).toContainText('settling in', { ignoreCase: true });
+    await expect(line.locator('.title-small.is-training .counter')).toHaveText(/\d/);
+    await shot(page, '03c-agents-list');
+
+    // one toggle, three states: students listed, only students, no students
+    const toggle = page.locator('.list-panel.is-right .list-panel-tool.is-training');
+    const listed = await lines.count();
+    expect(listed).toBeGreaterThan(1);
+    await toggle.click();
+    await expect(lines).toHaveCount(1);
+    await expect(line).toHaveCount(1);
+    await shot(page, '03d-only-students');
+    await toggle.click();
+    await expect(lines).toHaveCount(listed - 1);
+    await expect(line).toHaveCount(0);
+    await shot(page, '03e-no-students');
+    await toggle.click();
+    await expect(lines).toHaveCount(listed);
+
+    // a click on its line opens its card, with settling in as its one action
+    await line.click();
+    const card = page.locator('.opened-character .card-container');
+    const actions = page.locator('.opened-character .training-queue');
+    await expect(card.locator('.card-ribbon').first()).toContainText('settling in', { ignoreCase: true });
+    await expect(actions.locator('[data-training-row="settling"]')).toContainText('Settling in', { ignoreCase: true });
+    await expect(actions.locator('[data-training-eta]')).toHaveText(/\d/);
+    await expect(actions).toContainText('XP and neural rewires are earned after settling in', { ignoreCase: true });
+
+    // the ribbon says why nothing is earned, and until when
+    await card.locator('.card-ribbon').first().hover();
+    await expect(tooltip('Settling in ends in')).toContainText('no experience and no neural rewires yet');
+    await shot(page, '03f-settling-card');
+
+    // The card shows the Protection an attacker meets, which is the one
+    // the server sends with the system (already cut), and its tooltip
+    // says what it was cut from.
+    const defense = await page.evaluate(() => {
+      const { openedCharacter, selectedSystem } = document.querySelector('#app').__vue__.$store.state.game;
+      const seated = selectedSystem.students.find((s) => s.id === openedCharacter.id);
+      return {
+        base: { protection: openedCharacter.protection, determination: openedCharacter.determination },
+        met: { protection: seated.protection, determination: seated.determination },
+      };
+    });
+    expect(defense.met.protection).toBe(Math.trunc(defense.base.protection / 2));
+    expect(defense.met.determination).toBe(Math.trunc(defense.base.determination / 2));
+    expect(defense.met.protection).toBeLessThan(defense.base.protection);
+
+    const cut = card.locator('.simple-bonus.is-cut');
+    await expect(cut.nth(0)).toHaveText(new RegExp(`^\\s*${defense.met.protection}\\s*$`));
+    await expect(cut.nth(1)).toHaveText(new RegExp(`^\\s*${defense.met.determination}\\s*$`));
+
+    await cut.nth(0).hover();
+    await expect(tooltip(`Protection, base ${defense.base.protection}: -50% (training)`)).toBeVisible();
+    await shot(page, '03g-defense-tooltip');
+    await cut.nth(1).hover();
+    await expect(tooltip(`Determination, base ${defense.base.determination}: -50% (training)`)).toBeVisible();
+
+    // Settled in. The card left open follows by itself: its one action is
+    // done and its ribbon says the course has started.
+    await page.mouse.move(700, 620);
+    expect((await setSpeedCheat(page, 1)).ok).toBe(true);
+    await expect(actions).toHaveCount(0);
+    await expect(card.locator('.card-ribbon').first()).toContainText('on its course', { ignoreCase: true });
+    await shot(page, '03h-on-its-course');
+    await page.evaluate(() => document.querySelector('#app').__vue__.$store.dispatch('game/closeCharacter'));
+    await expect(card).toHaveCount(0);
+
+    // the segments of the course take the ring's place, and the list says so
+    await expect(seat.locator('.seat-ring path')).toHaveCount(5);
+    await expect(seat.locator('.settle-fill')).toHaveCount(0);
+    await expect(school(page, 'spy').locator('.seat-ring path.is-earned')).toHaveCount(0);
+    await expect(line.locator('.title-small.is-training')).toContainText('on its course', { ignoreCase: true });
+    await expect(line.locator('.title-small.is-training .counter')).toHaveCount(0);
   });
 
   await test.step('the student card: where it stands, cut defence, Recall', async () => {

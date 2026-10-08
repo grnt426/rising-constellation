@@ -258,7 +258,7 @@ defmodule Player.AgentTrainingTest do
 
     test "tells how long the student ahead still has to sit", %{conn: conn, user1: account} do
       with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
-        erased = hire(iid, pid, :spy)
+        erased = hire(iid, pid, :spy, level: 5)
         put_building(iid, home, :counterintelligence_open, 1)
         assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})
 
@@ -269,7 +269,7 @@ defmodule Player.AgentTrainingTest do
             constant.university_max_reallocations * constant.university_reallocation_interval
 
         # a faction-mate's Erased (the player's own second one would need a second slot)
-        mate = %{live(iid, erased.id) | id: 999_999, level: constant.university_guest_min_level}
+        mate = %{live(iid, erased.id) | id: 999_999, level: constant.university_min_level}
 
         assert {:ok, wait} = Game.call(iid, :stellar_system, home, {:join_school_queue, mate, :university, erased.id})
         assert wait > 0 and wait <= course
@@ -278,10 +278,41 @@ defmodule Player.AgentTrainingTest do
   end
 
   describe "a university" do
+    test "takes nobody under level 5, its owner's agents included", %{conn: conn, user1: account} do
+      with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
+        constant = Data.Querier.one(Data.Game.Constant, iid, :main)
+        erased = hire(iid, pid, :spy, level: constant.university_min_level - 1)
+        put_building(iid, home, :counterintelligence_open, 1)
+
+        assert {:error, :character_level_too_low} ==
+                 Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})
+
+        # refused before anything was committed: still in the deck, no seat taken
+        assert erased.id in deck_ids(player_state(iid, pid))
+        assert system_state(iid, home).students == []
+        assert agent_gone?(iid, erased.id)
+
+        # one level more and the university takes it
+        set_deck_level(iid, pid, erased.id, constant.university_min_level)
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})
+
+        # While it settles in, both copies of its training say when their
+        # elapsed time was measured: that is what the client counts down
+        # from. The system's copy was made before the agent started, so it
+        # only has it from the agent's {:training_anchor, ...}.
+        wait_until("the system's copy is anchored", fn ->
+          match?([%{training: %{phase: :settling, at: at}}] when is_integer(at), system_state(iid, home).students)
+        end)
+
+        assert %{phase: :settling, at: at} = on_roster(player_state(iid, pid), erased.id).training
+        assert is_integer(at)
+      end)
+    end
+
     test "runs a paid course that ends with five reallocations, spent after the recall",
          %{conn: conn, user1: account} do
       with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
-        erased = hire(iid, pid, :spy)
+        erased = hire(iid, pid, :spy, level: 5)
         put_building(iid, home, :counterintelligence_open, 1)
 
         assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})
@@ -392,7 +423,7 @@ defmodule Player.AgentTrainingTest do
 
     test "sends a student out of class when its owner can no longer pay", %{conn: conn, user1: account} do
       with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
-        erased = hire(iid, pid, :spy)
+        erased = hire(iid, pid, :spy, level: 5)
         put_building(iid, home, :counterintelligence_open, 1)
         assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})
 
@@ -448,7 +479,7 @@ defmodule Player.AgentTrainingTest do
   # panel uses. The fixture fills every agent slot the player has (one per
   # type), so the agent on board is removed first, the way an
   # assassination removes it.
-  defp hire(iid, pid, type) do
+  defp hire(iid, pid, type, opts \\ []) do
     own = Enum.find(player_state(iid, pid).characters, &(&1.type == type)) || flunk("the player has no #{type}")
     assert :ok == Game.call(iid, :player, pid, {:assassinate_character, own.id})
 
@@ -463,7 +494,41 @@ defmodule Player.AgentTrainingTest do
     hire = Enum.find(on_offer, &(&1.type == type)) || flunk("no #{type} on the market")
 
     assert %Player{} = Game.call(iid, :player, pid, {:hire_character, hire.id})
+
+    case Keyword.get(opts, :level) do
+      nil -> :ok
+      level -> set_deck_level(iid, pid, hire.id, level)
+    end
+
     in_deck(player_state(iid, pid), hire.id)
+  end
+
+  # The market hands out beginners and a university asks for level 5:
+  # write the level of a deck agent straight into its owner's state, with
+  # the skill points those levels would have brought, in its main skill.
+  defp set_deck_level(iid, pid, character_id, level) do
+    player = GenServer.whereis(Game.via_tuple({iid, :player, pid})) || flunk("no player agent #{pid}")
+
+    :sys.replace_state(player, fn state ->
+      deck =
+        Enum.map(state.data.character_deck, fn entry ->
+          if entry.character.id == character_id,
+            do: %{entry | character: at_level(iid, entry.character, level)},
+            else: entry
+        end)
+
+      %{state | data: %{state.data | character_deck: deck}}
+    end)
+
+    assert in_deck(player_state(iid, pid), character_id).level == level
+  end
+
+  defp at_level(iid, character, level) do
+    type_data = Data.Querier.one(Data.Game.Character, iid, character.type)
+    main = Enum.find_index(type_data.specializations, &(&1.key == character.specialization))
+    gained = max(level - character.level, 0)
+
+    %{character | level: level, skills: List.update_at(character.skills, main, &min(&1 + gained, 12))}
   end
 
   # Put a finished building on a free tile of home's inhabited planet (the

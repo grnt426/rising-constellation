@@ -61,8 +61,10 @@ defmodule Portal.DevFixtureController do
   Orb-INTEL (level 2, or 1 at Flash speed, whose buildings have one level)
   on two free tiles of home's planet (the same dev-only call), for the
   agent-training flows (docs/agent-training.md): one seat for any agent of
-  the player, one per level for Erased. `empire.schools` holds the body
-  uid and the tile and level of each building.
+  the player, one per level for Erased. The player's own agents are given
+  the experience that takes them to the level a university asks
+  (`university_min_level`), the way a Training Center gives it. `empire.schools`
+  holds the body uid and the tile and level of each building.
 
   `{"research": true}` inside `empire` (Legacy or Tactic content) sets up the
   patent and lex panels for the Patents & lexes screenshots, through the
@@ -421,6 +423,9 @@ defmodule Portal.DevFixtureController do
         for {type, rank} <- [admiral: :remarkable, spy: :common, speaker: :common] ++ extra_admirals do
           place(instance.id, profile.id, type, rank, system.id)
         end
+
+        # with schools to send them to: the level a university asks
+        :ok = maybe_season_agents(instance.id, profile.id, is_map(empire) and Map.get(empire, "schools") == true)
 
         # Puppet 1: a four-agent squadron — exercises the cluster badge,
         # the unfurl, and the action buttons inside the fan. Mostly
@@ -824,6 +829,34 @@ defmodule Portal.DevFixtureController do
          body_uid: body.uid,
          buildings: Enum.map(placed, fn {tile, {key, level}} -> %{tile: tile, key: key, level: level} end)
        }}
+    end
+  end
+
+  # A university takes agents of `university_min_level` or more: the
+  # player's agents are beginners, so each one on board is handed the
+  # experience it is short of, through the cast a Training Center uses
+  # (levels, skill points and stats follow as they would in play). Called
+  # once the player's own hand is placed.
+  defp maybe_season_agents(_instance_id, _profile_id, false), do: :ok
+
+  defp maybe_season_agents(instance_id, profile_id, true) do
+    level = Data.Querier.one(Data.Game.Constant, instance_id, :main).university_min_level
+    # total experience at which an agent reaches `level` (Character.get_next_level_experience/1)
+    needed = Float.round(10 * level + :math.pow(level / 2, 2.5))
+
+    with {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
+      each_ok(player.characters, fn %{id: id} ->
+        with {:ok, character} <- Game.call(instance_id, :character, id, :get_state) do
+          if character.level < level,
+            do: Game.cast(instance_id, :character, id, {:add_experience, needed - character.experience.value + 1})
+
+          case Game.call(instance_id, :character, id, :get_state) do
+            {:ok, %{level: reached}} when reached >= level -> :ok
+            {:ok, %{level: reached}} -> {:schools, :agent_level, id, reached}
+            other -> other
+          end
+        end
+      end)
     end
   end
 

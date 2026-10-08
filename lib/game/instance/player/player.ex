@@ -1012,6 +1012,32 @@ defmodule Instance.Player.Player do
     |> compute_bonus()
   end
 
+  @doc """
+  Replaces the `training` map of the roster's copy of a student, when it
+  still describes the same seat (school and phase): `{:ok, state}`, or
+  `:unchanged` when the agent has moved on since.
+  """
+  def update_training(%Player.Player{} = state, character_id, training) when is_map(training) do
+    same_seat? = fn c ->
+      current = Map.get(c, :training)
+
+      c.id == character_id and c.status == :student and is_map(current) and
+        Map.get(current, :school) == Map.get(training, :school) and
+        Map.get(current, :phase) == Map.get(training, :phase)
+    end
+
+    if Enum.any?(state.characters, same_seat?) do
+      characters =
+        Enum.map(state.characters, fn c -> if same_seat?.(c), do: Map.put(c, :training, training), else: c end)
+
+      {:ok, %{state | characters: characters}}
+    else
+      :unchanged
+    end
+  end
+
+  def update_training(%Player.Player{}, _character_id, _training), do: :unchanged
+
   def kill_character(%Player.Player{} = state, %Character{} = character) do
     characters = Enum.reject(state.characters, fn c -> c.id == character.id end)
 

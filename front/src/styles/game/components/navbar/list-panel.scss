@@ -51,6 +51,26 @@
       opacity: 1;
       background: rgba(255, 255, 255, .2);
     }
+
+    // third state of a three-way toggle: what the icon stands for is
+    // left out of the list, and the icon is struck through
+    &.is-excluding {
+      position: relative;
+      opacity: 1;
+
+      .svg-icon { opacity: .45; }
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 50%; left: 2px; right: 2px;
+        height: 2px;
+        margin-top: -1px;
+        background: $white;
+        transform: rotate(-45deg);
+        pointer-events: none;
+      }
+    }
   }
 
   .list-panel-divider {

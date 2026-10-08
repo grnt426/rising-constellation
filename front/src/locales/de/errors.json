@@ -51,7 +51,7 @@
       "challenge_already_open": "Eine Herausforderung läuft bereits",
       "challenge_lockout": "Sie sind vorerst von Herausforderungen ausgeschlossen",
       "character_deck_full": "Dein Charakterdeck ist voll",
-      "character_level_too_low": "Die Universität eines Verbündeten nimmt Agenten ab Stufe 5 auf",
+      "character_level_too_low": "Nur Agenten ab Stufe 5 gehen an die Universität",
       "character_must_be_idle": "Dieser Agent muss stationär sein",
       "character_not_at_home": "Dieser Agent befindet sich nicht in einem Ihrer Systeme",
       "character_not_found": "Unbekannter Agent",

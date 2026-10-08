@@ -50,6 +50,61 @@ defmodule Instance.Character.StudentTest do
     end
   end
 
+  describe "the clock of a course" do
+    test "every tick says when its elapsed time was measured", %{instance_id: instance_id} do
+      character = student(instance_id, :university)
+      assert Training.anchored_at(character.training) == nil
+
+      before = Instance.Time.Time.now(0)
+      {_change, _notifs, character} = tick(character, 10)
+
+      assert character.training.elapsed == 10
+      assert Training.anchored_at(character.training) >= before
+      assert Training.anchored_at(character.training) <= Instance.Time.Time.now(0)
+    end
+
+    test "a start anchors a student that has no reading yet, or one from another clock",
+         %{instance_id: instance_id} do
+      character = student(instance_id, :university)
+
+      # just enrolled
+      assert {anchored, true} = Character.anchor_training(character, 5_000)
+      assert anchored.training.at == 5_000
+      assert anchored.training.elapsed == character.training.elapsed
+
+      # a pause: the clock stood still, the reading holds
+      assert {^anchored, false} = Character.anchor_training(anchored, 5_400)
+
+      # a restore in a new BEAM: the clock starts somewhere else
+      assert {moved, true} = Character.anchor_training(anchored, -576_460_000)
+      assert moved.training.at == -576_460_000
+    end
+
+    test "a start leaves alone a course that is over, and anyone who is not a student",
+         %{instance_id: instance_id, constant: c} do
+      course = c.university_settle_time + c.university_max_reallocations * c.university_reallocation_interval
+      {_change, _notifs, graduated} = tick(student(instance_id, :university), course)
+      assert graduated.training.phase == :graduated
+
+      assert {^graduated, false} = Character.anchor_training(graduated, graduated.training.at + 60_000)
+
+      governor = %{student(instance_id, :polytech) | status: :governor}
+      assert {^governor, false} = Character.anchor_training(governor, 5_000)
+    end
+
+    test "a training map from before the reading existed gets one", %{instance_id: instance_id} do
+      character = student(instance_id, :polytech)
+      old = %{character | training: Map.delete(character.training, :at)}
+
+      assert Training.anchored_at(old.training) == nil
+      assert {anchored, true} = Character.anchor_training(old, 5_000)
+      assert anchored.training.at == 5_000
+
+      {_change, _notifs, ticked} = tick(old, 10)
+      assert is_integer(Training.anchored_at(ticked.training))
+    end
+  end
+
   describe "at a university" do
     test "an agent earns nothing while it settles in", %{instance_id: instance_id, constant: c} do
       character = student(instance_id, :university)

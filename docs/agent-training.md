@@ -24,7 +24,7 @@ where it sits.
 | --- | --- | --- |
 | Building | Delta Polytech (`university_open`) | Monolith for Siderians, Orb-INTEL for Erased, Aerospace Military Academy for Navarchs |
 | Seats | One per building, whatever its level | One per building level |
-| Who | Agents of the system's owner, any type, from level 1 | Agents of the building's type. The owner's from level 1; a faction-mate's from level 5. The faction shares the seats: no limit per player |
+| Who | Agents of the system's owner, any type, from level 1 | Agents of the building's type, from level 5, the owner's included. The faction shares the seats: no limit per player |
 | Experience | The governor's passive rate | Nothing while settling in, then twice the governor's rate |
 | Neural rewires | None | One per day of course, up to five held |
 | Fee | None | Per tick and per agent level: 5 ideology (Siderian), 5 technology (Navarch), 50 credits (Erased) |
@@ -39,7 +39,10 @@ hours.
 ### A university course
 
 1. **Settling in.** The student holds its seat and pays the fee, and earns
-   nothing yet.
+   nothing yet. Its seat sits in a ring that fills until the course starts,
+   its card and its line in the agents list give the time left, and its
+   opened card lists settling in as its one action, with the moment it is
+   over.
 2. **On its course.** Experience at twice the governor's rate. Each full day
    adds one neural rewire.
 3. **Course over.** At five rewires the course ends and the agent is recalled
@@ -143,7 +146,7 @@ Agents queued behind a student who is turned out lose their place with it.
 | One Polytech seat per player or per building | Per building. The proposal's wording, read literally. |
 | Does a student use an agent slot | Yes. It stays on the roster like a governor. |
 | Deck or map | Map. It has a system, can be targeted and draws wages. |
-| Halve the agent's own stats or the whole defence | The agent's own Protection and Determination, as proposed. The host system's Intelligence or Stability still counts in full. `training_defense_factor` holds the 0.5. |
+| Halve the agent's own stats or the whole defence | The agent's own Protection and Determination, as proposed. The host system's Intelligence or Stability still counts in full. `training_defense_factor` holds the 0.5. The card prints the cut value in orange and its tooltip the base ("Protection, base 80: -50% (training)"). Until 2026-10-08 the card printed the base value in orange: the engine cut it all along, the card passed the cut value to the `obfuscate` filter as the value to test instead of the value to print. |
 | Is an Erased student visible | Yes. Students are listed apart from on-board agents and cover does not apply. |
 | Re-enrolment and limits on moves | Re-enrolment is open, any number of times, once the last course's rewires are spent (decided by the owner, 2026-10-06). Moves respect the cap of 12 and the main-skill rule. |
 | What happens at five rewires | The agent is recalled to the deck at once (2026-10-07). The first build left it waiting in the system. |
@@ -158,7 +161,7 @@ Agents queued behind a student who is turned out lose their place with it.
 | Which building hosts Navarchs | The Aerospace Military Academy. |
 | How an ally's agent enters | From the ally's deck, straight into the seat, like any deployment. The system grants the seat. |
 | Does the settling-in period cost the fee | Yes. The seat is held from the first tick. |
-| Does the owner's own agent need level 5 | No. Only a faction-mate's does. |
+| Does the owner's own agent need level 5 | Yes (2026-10-08). A university takes nobody under `university_min_level`. The first build asked it of faction-mates only; students seated before the change keep their seats. |
 | A seduced student | It leaves its seat and joins the seducer on board in that system, as any seduced agent does. The seducer's agent limit is still unchecked, as before. |
 
 ## Naming
@@ -181,7 +184,7 @@ All in `Data.Game.Constant`, per speed (`lib/data/game/content/constant-*.ex`).
 | `university_reallocation_interval` (ut) | 480 | 80 | 20 |
 | `university_max_reallocations` | 5 | 5 | 5 |
 | `university_fee_ideology` / `_technology` / `_credit` | 5 / 5 / 50 | same | same |
-| `university_guest_min_level` | 5 | 5 | 5 |
+| `university_min_level` | 5 | 5 | 5 |
 | `training_defense_factor` | 0.5 | 0.5 | 0.5 |
 
 The proposal is written in Legacy terms. The Tactic and Flash durations use
@@ -195,7 +198,8 @@ Engine:
 
 - `Instance.Character.Training`: the rules with no process access. Schools
   and their buildings, the phases of a course, fees, and the legality of a
-  reallocation.
+  reallocation. A `training` map also carries `at`, the reading of the
+  action clock its `elapsed` was measured at (see "The clock of a course").
 - `Instance.Character.Character`: the `:student` status, the `training` map
   and `reallocations` (both read with `Map.get`, since they postdate
   snapshots), the student tick, `effective_protection/1` and
@@ -235,11 +239,35 @@ Enrolment takes the seat before anything is committed on the player's side,
 so a refusal (school full, damaged, changed hands) leaves the agent in the
 deck and starts no process.
 
+### The clock of a course
+
+A student ticks at its next event only (settled in, a rewire, a level), so
+the `elapsed` of its `training` map can be hours old in the copies its owner
+and its system hold. `training.at` is the reading of the action clock
+(`Instance.Time.Time.now/1`: monotonic time minus the pauses) taken when
+`elapsed` was measured, as `started_at` is for an action. The client carries
+`elapsed` forward from it (`liveElapsed` in `front/src/game/clock.js`,
+`settling` in `front/src/game/training.js`).
+
+- Every student tick stamps `at`.
+- `Character.Agent`'s `{:start, _}` re-anchors it (`Character.anchor_training/2`).
+  After a pause the clock has not moved and nothing changes. After
+  enrolment, or after a restore in a new BEAM whose clock has another
+  origin, the anchor is replaced and the agent casts
+  `{:training_anchor, id, training}` to its owner and its system, which
+  patch the `training` of their copy and nothing else.
+- A speed change (the cheat) is not followed: copies are carried forward at
+  the new factor from an anchor taken at the old one until the next event.
+  The client clamps to the length of the phase.
+- Maps from before 2026-10-08 have no `at` (`Training.anchored_at/1`); the
+  first start gives them one.
+
 Client:
 
 - `front/src/game/training.js`: the client's reading of a `training` map.
 - `SchoolBox.vue`: the Schools row at the head of the bodies list in the
-  system view. A school is its building's icon, with the name and the rules
+  system view. A university student that is settling in sits in one ring
+  that fills; the five segments take its place when the course starts. A school is its building's icon, with the name and the rules
   in its tooltip, followed by its seats. Free seats open the deck; seated
   agents open their card and can be targeted by a selected Erased or
   Siderian. Hovering a seated agent shows the queue above it: the agent
@@ -251,10 +279,19 @@ Client:
 - `BuildingCard.vue`: the four host buildings' cards end with a seats row
   (one for a Polytech, one per level for a university).
 - `CharacterCard.vue`: Enrol, Join the queue and Recall, the training
-  ribbon, the cut defence, the reallocation controls, the wait of a queued
-  agent with Leave the queue, and Send home on a faction-mate's student in
-  one of the player's systems.
+  ribbon (its tooltip says that settling in earns nothing and when it ends),
+  the cut defence (tooltip: "Protection, base 80: -50% (training)"), the
+  reallocation controls, the wait of a queued agent with Leave the queue,
+  and Send home on a faction-mate's student in one of the player's systems.
 - `panel/operation/Agents.vue`: an "In training" list.
+- `navbar/AgentsListPanel.vue`: students are listed with the on-board
+  agents, under their type. Their line (`ClosedCharacterCard.vue`) carries
+  the icon of their school's building, their stage and the time left to
+  settle in; a click opens their card. One toolbar button goes round three
+  states: students listed, only students, students left out.
+- `galaxy/selection/TrainingQueue.vue`: the "actions" of a student, shown
+  beside its opened card: settling in, with a progress ring and the moment
+  it is over. Nothing once the course has started.
 
 ## Player manual
 
@@ -288,6 +325,8 @@ Client:
 
 ## Not built
 
+- Students in the phone's agent lists (the radial lists on-board agents by
+  type), and a selection panel for a student: its card opens instead.
 - The Great Pilgrimage.
 - A manual screenshot of the reallocation controls. It needs an agent that
   holds rewires, which takes a whole course at Legacy speed.

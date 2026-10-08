@@ -36,6 +36,21 @@
           :name="status.icon"
           aria-hidden="true" />
       </button>
+
+      <span class="list-panel-divider"></span>
+
+      <!-- agents in training: with the others, alone, or left out -->
+      <button
+        type="button"
+        class="bare-button list-panel-tool is-training"
+        :class="{ 'active': trainingFilter === 'only', 'is-excluding': trainingFilter === 'hide' }"
+        :aria-label="$t(`navbar.list_panel.training_${trainingFilter}`)"
+        v-tooltip="$t(`navbar.list_panel.training_${trainingFilter}`)"
+        @click="cycleTrainingFilter">
+        <svgicon
+          name="building/university_open"
+          aria-hidden="true" />
+      </button>
     </template>
 
     <template v-if="groups.length">
@@ -67,6 +82,10 @@ import { searchKey } from '@/utils/search-key';
 import ListPanel from '@/game/components/navbar/ListPanel.vue';
 import ClosedCharacterCard from '@/game/components/card/ClosedCharacterCard.vue';
 
+// The training toggle goes round these: students listed with the others,
+// alone, or left out.
+const TRAINING_FILTERS = ['all', 'only', 'hide'];
+
 // action_status values that mean the agent is recovering rather than
 // idle or on a mission: stuck in the docking bay, or in portal fatigue
 // after a gateway jump.
@@ -90,6 +109,7 @@ export default {
         resting: false,
         exposed: false,
       },
+      trainingFilter: 'all',
       statusList: [
         { key: 'idle', icon: 'disc' },
         { key: 'busy', icon: 'spinner' },
@@ -102,20 +122,28 @@ export default {
     theme() { return this.$store.getters['game/theme']; },
     player() { return this.$store.state.game.player; },
     characterTypes() { return this.$store.state.game.data.character; },
-    onBoardCharacters() {
+    // On-board agents, then the students (docs/agent-training.md): both
+    // are out of the deck, and a student is one click from its card.
+    listedCharacters() {
       // receivedAt is merged in (as the pre-redesign list did) so the
       // card re-renders on every player broadcast and its live action
       // countdowns stay honest.
-      return this.player.characters
-        .filter((c) => c.status === 'on_board')
-        .map((c) => ({ ...c, receivedAt: this.player.receivedAt }));
+      const withReceipt = (c) => ({ ...c, receivedAt: this.player.receivedAt });
+
+      return [
+        ...this.player.characters.filter((c) => c.status === 'on_board'),
+        ...this.player.characters.filter((c) => c.status === 'student'),
+      ].map(withReceipt);
     },
     filteredCharacters() {
       const query = searchKey(this.search);
       const activeTypes = Object.keys(this.typeFilters).filter((k) => this.typeFilters[k]);
       const activeStatuses = Object.keys(this.statusFilters).filter((k) => this.statusFilters[k]);
 
-      return this.onBoardCharacters.filter((character) => {
+      return this.listedCharacters.filter((character) => {
+        const student = character.status === 'student';
+        if (this.trainingFilter === 'only' && !student) return false;
+        if (this.trainingFilter === 'hide' && student) return false;
         if (query && !searchKey(character.name).includes(query)) return false;
         if (activeTypes.length && !activeTypes.includes(character.type)) return false;
         if (activeStatuses.length
@@ -138,6 +166,8 @@ export default {
   },
   methods: {
     hasStatus(character, status) {
+      // a student is none of these: it has its own toggle
+      if (character.status === 'student') return false;
       if (status === 'exposed') {
         return character.type === 'spy' && character.is_discovered;
       }
@@ -153,8 +183,15 @@ export default {
     toggleStatusFilter(key) {
       this.statusFilters[key] = !this.statusFilters[key];
     },
+    cycleTrainingFilter() {
+      const next = TRAINING_FILTERS.indexOf(this.trainingFilter) + 1;
+      this.trainingFilter = TRAINING_FILTERS[next % TRAINING_FILTERS.length];
+    },
+    // A student has no orders to give: its card opens, where its course
+    // stands and Recall is.
     selectCharacter(character) {
-      this.$store.dispatch('game/selectCharacter', { vm: this, id: character.id });
+      const action = character.status === 'student' ? 'game/openCharacter' : 'game/selectCharacter';
+      this.$store.dispatch(action, { vm: this, id: character.id });
     },
   },
   components: {

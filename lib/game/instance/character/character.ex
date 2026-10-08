@@ -345,6 +345,32 @@ defmodule Instance.Character.Character do
 
   defp training_penalty(%Character.Character{}, value), do: value
 
+  # The clock of a restored snapshot is the dead BEAM's: past this, an
+  # anchor is taken for another frame's. A pause moves the clock by nothing
+  # (it is frozen while the instance is stopped).
+  @training_anchor_drift 1_000
+
+  @doc """
+  Called when the agent's tick starts (enrolment, resume, restore): makes
+  sure a student's training is anchored in the live clock frame.
+
+  Returns `{state, moved?}`. `moved?` is true when the anchor had to be set
+  or replaced, in which case the copies its owner and its system hold are
+  out of date (`{:training_anchor, id, training}`).
+  """
+  def anchor_training(%Character.Character{status: :student} = state, clock) do
+    training = Map.get(state, :training)
+    at = Training.anchored_at(training)
+
+    cond do
+      not Training.enrolled?(training) -> {state, false}
+      is_number(at) and abs(clock - at) <= @training_anchor_drift -> {state, false}
+      true -> {Map.put(state, :training, Training.anchor(training, clock)), true}
+    end
+  end
+
+  def anchor_training(%Character.Character{} = state, _clock), do: {state, false}
+
   @doc "Ends a student's university course early; its owner's player agent then sends it home."
   def end_course(%Character.Character{status: :student} = state, reason) do
     training = Map.get(state, :training)
@@ -923,12 +949,15 @@ defmodule Instance.Character.Character do
   # A student earns the governor's passive trickle scaled by its school
   # (nothing while settling in or once the course is over), and a
   # university course hands out its reallocations here.
-  defp update({change, notifs, %Character.Character{status: :student} = state}, elapsed_time, _cumulated_pauses) do
+  defp update({change, notifs, %Character.Character{status: :student} = state}, elapsed_time, cumulated_pauses) do
     constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
     before = Map.get(state, :training)
 
     {training, held, xp_time, events} =
       Training.advance(before, reallocations(state), elapsed_time, constant)
+
+    # `elapsed` is true as of this tick: say when that was (see Training)
+    training = Training.anchor(training, Instance.Time.Time.now(cumulated_pauses || 0))
 
     # `xp_time` was spent in class even when this tick also began the
     # course or ended it: rate it as the active phase it belongs to

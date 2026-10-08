@@ -4,6 +4,8 @@
 // counts as unknown. Each function takes the calling component for
 // $t / $tc and the store; wording lives under `a11y.*` in game.json.
 
+import { inClass, schoolBuilding, trainingStatus } from '@/game/training';
+
 // Obfuscated stats arrive as null or 'hidden' (CharacterCard renders
 // them as ░░).
 function known(value) {
@@ -80,8 +82,16 @@ export function agentListLabel(vm, character, { group = null, armadaSize = 0 } =
     }),
   ];
 
-  const status = actionStatusName(vm, character.action_status);
-  if (status) parts.push(status);
+  // a student has no orders: where it studies and how far along it is
+  if (character.status === 'student' && character.training) {
+    parts.push(vm.$t('a11y.agent.in_training', {
+      school: vm.$t(`data.building.${schoolBuilding(character)}.name`),
+      status: trainingStatus(vm, character),
+    }));
+  } else {
+    const status = actionStatusName(vm, character.action_status);
+    if (status) parts.push(status);
+  }
 
   const queue = character.actions && Array.isArray(character.actions.queue)
     ? character.actions.queue.length : 0;
@@ -122,9 +132,13 @@ export function agentCardSummary(vm, character, { fleet = null, nextXp = null } 
   }
 
   const constant = (vm.$store.state.game.data.constant || [])[0] || {};
+  // a student in class: the cut stats the card shows (CharacterCard.effective)
+  const cut = character.status === 'student' && inClass(character.training)
+    && typeof constant.training_defense_factor === 'number';
+  const met = (v) => (cut && typeof v === 'number' ? Math.trunc(v * constant.training_defense_factor) : value(v));
   parts.push(vm.$t('a11y.agent.stats', {
-    protection: value(character.protection),
-    determination: value(character.determination),
+    protection: met(character.protection),
+    determination: met(character.determination),
     salary: known(character.level) && constant.character_level_wages
       ? Math.round(character.level * constant.character_level_wages) : unknown,
   }));

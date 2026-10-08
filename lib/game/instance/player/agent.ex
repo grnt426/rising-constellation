@@ -1408,6 +1408,22 @@ defmodule Instance.Player.Agent do
     {:noreply, state}
   end
 
+  # A student's training was re-anchored in the live clock frame (see
+  # Instance.Character.Agent, {:start, _}). Only the roster's `training`
+  # map follows, so that the client can tell how far along the course is.
+  @decorate tick()
+  def on_cast({:training_anchor, character_id, training}, state) do
+    case Player.update_training(state.data, character_id, training) do
+      {:ok, data} ->
+        state = %{state | data: data}
+        broadcast_player(state, %{player_player: data})
+        {:noreply, state}
+
+      :unchanged ->
+        {:noreply, state}
+    end
+  end
+
   # A school turned one of this player's students out: back to the deck it
   # goes, with the experience and reallocations it earned. `:closed` when
   # the system changed hands or the building that seated it was damaged,

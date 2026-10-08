@@ -143,7 +143,7 @@
                     v-tooltip="defenseTooltip('protection')"
                     class="simple-bonus"
                     :class="{ 'is-cut': isInClass }">
-                    {{ effective(character.protection) | obfuscate(character.protection, '░░') }}
+                    {{ character.protection | obfuscate(effective(character.protection), '░░') }}
                     <span class="card-diff" v-if="diff && diff.protection - character.protection > 0">
                       +{{ diff.protection - character.protection | integer }}
                     </span>
@@ -153,7 +153,7 @@
                     v-tooltip="defenseTooltip('determination')"
                     class="simple-bonus"
                     :class="{ 'is-cut': isInClass }">
-                    {{ effective(character.determination) | obfuscate(character.determination, '░░') }}
+                    {{ character.determination | obfuscate(effective(character.determination), '░░') }}
                     <span class="card-diff" v-if="diff && diff.determination - character.determination > 0">
                       +{{ diff.determination - character.determination | integer }}
                     </span>
@@ -382,7 +382,7 @@
           <div
             v-else-if="schoolRefusal"
             v-press="{ disabled: true }"
-            class="button disabled">
+            class="button disabled is-two-lines">
             <div class="dashed">{{ schoolRefusal }}</div>
           </div>
           <div
@@ -456,8 +456,9 @@ import { agentCardSummary, agentTypeName, fleetStats } from '@/game/a11y/describ
 import viewport from '@/utils/viewport';
 
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
+import { formatCountdown } from '@/game/clock';
 import {
-  fee, inClass, reallocationProblem, schoolBuilding, seatWait, trainingStatus, xpFactor,
+  fee, inClass, reallocationProblem, schoolBuilding, seatWait, settling, trainingStatus, xpFactor,
 } from '@/game/training';
 
 export default {
@@ -514,16 +515,12 @@ export default {
       if (this.character.status !== 'student' || !this.character.training) return null;
 
       const building = this.$t(`data.building.${schoolBuilding(this.character)}.name`);
-      const cost = fee(this.character, this.constant);
+      const hasHint = !!fee(this.character, this.constant) || this.character.training.phase === 'settling';
 
       return {
         text: `${building} · ${trainingStatus(this, this.character)}`,
-        hint: cost
-          ? this.$t('card.character.training_fee', {
-            amount: this.$options.filters.integer(cost.amount),
-            resource: this.$t(`galaxy.school.fee_${cost.resource}`),
-          })
-          : null,
+        // a function: the time left is read when the tooltip opens
+        hint: hasHint ? { content: () => this.trainingHint(), html: true } : null,
       };
     },
     // The queue of a school (docs/agent-training.md): how long this deck
@@ -590,14 +587,14 @@ export default {
         return this.$t('card.character.school_wrong_type', { agents: this.$tc(`data.character.${seat.type}.name`, 2) });
       }
 
-      if (seat.school === 'university' && seat.guest
-        && this.character.level < this.constant.university_guest_min_level) {
-        return this.$t('card.character.school_level', { level: this.constant.university_guest_min_level });
+      if (seat.school === 'university' && this.character.level < this.constant.university_min_level) {
+        return this.$t('card.character.school_level', { level: this.constant.university_min_level });
       }
 
       return null;
     },
     tickToMilisecondFactor() { return this.$store.getters['game/tickToMilisecondFactor']; },
+    speedFactor() { return this.$store.getters['game/effectiveSpeedFactor']; },
     speed() { return this.$store.state.game.time.speed; },
     assignment() { return this.$store.state.game.assignment; },
     constant() { return this.$store.state.game.data.constant[0]; },
@@ -670,13 +667,56 @@ export default {
     clearTimeout(this.discardTimer);
   },
   methods: {
+    // Protection or Determination as an attacker meets it: cut while the
+    // agent is in class (the server's Character.effective_protection/1).
+    // In the template it is the obfuscate filter's argument, which is what
+    // that filter prints for a visible stat.
     effective(value) {
       if (!this.isInClass || typeof value !== 'number') return value;
       return Math.trunc(value * this.constant.training_defense_factor);
     },
+    // What the ribbon of a student leaves unsaid: settling in earns nothing
+    // yet (and until when), and what the course costs.
+    trainingHint() {
+      const lines = [];
+      const settle = settling(this.character.training, this.constant, this.$store.state.game.time, this.speedFactor);
+
+      if (settle) {
+        lines.push(this.$t('card.character.training_settling'));
+
+        if (settle.until !== null) {
+          const left = this.$t('card.character.training_settling_left', {
+            time: formatCountdown(settle.until - Date.now()),
+          });
+          const date = this.speed === 'fast' ? '' : ` (${this.$options.filters['luxon-std'](settle.until)})`;
+          lines.push(`${left}${date}`);
+        }
+      }
+
+      const cost = fee(this.character, this.constant);
+      if (cost) {
+        lines.push(this.$t('card.character.training_fee', {
+          amount: this.$options.filters.integer(cost.amount),
+          resource: this.$t(`galaxy.school.fee_${cost.resource}`),
+        }));
+      }
+
+      return lines.join('<br>');
+    },
+    // In class the card shows the cut value: the tooltip says what it was
+    // cut from, and by how much ("Protection, base 80: -50% (training)").
     defenseTooltip(stat) {
       const label = this.$t(`card.character.${stat}`);
-      return this.isInClass ? `${label} (${this.$t('card.character.training_penalty')})` : label;
+      if (!this.isInClass) return label;
+
+      const base = this.character[stat];
+      if (typeof base !== 'number') return `${label} (${this.$t('card.character.training_penalty')})`;
+
+      return this.$t('card.character.training_defense', {
+        stat: label,
+        base: this.$options.filters.integer(base),
+        percent: Math.round((1 - this.constant.training_defense_factor) * 100),
+      });
     },
     skillName(i) { return this.$t(`data.character.${this.character.type}.skills[${i}].name`); },
     toggleReallocation() {

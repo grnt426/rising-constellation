@@ -299,6 +299,20 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
       &.hidden { opacity: 0; }
       &.active { animation: toast-pulse 2s infinite; }
 
+      // an agent in a school: its school's building, on a white disc
+      // like the "exposed" mark
+      &.is-training {
+        background: $white;
+        color: $black;
+        cursor: help;
+
+        .svg-icon {
+          width: 16px;
+          height: 16px;
+          margin: 2px;
+        }
+      }
+
       .svg-icon {
         display: block;
         width: 20px;
@@ -393,6 +407,8 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
       text-align: center;
       color: $white;
       background: rgba(0, 0, 0, .7);
+
+      &.has-tooltip { cursor: help; }
 
       &.is-reallocations {
         top: 0; bottom: auto;
@@ -514,6 +530,12 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
       display: flex;
       justify-content: space-between;
       z-index: 2;
+
+      // The strip lies across the foot of the illustration, over a
+      // student's ribbon: only its controls take the pointer, so that the
+      // ribbon under the gap between them can be hovered.
+      pointer-events: none;
+      > * { pointer-events: auto; }
 
       .card-panel-control {
         width: 20px; height: 20px;

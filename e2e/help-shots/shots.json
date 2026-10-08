@@ -514,7 +514,7 @@
     "scene": "training",
     "selector": ".school-box",
     "padding": 8,
-    "alt": "The Schools row of a system: the Delta Polytech with a free seat, and the Orb-INTEL with a student and a free seat",
+    "alt": "The Schools row of a system: the Delta Polytech with a free seat, and the Orb-INTEL with a student that is settling in and a free seat",
     "marks": {
       "school": ".school-box .school[data-school=\"spy\"] .school-building",
       "student": ".school-box .school[data-school=\"spy\"] .school-seat.is-taken",

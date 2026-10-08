@@ -25,9 +25,11 @@ A university course trains an agent of one type for a fee. It gives experience a
 
 Each level of the building gives one seat. In a Flash game every building has one level, so a university has one seat.
 
+A university takes agents of level {const:university_min_level} or higher. This holds for your own agents too. A lower agent can train at a [[polytech-training|Delta Polytech]] first.
+
 ## The course
 
-1. The student settles in for {duration:university_settle_time}. It pays the fee and gains nothing yet.
+1. The student settles in for {duration:university_settle_time}. It pays the fee and gains nothing yet. A ring fills around its seat during that time, and its card gives the time left.
 2. Then it gains experience {const:university_xp_factor} times as fast as a governor.
 3. Every {duration:university_reallocation_interval} on the course gives one neural rewire.
 4. The course ends when the agent holds {const:university_max_reallocations} rewires. The agent goes back to your deck at once.
@@ -38,7 +40,7 @@ The agent comes home by itself, even during a [[siege]]. Its seat goes to the ag
 
 You can recall a student before the end of its course, except during a siege. It keeps the rewires it earned so far.
 
-{shot:system-schools#student|The ring around a student has one segment for each rewire of a course. A segment lights up when the rewire is earned.}
+{shot:system-schools#student|A ring fills around a student while it settles in. Once the course starts, the ring has one segment for each rewire, and a segment lights up when the rewire is earned.}
 
 An agent can take as many courses as you like. It must first spend or discard every rewire of the last one. See [[neural-rewiring]].
 
@@ -52,6 +54,6 @@ If your stock of that resource is empty and still falling, the course stops. The
 
 ## Faction-mates
 
-A player of your faction can send an agent to your university. That agent must be level {const:university_guest_min_level} or higher. Your whole faction shares the seats of the university. Each player pays the fee of their own agents.
+A player of your faction can send an agent to your university, under the same level rule as yours. Your whole faction shares the seats of the university. Each player pays the fee of their own agents.
 
 As the owner you can send any student home. See [[agent-training]].

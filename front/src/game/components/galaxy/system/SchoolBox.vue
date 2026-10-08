@@ -38,18 +38,36 @@
                 'has-ring': school.school === 'university',
                 'has-queue': !!queuedBehind(student),
               }]">
-              <!-- one segment per rewire a course can earn, filled as
-                   each is earned -->
+              <!-- settling in: one ring that fills until the course
+                   starts. Then one segment per rewire the course can
+                   earn, filled as each is earned -->
               <svg
                 v-if="school.school === 'university'"
                 class="seat-ring"
+                :class="{ 'is-settling': !!settlingOf(student) }"
                 viewBox="0 0 44 44"
                 aria-hidden="true">
-                <path
-                  v-for="(segment, i) in ringSegments"
-                  :key="i"
-                  :d="segment"
-                  :class="{ 'is-earned': i < earned(student) }" />
+                <template v-if="settlingOf(student)">
+                  <circle
+                    class="settle-track"
+                    cx="22"
+                    cy="22"
+                    :r="ringRadius" />
+                  <circle
+                    class="settle-fill"
+                    cx="22"
+                    cy="22"
+                    :r="ringRadius"
+                    transform="rotate(-90 22 22)"
+                    :stroke-dasharray="settleDash(student)" />
+                </template>
+                <template v-else>
+                  <path
+                    v-for="(segment, i) in ringSegments"
+                    :key="i"
+                    :d="segment"
+                    :class="{ 'is-earned': i < earned(student) }" />
+                </template>
               </svg>
               <!-- the queue behind this student pops up above its icon;
                    the student's own tooltip then goes below -->
@@ -154,9 +172,14 @@ import viewport from '@/utils/viewport';
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
 import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 import SchoolQueueSlot from '@/game/components/galaxy/system/SchoolQueueSlot.vue';
-import { SCHOOL_BUILDINGS, inClass, trainingStatus } from '@/game/training';
+import { formatCountdown } from '@/game/clock';
+import {
+  SCHOOL_BUILDINGS, inClass, settling, trainingStatus,
+} from '@/game/training';
 
 const TYPES = ['admiral', 'spy', 'speaker'];
+// the ring around a university student, in the 44 x 44 box of its svg
+const RING_RADIUS = 19.5;
 
 export default {
   name: 'school-box',
@@ -167,12 +190,23 @@ export default {
   data() {
     return {
       hoveredAction: null,
+      // wall clock, ticking while the box is shown: a settling-in ring fills
+      now: Date.now(),
+      clock: null,
     };
+  },
+  mounted() {
+    this.clock = setInterval(() => { this.now = Date.now(); }, 1000);
+  },
+  beforeDestroy() {
+    clearInterval(this.clock);
   },
   computed: {
     isMobileView() { return viewport.isMobile; },
     player() { return this.$store.state.game.player; },
     constant() { return this.$store.state.game.data.constant[0]; },
+    speedFactor() { return this.$store.getters['game/effectiveSpeedFactor']; },
+    ringRadius() { return RING_RADIUS; },
     selectedCharacter() { return this.$store.state.game.selectedCharacter; },
     students() { return Array.isArray(this.system.students) ? this.system.students : []; },
     // deck agents waiting for a seat; only sent to the owner's faction
@@ -182,7 +216,7 @@ export default {
     ringSegments() {
       const count = this.constant.university_max_reallocations || 0;
       const center = 22;
-      const radius = 19.5;
+      const radius = RING_RADIUS;
       const gap = 16; // degrees
       const point = (degrees) => {
         const angle = ((degrees - 90) * Math.PI) / 180;
@@ -245,6 +279,26 @@ export default {
   },
   methods: {
     inClass(student) { return inClass(student.training); },
+    // where a student stands in its settling in right now, null once on
+    // its course (see training.js)
+    settlingOf(student) {
+      return settling(student.training, this.constant, this.$store.state.game.time, this.speedFactor, this.now);
+    },
+    settleDash(student) {
+      const around = 2 * Math.PI * RING_RADIUS;
+      return `${(this.settlingOf(student).progress * around).toFixed(2)} ${around.toFixed(2)}`;
+    },
+    // ", 3 H 12 M left. XP and neural rewires are earned after settling in"
+    settlingLine(student) {
+      const settle = settling(student.training, this.constant, this.$store.state.game.time, this.speedFactor);
+      if (!settle) return '';
+
+      const left = settle.until === null
+        ? ''
+        : `, ${this.$t('galaxy.school.settling_left', { time: formatCountdown(settle.until - Date.now()) })}`;
+
+      return `${left}. ${this.$t('galaxy.school.settling_hint')}`;
+    },
     queuedBehind(student) { return this.queue.find((entry) => entry.behind === student.id) || null; },
     // A place in the queue is for a school with no free seat, under the
     // rules of a seat: no siege, and a Polytech is its owner's alone.
@@ -282,6 +336,8 @@ export default {
         max: this.constant.university_max_reallocations,
       })}`;
     },
+    // how far along: the time left to settle in, then the rewires earned
+    progressLine(student) { return this.settlingLine(student) || this.rewiresLine(student); },
     themeOf(student) { return this.$store.getters['game/themeByKey'](student.owner.faction); },
     canEnroll(entry) {
       if (!this.isFactionSystem || this.system.siege) return false;
@@ -293,6 +349,7 @@ export default {
 
       return this.$t('galaxy.school.university_hint', {
         agents: this.$tc(`data.character.${entry.type}.name`, 2),
+        level: this.constant.university_min_level,
         fee: this.feePerLevel(entry.type),
         resource: this.$t(`galaxy.school.fee_${this.feeResource(entry.type)}`),
       });
@@ -306,12 +363,10 @@ export default {
 
       if (entry.school === 'polytech') return this.$t('galaxy.school.enroll_polytech');
 
-      return this.isOwnSystem
-        ? this.$t('galaxy.school.enroll_university', { agent: this.$tc(`data.character.${entry.type}.name`, 1) })
-        : this.$t('galaxy.school.enroll_university_guest', {
-          agent: this.$tc(`data.character.${entry.type}.name`, 1),
-          level: this.constant.university_guest_min_level,
-        });
+      return this.$t('galaxy.school.enroll_university', {
+        agent: this.$tc(`data.character.${entry.type}.name`, 1),
+        level: this.constant.university_min_level,
+      });
     },
     feeResource(type) {
       return { admiral: 'technology', spy: 'credit', speaker: 'ideology' }[type];
@@ -325,14 +380,15 @@ export default {
     },
     studentLabel(student) {
       return `${this.$tc(`data.character.${student.type}.name`, 1)} ${student.name}, `
-        + `${trainingStatus(this, student)}${this.rewiresLine(student)}${this.queuedLine(student)}`;
+        + `${trainingStatus(this, student)}${this.progressLine(student)}${this.queuedLine(student)}`;
     },
     // below the seat when the queue pops up above it
     studentTooltip(school, student) {
       const owner = student.owner.id === this.player.id ? '' : ` (${student.owner.name})`;
 
       return {
-        content: `${student.name}${owner}: ${trainingStatus(this, student)}${this.rewiresLine(student)}`,
+        // a function: the time left is read when the tooltip opens
+        content: () => `${student.name}${owner}: ${trainingStatus(this, student)}${this.progressLine(student)}`,
         placement: this.hasQueuePlace(school, student) && !this.isMobileView ? 'bottom' : 'top',
       };
     },

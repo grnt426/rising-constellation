@@ -71,7 +71,7 @@
       "challenge_already_open": "A challenge is already in progress",
       "challenge_lockout": "You are locked out from challenging for now",
       "character_deck_full": "Your character deck is full",
-      "character_level_too_low": "An ally's university takes agents of level 5 or more",
+      "character_level_too_low": "Only Agents level 5 and higher go to university",
       "character_must_be_idle": "This agent must be idle",
       "character_not_at_home": "This agent is not on one of your systems",
       "character_not_found": "Unknown agent",

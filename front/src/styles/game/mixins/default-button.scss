@@ -136,6 +136,15 @@
     box-shadow: inset 0 0 0 3px $color-alert;
   }
 
+  // A refusal that says more than one line holds ("Only Agents level 5
+  // and higher go to university"): two lines in the same 30px.
+  &.is-two-lines div {
+    display: flex;
+    align-items: center;
+    height: 30px;
+    line-height: 14px;
+  }
+
   // Affordability cue on the hire button (all platforms): light
   // diagonal shading over the whole button when the player can't pay,
   // heavier over each resource that falls short.

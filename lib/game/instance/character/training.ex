@@ -21,7 +21,14 @@ defmodule Instance.Character.Training do
       %{school: :polytech | :university,
         phase: :settling | :active | :graduated,
         elapsed: ut spent in the current phase (since the last reallocation earned while :active),
-        ended: nil | :completed | :unpaid}
+        ended: nil | :completed | :unpaid,
+        at: the action clock (`Instance.Time.Time.now/1`, ms) when `elapsed` was last measured, or nil}
+
+  `elapsed` only moves when the student ticks, which is at its next event:
+  hours apart. `at` is what lets a client holding a copy tell how far along
+  the phase is right now (front/src/game/training.js), the way an action's
+  `started_at` does. It postdates the first students: read it with
+  `anchored_at/1`.
   """
 
   @polytech_host :university_open
@@ -55,12 +62,20 @@ defmodule Instance.Character.Training do
   def seats(:polytech, _level), do: 1
   def seats(:university, level), do: level
 
-  def new(:polytech, _constant), do: %{school: :polytech, phase: :active, elapsed: 0.0, ended: nil}
+  def new(:polytech, _constant), do: %{school: :polytech, phase: :active, elapsed: 0.0, ended: nil, at: nil}
 
   def new(:university, constant) do
     phase = if constant.university_settle_time > 0, do: :settling, else: :active
-    %{school: :university, phase: phase, elapsed: 0.0, ended: nil}
+    %{school: :university, phase: phase, elapsed: 0.0, ended: nil, at: nil}
   end
+
+  @doc "The action clock reading `elapsed` was measured at, nil when unknown."
+  def anchored_at(training) when is_map(training), do: Map.get(training, :at)
+  def anchored_at(_training), do: nil
+
+  @doc "Stamps `elapsed` as measured at `clock` (a reading of the action clock)."
+  def anchor(training, clock) when is_map(training), do: Map.put(training, :at, clock)
+  def anchor(training, _clock), do: training
 
   @doc "A student still in class (settling in or on its course) holds a slot of its school."
   def enrolled?(%{phase: phase}), do: phase in [:settling, :active]

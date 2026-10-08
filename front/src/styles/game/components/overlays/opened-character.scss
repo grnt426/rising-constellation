@@ -58,6 +58,22 @@
   }
 }
 
+// A student that is settling in: its one line of "actions" (TrainingQueue)
+.opened-character-aside.is-training {
+  padding: 0;
+
+  .training-queue-note {
+    margin-top: 6px;
+    font-size: 1rem;
+    text-transform: none;
+    opacity: .7;
+  }
+
+  // the row's own font sizes are for the selection panel's rem scale
+  .agent-plan-row { cursor: default; }
+  .agent-plan-name { max-width: none; }
+}
+
 @each $class, $color in $themes-list {
   .f-#{$class} {
     .opened-character-owner strong {

@@ -10,7 +10,8 @@ defmodule Instance.StellarSystem.School do
 
     * Polytech — one seat per Delta Polytech, whatever its level, for the
       system's owner alone;
-    * university — one seat per level of each host building.
+    * university — one seat per level of each host building, for agents of
+      `university_min_level` or more, the owner's own included.
 
   Students are `Instance.StellarSystem.Character` entries carrying their
   `training` map.
@@ -136,8 +137,8 @@ defmodule Instance.StellarSystem.School do
       school == :polytech and owner.id != character.owner.id ->
         {:error, :school_for_owner_only}
 
-      school == :university and owner.id != character.owner.id and
-          character.level < constant.university_guest_min_level ->
+      # a university is for seasoned agents, its owner's included
+      school == :university and character.level < constant.university_min_level ->
         {:error, :character_level_too_low}
 
       true ->
