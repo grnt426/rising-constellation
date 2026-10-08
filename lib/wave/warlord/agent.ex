@@ -1871,12 +1871,35 @@ defmodule Wave.Warlord.Agent do
         end
 
     case plan do
-      nil -> {data, ctx, without_target + 1}
+      nil ->
+        {data, ctx, without_target + 1}
+
       # The training Navarch is still walking to its post.
-      :hold -> {data, ctx, without_target}
-      plan -> commit_plan(data, ctx, view, character, entry, distances, plan, without_target)
+      :hold ->
+        {data, ctx, without_target}
+
+      plan ->
+        if short_of_cover?(data, character, plan),
+          do: {data, ctx, without_target},
+          else: commit_plan(data, ctx, view, character, entry, distances, plan, without_target)
     end
   end
+
+  # An infiltration costs cover even when it works, and one ordered the moment
+  # the agent is back above the threshold drops it straight below again: shown
+  # to the owner after every attempt, its skills at zero, unable to leave. So
+  # it waits where it stands, unseen, until a success would leave it hidden.
+  # Cover only recovers while an agent is idle, so this is the same rest taken
+  # before the attempt instead of after it. Removal and sabotage cost more
+  # than any cover absorbs and are not held.
+  defp short_of_cover?(data, character, %{action: "infiltrate"}) do
+    threshold = Data.Querier.one(Data.Game.Constant, data.instance_id, :main).cover_threshold
+    margin = knob(data, "erased_infiltrate_cover_margin", 12) * 1.0
+
+    not Erased.covered_for_infiltration?(character.spy.cover.value, threshold, margin)
+  end
+
+  defp short_of_cover?(_data, _character, _plan), do: false
 
   # Push a plan — a strike or a reposition — and book it on the roster.
   defp commit_plan(data, ctx, view, character, entry, distances, plan, without_target) do
@@ -1906,6 +1929,9 @@ defmodule Wave.Warlord.Agent do
         cover: character.spy.cover.value,
         target_visibility: Wave.Recon.visibility(view, target_id)
       })
+      # The skill it goes in with. By the time a failure is scored the agent
+      # is discovered and reads zero.
+      |> then(&if(action == "infiltrate", do: Map.put(&1, :attack, character.spy.infiltrate_coef.value), else: &1))
 
     extra = if plan[:target_character], do: %{"target_character" => plan.target_character}, else: %{}
     move_only? = Map.get(plan, :move_only, false)
@@ -2047,7 +2073,7 @@ defmodule Wave.Warlord.Agent do
   defp plan_infiltration(data, ctx, view, character, entry, distances) do
     theatre = Map.get(entry, :theatre, :field)
     depth = trunc(knob(data, "erased_field_depth", 2))
-    min_chance = knob(data, "erased_train_min_chance", 0.25) * 1.0
+    gate = infiltration_gate(data)
     attack = character.spy.infiltrate_coef.value
 
     ctx.geo.systems
@@ -2057,7 +2083,7 @@ defmodule Wave.Warlord.Agent do
         Geometry.theatre_of(ctx.geo, system, depth) == theatre and
         system.status in [:inhabited_neutral, :inhabited_dominion, :inhabited_player] and
         Erased.worth_infiltrating?(Wave.Recon.visibility(view, system.id)) and
-        Erased.practice_odds(infiltration_chance(data, attack, character.level, system.id), min_chance) != :hopeless
+        workable?(data, gate, system.id, infiltration_chance(data, attack, character.level, system.id))
     end)
     |> admit(data, entry, character, &{:system, &1.id})
     |> Enum.min_by(&{infiltration_rank(&1), Map.fetch!(distances, &1.id), &1.id}, fn -> nil end)
@@ -2086,7 +2112,7 @@ defmodule Wave.Warlord.Agent do
   # skips what the Rebellion already sees whole and what it has learned is out
   # of this agent's reach.
   defp plan_forward(data, ctx, view, character, entry, distances) do
-    min_chance = knob(data, "erased_train_min_chance", 0.25) * 1.0
+    gate = infiltration_gate(data)
     attack = character.spy.infiltrate_coef.value
     duty = Map.get(entry, :duty)
 
@@ -2098,7 +2124,7 @@ defmodule Wave.Warlord.Agent do
           Erased.worth_infiltrating?(Wave.Recon.visibility(view, system.id))
       end)
       |> Enum.map(&{&1, infiltration_chance(data, attack, character.level, &1.id)})
-      |> Enum.reject(fn {_system, chance} -> Erased.practice_odds(chance, min_chance) == :hopeless end)
+      |> Enum.filter(fn {system, chance} -> workable?(data, gate, system.id, chance) end)
 
     chances = Map.new(candidates, fn {system, chance} -> {system.id, chance} end)
 
@@ -2166,7 +2192,7 @@ defmodule Wave.Warlord.Agent do
   defp plan_practice_infiltration(data, ctx, character, entry, distances) do
     theatre = Map.get(entry, :theatre, :field)
     depth = trunc(knob(data, "erased_field_depth", 2))
-    min_chance = knob(data, "erased_train_min_chance", 0.25) * 1.0
+    gate = infiltration_gate(data)
     attack = character.spy.infiltrate_coef.value
 
     candidates =
@@ -2178,7 +2204,7 @@ defmodule Wave.Warlord.Agent do
           in_theatre?(ctx, system, depth, theatre)
       end)
       |> Enum.map(&{&1, infiltration_chance(data, attack, character.level, &1.id)})
-      |> Enum.reject(fn {_system, chance} -> Erased.practice_odds(chance, min_chance) == :hopeless end)
+      |> Enum.filter(fn {system, chance} -> workable?(data, gate, system.id, chance) end)
 
     chances = Map.new(candidates, fn {system, chance} -> {system.id, chance} end)
 
@@ -2212,6 +2238,23 @@ defmodule Wave.Warlord.Agent do
       nil -> nil
       ci -> Wave.Intel.success_chance(attack, level, ci)
     end
+  end
+
+  # The odds rules every infiltration plan shares, read once per plan.
+  defp infiltration_gate(data) do
+    %{
+      min_chance: knob(data, "erased_train_min_chance", 0.25) * 1.0,
+      cooloff_chance: knob(data, "erased_fail_cooloff_chance", 0.75) * 1.0,
+      cooloff_ut: knob(data, "erased_fail_cooloff_ut", 480.0) * 1.0
+    }
+  end
+
+  # A target is worth this agent's attempt unless its learned Intelligence
+  # puts it out of reach, or it beat one of ours lately and this agent's odds
+  # there are no better than modest (Wave.Erased, "Staying hidden").
+  defp workable?(data, gate, system_id, chance) do
+    Erased.practice_odds(chance, gate.min_chance) != :hopeless and
+      not Erased.cooling_off?(chance, Warlord.failed_ago(data, system_id), gate.cooloff_chance, gate.cooloff_ut)
   end
 
   # The training Navarch, when it is at its post, near enough and beatable.
@@ -2540,6 +2583,7 @@ defmodule Wave.Warlord.Agent do
       end
 
     {data, effect} = learn_intel(data, entry, effect)
+    {data, effect} = score_infiltration(data, character, entry, effect)
     effect = Map.put(effect, :cover_after, character.spy.cover.value)
     {data, payload} = Warlord.resolve_erased(data, character.id, effect)
     if payload, do: log(data, "wave_erased_resolved", character.id, Map.get(entry, :target), payload)
@@ -2594,6 +2638,36 @@ defmodule Wave.Warlord.Agent do
       {Warlord.learn_intel(data, system_id, ci), Map.put(effect, :ci, ci)}
     else
       _ -> {data, effect}
+    end
+  end
+
+  # Whether the infiltration failed, and at what odds this agent would go
+  # again now that the system's Intelligence is known. A failure at modest
+  # odds in a system somebody holds puts it on a cool-off (Wave.Erased,
+  # "Staying hidden"): its owner has just been shown the agent, and is a
+  # building or two from shutting it out. Neutral ground has nobody to answer.
+  defp score_infiltration(data, character, entry, %{ci: ci} = effect) do
+    with attack when is_number(attack) <- Map.get(entry, :attack),
+         failed? when is_boolean(failed?) <-
+           Erased.infiltration_failed?(Map.get(entry, :cover), character.spy.cover.value) do
+      chance = Wave.Intel.success_chance(attack, character.level, ci)
+      effect = Map.merge(effect, %{failed: failed?, odds_now: Float.round(chance, 3)})
+      target = Map.get(entry, :target)
+
+      if failed? and chance < knob(data, "erased_fail_cooloff_chance", 0.75) * 1.0 and held?(data, target),
+        do: {Warlord.infiltration_failed(data, target), Map.put(effect, :cooloff, true)},
+        else: {data, effect}
+    else
+      _ -> {data, effect}
+    end
+  end
+
+  defp score_infiltration(data, _character, _entry, effect), do: {data, effect}
+
+  defp held?(data, system_id) do
+    case call(data, :stellar_system, system_id, :get_state) do
+      {:ok, %{owner: owner}} -> owner != nil
+      _ -> false
     end
   end
 

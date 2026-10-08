@@ -768,6 +768,19 @@ defmodule Wave.WarlordTest do
       assert Warlord.summary(state).intel_known == 1
     end
 
+    test "a failed infiltration is timed from when it happened and outlives later reports" do
+      state = warlord() |> Warlord.learn_intel(40, 48.5)
+      assert Warlord.failed_ago(state, 40) == nil
+
+      state = state |> Warlord.advance(10.0) |> Warlord.infiltration_failed(40) |> Warlord.advance(30.0)
+      assert Warlord.failed_ago(state, 40) == 30.0
+      assert Warlord.known_ci(state, 40) == 48.5
+
+      state = Warlord.learn_intel(state, 40, 60)
+      assert Warlord.known_ci(state, 40) == 60.0
+      assert Warlord.failed_ago(state, 40) == 30.0
+    end
+
     test "practice is scored apart from the strikes" do
       state =
         warlord()

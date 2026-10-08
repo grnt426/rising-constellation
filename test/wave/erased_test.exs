@@ -366,6 +366,42 @@ defmodule Wave.ErasedTest do
     end
   end
 
+  describe "staying hidden" do
+    test "an infiltration waits for cover a success cannot spend below the threshold" do
+      refute Erased.covered_for_infiltration?(75.3, 75, 12)
+      refute Erased.covered_for_infiltration?(86.9, 75, 12)
+      assert Erased.covered_for_infiltration?(87.0, 75, 12)
+      # No margin: strike the moment it is back under cover.
+      assert Erased.covered_for_infiltration?(75.0, 75, 0)
+    end
+
+    test "a margin no cover can reach asks for full cover" do
+      refute Erased.covered_for_infiltration?(99.0, 75, 40)
+      assert Erased.covered_for_infiltration?(100.0, 75, 40)
+    end
+
+    # Instance 185, system 106: two successes and a failure from the same agent.
+    test "a failure is read off the cover it cost" do
+      refute Erased.infiltration_failed?(75.36, 65.84)
+      assert Erased.infiltration_failed?(75.34, 47.92)
+      # The cheapest failure against the dearest success.
+      assert Erased.infiltration_failed?(90.0, 70.0)
+      refute Erased.infiltration_failed?(90.0, 78.0)
+      assert Erased.infiltration_failed?(nil, 70.0) == nil
+    end
+
+    test "a failure at modest odds keeps the agent away for the cool-off, and only that" do
+      assert Erased.cooling_off?(0.6, 100.0, 0.75, 480.0)
+      refute Erased.cooling_off?(0.6, 480.0, 0.75, 480.0)
+      # Good odds: the failure was bad luck.
+      refute Erased.cooling_off?(0.843, 100.0, 0.75, 480.0)
+      refute Erased.cooling_off?(0.75, 100.0, 0.75, 480.0)
+      # Nothing has failed there, or its Intelligence was never reported.
+      refute Erased.cooling_off?(0.6, nil, 0.75, 480.0)
+      refute Erased.cooling_off?(nil, 100.0, 0.75, 480.0)
+    end
+  end
+
   describe "priorities" do
     test "sabotage puts a siege on our ground first, then a colony ship, then the biggest fleet" do
       siege = %{id: 1, besieging_ours?: true, colony_ship?: false, tiles: 4}

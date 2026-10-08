@@ -329,6 +329,16 @@ defmodule Wave do
       # worth an attempt only at this success chance or better. Real
       # infiltration duty skips the known-hopeless systems too.
       "erased_train_min_chance" => 0.25,
+      # An infiltration waits until the agent's cover stands this far above the
+      # discovery threshold: 12 is the most a success costs, so only a failure
+      # shows the agent to the system's owner. 0 strikes the moment it can.
+      "erased_infiltrate_cover_margin" => 12,
+      # After a failed infiltration at odds below this in a system somebody
+      # holds, every Erased whose own odds there are below it too leaves the
+      # system alone for this long (a day at Legacy speed). At better odds a
+      # failure is bad luck and the agent goes again.
+      "erased_fail_cooloff_chance" => 0.75,
+      "erased_fail_cooloff_ut" => 480.0,
       # Erased with sabotage points but no informer points train by
       # sabotaging the Rebellion's own training Navarch — the loop teams run
       # between two teammates — when it is within this much travel (a day at

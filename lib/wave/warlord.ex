@@ -1469,11 +1469,33 @@ defmodule Wave.Warlord do
   showed it. Only what an attacker is told: the defence in its result report.
   """
   def learn_intel(%__MODULE__{} = state, system_id, ci) when is_integer(system_id) and is_number(ci) do
-    intel = Map.put(Map.get(state, :erased_intel, %{}), system_id, %{ci: ci * 1.0, at: state.elapsed})
-    Map.put(state, :erased_intel, intel)
+    intel = Map.get(state, :erased_intel, %{})
+    entry = intel |> Map.get(system_id, %{}) |> Map.merge(%{ci: ci * 1.0, at: state.elapsed})
+    Map.put(state, :erased_intel, Map.put(intel, system_id, entry))
   end
 
   def learn_intel(state, _system_id, _ci), do: state
+
+  @doc """
+  Remember that a system just beat one of our infiltrations at modest odds
+  (Wave.Erased, "Staying hidden"). Kept beside its Intelligence, and through
+  later reports of it.
+  """
+  def infiltration_failed(%__MODULE__{} = state, system_id) when is_integer(system_id) do
+    intel = Map.get(state, :erased_intel, %{})
+    entry = intel |> Map.get(system_id, %{}) |> Map.put(:failed_at, state.elapsed)
+    Map.put(state, :erased_intel, Map.put(intel, system_id, entry))
+  end
+
+  def infiltration_failed(state, _system_id), do: state
+
+  @doc "Game time since that failure, or nil when the system has never beaten us that way."
+  def failed_ago(%__MODULE__{} = state, system_id) do
+    case state |> Map.get(:erased_intel, %{}) |> Map.get(system_id) do
+      %{failed_at: at} when is_number(at) -> state.elapsed - at
+      _ -> nil
+    end
+  end
 
   @doc "The last Intelligence learned for a system, or nil when the Rebellion has never been told."
   def known_ci(%__MODULE__{} = state, system_id) do
@@ -1605,7 +1627,7 @@ defmodule Wave.Warlord do
             end
           end)
 
-        entry = Map.drop(entry, [:odds, :odds_class, :hops, :overlap, :from, :cover])
+        entry = Map.drop(entry, [:odds, :odds_class, :hops, :overlap, :from, :cover, :attack])
 
         # Practice is scored apart, so the strike figures stay about the enemy.
         tally =
