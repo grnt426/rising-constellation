@@ -66,6 +66,17 @@
           v-if="character.type === 'speaker'"
           :character="character" />
       </div>
+
+      <!-- a student has no orders, but it waits on one thing: the end of
+           its settling in (docs/agent-training.md) -->
+      <div
+        v-else-if="isSettling"
+        class="opened-character-aside is-training">
+        <training-queue
+          :character="character"
+          :theme="theme"
+          @over="refresh" />
+      </div>
     </div>
   </div>
 </template>
@@ -75,6 +86,7 @@ import CharacterCard from '@/game/components/card/CharacterCard.vue';
 import Army from '@/game/components/galaxy/selection/Army.vue';
 import Spy from '@/game/components/galaxy/selection/Spy.vue';
 import Speaker from '@/game/components/galaxy/selection/Speaker.vue';
+import TrainingQueue from '@/game/components/galaxy/selection/TrainingQueue.vue';
 import { canReportAgent, reportAgent } from '@/game/components/chat/reportSighting';
 
 export default {
@@ -90,6 +102,10 @@ export default {
     },
     theme() {
       return this.character?.owner && this.$store.getters['game/themeByKey'](this.character.owner.faction);
+    },
+    isSettling() {
+      return this.character.status === 'student'
+        && !!this.character.training && this.character.training.phase === 'settling';
     },
   },
   watch: {
@@ -112,6 +128,19 @@ export default {
     close() {
       this.$store.dispatch('game/closeCharacter');
     },
+    // The opened card is a copy taken when it opened. When its student is
+    // done settling in, take a new one (a moment later: the server ticks
+    // the agent at that very time).
+    refresh() {
+      const { id } = this.character;
+
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = setTimeout(() => {
+        if (this.character && this.character.id === id) {
+          this.$store.dispatch('game/openCharacter', { vm: this, id });
+        }
+      }, 1500);
+    },
     // The card steps aside: the chat opens on the report behind it.
     report() {
       reportAgent(this, this.character.system, this.character.id);
@@ -121,11 +150,15 @@ export default {
       this.$store.dispatch('game/closeCharacter');
     },
   },
+  beforeDestroy() {
+    clearTimeout(this.refreshTimer);
+  },
   components: {
     CharacterCard,
     Army,
     Spy,
     Speaker,
+    TrainingQueue,
   },
 };
 </script>

@@ -7,6 +7,7 @@
       "identity_full": "{type} {name}, niveau {level}, {specialization}",
       "status": "État : {status}",
       "orders_queued": "{n} ordre en attente | {n} ordres en attente",
+      "in_training": "{school}, {status}",
       "exposed": "découvert",
       "in_armada": "dans une armada de {n}",
       "hotkey_group": "groupe {group}",
@@ -374,13 +375,16 @@
       "reallocations_unspent": "Utilisez d'abord ses recâblages neuronaux",
       "recall": "Rappeler",
       "salary": "Salaire",
-      "school_level": "Niveau {level} requis dans l'université d'un allié",
+      "school_level": "Seuls les Agents de niveau {level} ou plus vont à l'université",
       "school_wrong_type": "Cette école forme les {agents}",
       "skill_effect": "{effect} / niv",
       "speaker_limit_reached": "Limite de sidérian atteinte",
       "spy_limit_reached": "Limite d'effacés atteinte",
+      "training_defense": "{stat}, base {base} : -{percent} % (formation)",
       "training_fee": "Frais de cursus : {amount} {resource} par tick",
-      "training_penalty": "divisée par deux pendant les cours"
+      "training_penalty": "divisée par deux pendant les cours",
+      "training_settling": "Installation : ni expérience ni recâblage neuronal pour l'instant. Les deux se gagnent une fois l'agent installé.",
+      "training_settling_left": "Installation terminée dans {time}"
     },
     "closed_system": {
       "construction_queue": "File d'attente des constructions",
@@ -834,8 +838,8 @@
     },
     "school": {
       "enroll_polytech": "Envoyer un agent se former ici",
-      "enroll_university": "Inscrire un {agent} à un cursus",
-      "enroll_university_guest": "Inscrire un {agent} de niveau {level} ou plus à un cursus",
+      "action_settling": "Installation",
+      "enroll_university": "Inscrire un {agent} de niveau {level} ou plus à un cursus",
       "fee_credit": "crédits",
       "fee_ideology": "idéologie",
       "fee_technology": "technologie",
@@ -848,13 +852,15 @@
       "queue_leave": "Cliquez pour le retirer de la file",
       "queue_waiting": "{name} attend cette place",
       "rewires_earned": "{count} recâblages neuronaux sur {max}",
+      "settling_hint": "L'XP et les recâblages neuronaux se gagnent une fois l'agent installé",
+      "settling_left": "encore {time}",
       "status_active": "en cursus",
       "status_completed": "cursus terminé",
       "status_polytech": "en formation",
       "status_settling": "en installation",
       "status_unpaid": "cursus arrêté, frais impayés",
       "title": "Écoles",
-      "university_hint": "Une place par niveau, partagée par la faction, pour les {agents}. Une fois installé, un étudiant gagne deux fois l'expérience d'un gouverneur et un recâblage neuronal par jour. Au cinquième, il rentre. Coûte {fee} {resource} par tick et par niveau. Protection et Détermination divisées par deux. Pas de rappel pendant un siège. Un agent peut attendre dans la file derrière chaque étudiant."
+      "university_hint": "Une place par niveau, partagée par la faction, pour les {agents} de niveau {level} ou plus. Une fois installé, un étudiant gagne deux fois l'expérience d'un gouverneur et un recâblage neuronal par jour. Au cinquième, il rentre. Coûte {fee} {resource} par tick et par niveau. Protection et Détermination divisées par deux. Pas de rappel pendant un siège. Un agent peut attendre dans la file derrière chaque étudiant."
     }
   },
   "help": {
@@ -1158,7 +1164,7 @@
       "patents_short": "Brev"
     },
     "list_panel": {
-      "agents_label": "Agents en jeu",
+      "agents_label": "Agents en jeu et en formation",
       "filter_empty_queue": "Uniquement les systèmes avec une file de construction vide",
       "filter_enemy_agents": "Uniquement les systèmes où des agents ennemis sont détectés",
       "filter_status": "Uniquement les agents : {status}",
@@ -1181,6 +1187,9 @@
       "status_resting": "Au repos",
       "systems_label": "Systèmes et dominions",
       "toggle_agents": "Afficher la liste des agents",
+      "training_all": "Agents en formation : listés. Cliquer pour ne lister qu'eux",
+      "training_hide": "Agents en formation : masqués. Cliquer pour les lister à nouveau",
+      "training_only": "Agents en formation : eux seuls. Cliquer pour les masquer",
       "toggle_systems": "Afficher la liste des systèmes",
       "toolbar": "Outils : {list}"
     },

@@ -12,7 +12,7 @@
 //   node --test front/src/game/__tests__/clock.test.mjs
 
 // One unit of game time, in ms, at speed factor 1.
-const UNIT_MS = 180000;
+export const UNIT_MS = 180000;
 
 /**
  * The server's action clock right now, or null when unknown.
@@ -38,6 +38,21 @@ export function liveRemaining(action, time, speedFactor, wallNow = Date.now()) {
   const now = serverNow(time, wallNow);
   if (startedAt == null || now == null || !speedFactor) return remaining;
   return Math.max(0, total - ((now - startedAt) * speedFactor) / UNIT_MS);
+}
+
+/**
+ * A count of game time that only the server advances, as it stands right
+ * now: `value` units were counted when the server's action clock read `at`.
+ * Without a reading (`at` null, or no clock yet) it is `value` as sent.
+ *
+ * A student's `training.elapsed` is such a count: its agent only ticks at
+ * its next event, hours apart (Instance.Character.Training).
+ */
+export function liveElapsed(value, at, time, speedFactor, wallNow = Date.now()) {
+  if (typeof value !== 'number') return 0;
+  const now = serverNow(time, wallNow);
+  if (typeof at !== 'number' || now == null || !speedFactor) return value;
+  return value + Math.max(0, ((now - at) * speedFactor) / UNIT_MS);
 }
 
 /**

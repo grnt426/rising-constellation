@@ -99,6 +99,24 @@
 
         &.is-earned { stroke: $white; }
       }
+
+      // Settling in: a dotted circle, drawn over as the time passes. The
+      // segments of the course take its place once it has settled in.
+      circle {
+        fill: none;
+        stroke-width: 3;
+      }
+
+      .settle-track {
+        stroke: rgba(255, 255, 255, .3);
+        stroke-dasharray: 1.5 3.5;
+      }
+
+      .settle-fill {
+        stroke: $white;
+        stroke-linecap: butt;
+        transition: stroke-dasharray linear 1s;
+      }
     }
 
     // the popover wrapper around the seat's icon must not change its box

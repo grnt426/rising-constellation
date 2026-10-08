@@ -73,6 +73,22 @@
           class="title-small">
           {{ $t(`data.character_action_status.${character.action_status}.name`) }}
         </div>
+        <!-- in a school: where it stands, and the time left to settle in -->
+        <div
+          v-else-if="isStudent"
+          class="title-small nowrap is-training">
+          <counter
+            v-if="settle"
+            class="counter"
+            :current="settle.remaining" />
+          {{ trainingText }}
+        </div>
+      </div>
+      <div
+        v-if="isStudent"
+        v-tooltip.left="trainingTooltip"
+        class="card-header-toast is-training">
+        <svgicon :name="`building/${school}`" />
       </div>
       <div
         v-if="character.status === 'on_board' && character.actions
@@ -91,6 +107,7 @@ import CardMixin from '@/game/mixins/CardMixin';
 import Counter from '@/game/components/generic/Counter.vue';
 import { liveRemaining } from '@/game/clock';
 import { agentListLabel } from '@/game/a11y/describe';
+import { schoolBuilding, settling, trainingStatus } from '@/game/training';
 
 export default {
   name: 'closed-character-card',
@@ -99,9 +116,25 @@ export default {
     character: Object,
   },
   computed: {
-    // Only on-board agents and governors open anything when clicked.
+    // On-board agents, governors and students open something when clicked.
     selectable() {
-      return this.character.status === 'governor' || this.character.status === 'on_board';
+      return ['governor', 'on_board', 'student'].includes(this.character.status);
+    },
+    // Agent training (docs/agent-training.md)
+    isStudent() { return this.character.status === 'student' && !!this.character.training; },
+    school() { return schoolBuilding(this.character); },
+    // settling in: recomputed with every copy of the roster or of the
+    // clock; the counter runs by itself in between
+    settle() {
+      if (!this.isStudent) return null;
+      const constant = this.$store.state.game.data.constant[0];
+      return settling(this.character.training, constant, this.$store.state.game.time, this.speedFactor);
+    },
+    trainingText() { return trainingStatus(this, this.character); },
+    trainingTooltip() {
+      const building = this.$t(`data.building.${this.school}.name`);
+      const hint = this.settle ? `. ${this.$t('galaxy.school.settling_hint')}` : '';
+      return `${building}: ${this.trainingText}${hint}`;
     },
     ariaLabel() {
       return agentListLabel(this, this.character, { group: this.group, armadaSize: this.armadaSize });
@@ -135,7 +168,7 @@ export default {
       return liveRemaining(action, this.$store.state.game.time, this.speedFactor);
     },
     select() {
-      if (this.character.status === 'governor' || this.character.status === 'on_board') {
+      if (this.selectable) {
         this.$emit('select', this.character);
       }
     },

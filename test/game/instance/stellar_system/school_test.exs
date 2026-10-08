@@ -11,7 +11,7 @@ defmodule Instance.StellarSystem.SchoolTest do
 
   @c %{
     university_settle_time: 80,
-    university_guest_min_level: 5,
+    university_min_level: 5,
     university_reallocation_interval: 480,
     university_max_reallocations: 5
   }
@@ -135,7 +135,7 @@ defmodule Instance.StellarSystem.SchoolTest do
       assert School.check_enrollment(two, student(3, :speaker, :university, @owner), @c) == {:error, :school_full}
     end
 
-    test "a faction-mate's agent must be level 5, and the faction shares the seats" do
+    test "a university takes agents of level 5 or more, the owner's included, and the faction shares the seats" do
       school = system([tile(:monument_dome, 3)])
 
       assert School.check_enrollment(school, student(1, :speaker, :university, @mate, level: 5), @c) == :ok
@@ -143,8 +143,11 @@ defmodule Instance.StellarSystem.SchoolTest do
       assert School.check_enrollment(school, student(1, :speaker, :university, @mate, level: 4), @c) ==
                {:error, :character_level_too_low}
 
-      # the owner's own agents have no level gate
-      assert School.check_enrollment(school, student(1, :speaker, :university, @owner, level: 1), @c) == :ok
+      # the owner's own agents are held to the same level
+      assert School.check_enrollment(school, student(1, :speaker, :university, @owner, level: 5), @c) == :ok
+
+      assert School.check_enrollment(school, student(1, :speaker, :university, @owner, level: 4), @c) ==
+               {:error, :character_level_too_low}
 
       # one mate may fill every seat the owner leaves
       two =
@@ -212,7 +215,7 @@ defmodule Instance.StellarSystem.SchoolTest do
       assert School.check_queue(full, agent(1, :speaker, @owner), :university, 2, @c) == {:error, :already_enrolled}
     end
 
-    test "asks what a seat asks: no siege, the right faction, the owner at a Polytech, level 5 for a guest" do
+    test "asks what a seat asks: no siege, the right faction, the owner at a Polytech, level 5 at a university" do
       school =
         system([tile(:university_open, 1), tile(:monument_dome, 1)])
         |> seat(student(1, :spy, :polytech, @owner))
@@ -231,6 +234,12 @@ defmodule Instance.StellarSystem.SchoolTest do
 
       assert School.check_queue(school, agent(5, :speaker, @mate, level: 4), :university, 2, @c) ==
                {:error, :character_level_too_low}
+
+      assert School.check_queue(school, agent(5, :speaker, @owner, level: 4), :university, 2, @c) ==
+               {:error, :character_level_too_low}
+
+      # a Polytech asks no level of its owner's agents
+      assert {:ok, _entry, _ahead} = School.check_queue(school, agent(5, :admiral, @owner, level: 1), :polytech, 1, @c)
 
       # a damaged building has no seat to wait for
       damaged = system([tile(:monument_dome, 1, :damaged)])
@@ -260,6 +269,13 @@ defmodule Instance.StellarSystem.SchoolTest do
         |> line(queued(5, :speaker, :university, @owner, 2))
 
       assert settled(system) == %{students: [1, 2], evicted: [], queue: [{5, false}], cleared: [], called: []}
+    end
+
+    test "keeps a student seated under the level a university now asks" do
+      # seated before the owner's agents were held to level 5
+      system = system([tile(:monument_dome, 1)]) |> seat(student(1, :speaker, :university, @owner, level: 2))
+
+      assert settled(system) == %{students: [1], evicted: [], queue: [], cleared: [], called: []}
     end
 
     test "turns out the latest arrivals of a school that lost slots" do

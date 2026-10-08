@@ -2,6 +2,8 @@
 // about a student's `training` map — the server's
 // Instance.Character.Training, read-only here.
 
+import { liveElapsed, UNIT_MS } from '@/game/clock';
+
 // The building that hosts each school. The Polytech takes every agent
 // type; a university takes the agents of its own type.
 export const SCHOOL_BUILDINGS = {
@@ -22,6 +24,27 @@ export function schoolBuilding(character) {
 // defends itself with a cut protection and determination.
 export function inClass(training) {
   return !!training && (training.phase === 'settling' || training.phase === 'active');
+}
+
+// A university student that is settling in, as it stands right now:
+// { total, elapsed, remaining } in ticks, `progress` in [0, 1] and `until`,
+// the moment it is over (ms, null when the clock is unknown). null for
+// anyone who is not settling in. `time` is the store's game time and
+// `speedFactor` its effective speed factor (see game/clock.js).
+export function settling(training, constant, time, speedFactor, wallNow = Date.now()) {
+  if (!training || training.school !== 'university' || training.phase !== 'settling') return null;
+
+  const total = constant.university_settle_time;
+  const elapsed = Math.min(liveElapsed(training.elapsed, training.at, time, speedFactor, wallNow), total);
+  const remaining = Math.max(total - elapsed, 0);
+
+  return {
+    total,
+    elapsed,
+    remaining,
+    progress: total > 0 ? elapsed / total : 1,
+    until: speedFactor ? wallNow + ((remaining * UNIT_MS) / speedFactor) : null,
+  };
 }
 
 // Multiplier on the governor's passive experience rate.

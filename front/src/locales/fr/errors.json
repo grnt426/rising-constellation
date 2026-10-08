@@ -71,7 +71,7 @@
       "challenge_already_open": "Un défi est déjà en cours",
       "challenge_lockout": "Vous ne pouvez pas défier pour le moment",
       "character_deck_full": "Plus de place disponible",
-      "character_level_too_low": "L'université d'un allié accepte les agents de niveau 5 ou plus",
+      "character_level_too_low": "Seuls les Agents de niveau 5 ou plus vont à l'université",
       "character_must_be_idle": "Cet agent doit être immobile",
       "character_not_at_home": "Cet agent n'est pas sur un de vos systèmes",
       "character_not_found": "Agent inconnu",

@@ -1007,6 +1007,27 @@ defmodule Instance.StellarSystem.StellarSystem do
     end
   end
 
+  @doc """
+  Replaces the `training` map of the roster's copy of a student, when it
+  still describes the same seat (school and phase).
+  """
+  def update_training(state, character_id, training) when is_map(training) do
+    students =
+      Enum.map(Map.get(state, :students, []) || [], fn s ->
+        current = s.training
+
+        if s.id == character_id and is_map(current) and
+             Map.get(current, :school) == Map.get(training, :school) and
+             Map.get(current, :phase) == Map.get(training, :phase),
+           do: %{s | training: training},
+           else: s
+      end)
+
+    Map.put(state, :students, students)
+  end
+
+  def update_training(state, _character_id, _training), do: state
+
   # Puts the schools in order after any change (StellarSystem.School.settle/2):
   #
   #   * students who may no longer stay — the system changed hands, or their

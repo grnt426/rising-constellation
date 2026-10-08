@@ -678,7 +678,7 @@
     },
     "student-card": {
       "alt": "The card of an Erased on a university course: its school and stage, its cut Protection and Determination, and the Recall button",
-      "captured": "2026-10-06",
+      "captured": "2026-10-08",
       "file": "student-card.png",
       "height": 454,
       "marks": {
@@ -851,8 +851,8 @@
       "width": 629
     },
     "system-schools": {
-      "alt": "The Schools row of a system: the Delta Polytech with a free seat, and the Orb-INTEL with a student and a free seat",
-      "captured": "2026-10-06",
+      "alt": "The Schools row of a system: the Delta Polytech with a free seat, and the Orb-INTEL with a student that is settling in and a free seat",
+      "captured": "2026-10-08",
       "file": "system-schools.png",
       "height": 67,
       "marks": {

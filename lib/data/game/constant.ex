@@ -126,7 +126,7 @@ defmodule Data.Game.Constant do
     field(:university_fee_credit, integer())
     field(:university_fee_technology, integer())
     field(:university_fee_ideology, integer())
-    field(:university_guest_min_level, integer())
+    field(:university_min_level, integer())
     field(:training_defense_factor, float())
   end
 

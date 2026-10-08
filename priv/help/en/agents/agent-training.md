@@ -40,7 +40,7 @@ You cannot recall a student during a [[siege]].
 
 ## A student is easier to remove
 
-While a student is in class, its Protection and Determination are multiplied by {const:training_defense_factor}. A student is never hidden, and an Erased in a school has no cover. An enemy Erased can remove a student. An enemy Siderian can win it over.
+While a student is in class, its Protection and Determination are multiplied by {const:training_defense_factor}. Its card shows the cut value in orange, and the tooltip gives the base value. A student is never hidden, and an Erased in a school has no cover. An enemy Erased can remove a student. An enemy Siderian can win it over.
 
 ## Losing a seat
 

@@ -304,7 +304,7 @@
           <div class="navbar-main-button-toolbox">
             <div
               class="button"
-              v-if="onBoardCharacters.length > 0"
+              v-if="listedCharacters.length > 0"
               v-press
               :aria-expanded="String(isActiveCharacterListOpen)"
               :aria-label="$t('navbar.list_panel.toggle_agents')"
@@ -329,7 +329,7 @@
 
     <agents-list-panel
       v-if="!isMobileView"
-      v-show="isActiveCharacterListOpen && onBoardCharacters.length > 0 && !selection" />
+      v-show="isActiveCharacterListOpen && listedCharacters.length > 0 && !selection" />
 
     <systems-list-panel
       v-if="!isMobileView"
@@ -470,6 +470,8 @@ export default {
     selection() { return this.$store.state.game.selectedCharacter; },
     selectedSystem() { return this.$store.state.game.selectedSystem; },
     onBoardCharacters() { return this.player.characters.filter((p) => p.status === 'on_board'); },
+    // what the agents list shows: the agents on the board and in training
+    listedCharacters() { return this.player.characters.filter((p) => ['on_board', 'student'].includes(p.status)); },
     playerDeck() { return this.$store.state.game.player.character_deck; },
     nesSegments() {
       return this.characterData.map((type) => ({

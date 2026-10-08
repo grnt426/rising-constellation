@@ -7,6 +7,7 @@
       "identity_full": "{type} {name}, level {level}, {specialization}",
       "status": "Status: {status}",
       "orders_queued": "{n} order queued | {n} orders queued",
+      "in_training": "{school}, {status}",
       "exposed": "exposed",
       "in_armada": "in an armada of {n}",
       "hotkey_group": "group {group}",
@@ -374,13 +375,16 @@
       "reallocations_unspent": "Spend its neural rewires first",
       "recall": "Recall",
       "salary": "Salary",
-      "school_level": "Level {level} needed in an ally's university",
+      "school_level": "Only Agents level {level} and higher go to university",
       "school_wrong_type": "This school trains {agents}",
       "skill_effect": "{effect} / lvl",
       "speaker_limit_reached": "Siderian limit reached",
       "spy_limit_reached": "Erased limit reached",
+      "training_defense": "{stat}, base {base}: -{percent}% (training)",
       "training_fee": "Course fee: {amount} {resource} per tick",
-      "training_penalty": "halved while in class"
+      "training_penalty": "halved while in class",
+      "training_settling": "Settling in: no experience and no neural rewires yet. Both are earned once it has settled in.",
+      "training_settling_left": "Settling in ends in {time}"
     },
     "closed_system": {
       "construction_queue": "Construction queue",
@@ -834,8 +838,8 @@
     },
     "school": {
       "enroll_polytech": "Send an agent to train here",
-      "enroll_university": "Send a {agent} on a course",
-      "enroll_university_guest": "Send a {agent} of level {level} or more on a course",
+      "action_settling": "Settling in",
+      "enroll_university": "Send a {agent} of level {level} or more on a course",
       "fee_credit": "credits",
       "fee_ideology": "ideology",
       "fee_technology": "technology",
@@ -848,13 +852,15 @@
       "queue_leave": "Click to take it out of the queue",
       "queue_waiting": "{name} waits for this seat",
       "rewires_earned": "{count} of {max} neural rewires",
+      "settling_hint": "XP and neural rewires are earned after settling in",
+      "settling_left": "{time} left",
       "status_active": "on its course",
       "status_completed": "course over",
       "status_polytech": "in training",
       "status_settling": "settling in",
       "status_unpaid": "course stopped, fee unpaid",
       "title": "Schools",
-      "university_hint": "One seat per level, shared by the faction, for {agents}. After settling in, a student earns twice a governor's experience and one neural rewire per day. At five it comes home. Costs {fee} {resource} per tick and per level. Protection and Determination are halved. No recall during a siege. One agent may wait in the queue behind each student."
+      "university_hint": "One seat per level, shared by the faction, for {agents} of level {level} or more. After settling in, a student earns twice a governor's experience and one neural rewire per day. At five it comes home. Costs {fee} {resource} per tick and per level. Protection and Determination are halved. No recall during a siege. One agent may wait in the queue behind each student."
     }
   },
   "help": {
@@ -1158,7 +1164,7 @@
       "patents_short": "Pat"
     },
     "list_panel": {
-      "agents_label": "Agents on the board",
+      "agents_label": "Agents on the board and in training",
       "filter_empty_queue": "Only systems with an empty construction queue",
       "filter_enemy_agents": "Only systems with enemy agents detected",
       "filter_status": "Only agents: {status}",
@@ -1181,6 +1187,9 @@
       "status_resting": "Resting",
       "systems_label": "Systems and dominions",
       "toggle_agents": "Show the agents list",
+      "training_all": "Agents in training: listed. Click to list only them",
+      "training_hide": "Agents in training: hidden. Click to list them again",
+      "training_only": "Agents in training: only them. Click to hide them",
       "toggle_systems": "Show the systems list",
       "toolbar": "{list} tools"
     },

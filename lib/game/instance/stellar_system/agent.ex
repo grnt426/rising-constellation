@@ -391,6 +391,13 @@ defmodule Instance.StellarSystem.Agent do
     {:noreply, %{state | data: data}}
   end
 
+  # A student's training was re-anchored in the live clock frame (see
+  # Instance.Character.Agent, {:start, _}): the roster's copy follows.
+  @decorate tick_rearm()
+  def on_cast({:training_anchor, character_id, training}, state) do
+    {:noreply, %{state | data: StellarSystem.update_training(state.data, character_id, training)}}
+  end
+
   @decorate tick_rearm()
   def on_cast({:besiege, type, duration, character_id}, state) do
     data = StellarSystem.besiege(state.data, type, duration, character_id)
