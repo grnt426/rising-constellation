@@ -134,7 +134,10 @@
     },
     "closed_system": {
       "construction_queue": "Konstruktionsliste",
-      "foreign_agents": "{n} {faction} Agent | {n} {faction} Agenten"
+      "foreign_agents": "{n} {faction} Agent | {n} {faction} Agenten",
+      "queue_eta": "Bauwarteschlange leer in {duration}, um {time}",
+      "queue_stalled": "angehalten",
+      "queue_stalled_hint": "Keine Produktion: Die Bauwarteschlange steht still"
     },
     "complex_bonus": {
       "not_implemented": "Nicht implementiert"
@@ -572,7 +575,7 @@
       "search_placeholder": "Nach Name suchen…",
       "sector_unknown": "Unbekannter Sektor",
       "sort_name": "Nach Name sortieren",
-      "sort_queue": "Nach Länge der Bauwarteschlange sortieren",
+      "sort_queue": "Nach verbleibender Bauzeit sortieren: die Warteschlange, die zuerst leer ist, zuerst",
       "status_busy": "Beschäftigt",
       "status_exposed": "Enttarnt",
       "status_idle": "Untätig",

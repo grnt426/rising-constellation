@@ -33,6 +33,11 @@
           v-if="system.queue > 0"
           class="title-actions"
           v-tooltip="{ content: queueTooltip }">
+          <span
+            v-if="etaLabel"
+            class="counter">
+            {{ etaLabel }}
+          </span>
           <div
             v-for="i in system.queue"
             :key="`build-${i}`"
@@ -54,6 +59,8 @@
 import CardMixin from '@/game/mixins/CardMixin';
 import { foreignAgents } from '@/utils/foreign-agents';
 import { formatDuration } from '@/utils/format';
+import { formatWallTime } from '@/utils/wall-time';
+import { queueEta } from '@/game/queue-eta';
 
 export default {
   name: 'closed-system-card',
@@ -61,12 +68,21 @@ export default {
   props: {
     system: Object,
   },
+  data() {
+    return {
+      // Shown next to the queue pips: "4h 51min · 14:05" (time left, and
+      // when the queue will be empty), kept current by refreshEta.
+      etaLabel: '',
+      etaFinish: '',
+      etaPulse: undefined,
+    };
+  },
   computed: {
     isUnderAttack() {
       const list = this.$store.state.game.player.dominions_under_attack;
       return Array.isArray(list) && list.includes(this.system.id);
     },
-    tickToSecondFactor() { return this.$store.getters['game/tickToSecondFactor']; },
+    msPerUnit() { return this.$store.getters['game/tickToMilisecondFactor']; },
     // characters of other factions present on this system/dominion —
     // detection rules live in utils/foreign-agents.js, shared with the
     // systems list's "enemy agents detected" filter.
@@ -99,6 +115,11 @@ export default {
       const parts = [this.system.name];
       if (this.system.queue > 0) {
         parts.push(this.$tc('a11y.system.queue', this.system.queue, { n: this.system.queue }));
+        // the finish time only: it holds still, where the time left would
+        // rewrite the label every second
+        if (this.etaFinish) {
+          parts.push(this.$t('a11y.system.queue_done_at', { time: this.etaFinish }));
+        }
       }
       if (this.system.siege) {
         parts.push(this.$t(`data.character_action_status.${this.system.siege.type}.name`));
@@ -115,33 +136,63 @@ export default {
     select() {
       this.$emit('select', this.system);
     },
+    eta(now) {
+      return queueEta(this.system, this.$store.state.game.time, this.msPerUnit, now);
+    },
+    duration(ms) {
+      return formatDuration(ms / 1000, (key, params) => this.$t(key, params));
+    },
+    // Assigns only what changed, so the 1 s pulse re-renders a card when its
+    // text moves (once a minute for most queues), not every second.
+    refreshEta() {
+      const now = Date.now();
+      const eta = this.eta(now);
+      let label = '';
+      let finish = '';
+
+      if (eta.state === 'running') {
+        finish = formatWallTime(eta.finishAt, now, this.$i18n.locale);
+        label = `${this.duration(eta.remainingMs)} · ${finish}`;
+      } else if (eta.state === 'stalled') {
+        label = this.$t('card.closed_system.queue_stalled');
+      }
+
+      if (label !== this.etaLabel) this.etaLabel = label;
+      if (finish !== this.etaFinish) this.etaFinish = finish;
+    },
     // async on purpose: v-tooltip evaluates plain content once and then
     // reuses the cached tooltip node, but thenable content is re-evaluated
     // on every show — so each hover recomputes the countdown.
     async queueTooltip() {
-      const t = this.system.queue_remaining_time;
-      if (typeof t !== 'number' || t <= 0) {
-        return this.$t('card.closed_system.construction_queue');
-      }
+      const now = Date.now();
+      const eta = this.eta(now);
+      const count = this.$tc('a11y.system.queue', this.system.queue, { n: this.system.queue });
 
-      // queue_remaining_time is a snapshot in game ticks, taken when the
-      // server last re-converted THIS system (not on every player
-      // broadcast). Convert to seconds and subtract the wall-clock time
-      // elapsed since that snapshot arrived (store: anchorQueueSnapshots) —
-      // while the game clock is running, game time tracks it 1:1.
-      let seconds = t * this.tickToSecondFactor;
-      const receivedAt = typeof this.system.queueReceivedAt === 'number'
-        ? this.system.queueReceivedAt
-        : this.$store.state.game.player.receivedAt;
-      if (typeof receivedAt === 'number' && this.$store.state.game.time.is_running) {
-        seconds -= (Date.now() - receivedAt) / 1000;
+      if (eta.state === 'running') {
+        const line = this.$t('card.closed_system.queue_eta', {
+          duration: this.duration(eta.remainingMs),
+          time: formatWallTime(eta.finishAt, now, this.$i18n.locale),
+        });
+        return `${line}<br>${count}`;
       }
-
-      if (seconds <= 0) {
-        return this.$t('card.closed_system.construction_queue');
+      if (eta.state === 'stalled') {
+        return `${this.$t('card.closed_system.queue_stalled_hint')}<br>${count}`;
       }
-      return formatDuration(seconds, (key, params) => this.$t(key, params));
+      return this.$t('card.closed_system.construction_queue');
     },
+  },
+  watch: {
+    system: 'refreshEta',
+    msPerUnit: 'refreshEta',
+  },
+  created() {
+    this.refreshEta();
+  },
+  mounted() {
+    this.etaPulse = setInterval(() => this.refreshEta(), 1000);
+  },
+  beforeDestroy() {
+    clearInterval(this.etaPulse);
   },
 };
 </script>

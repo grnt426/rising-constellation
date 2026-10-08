@@ -19,7 +19,7 @@ import { preview } from './sanitize.js';
 
 // Client-side anchors the store stamps onto server payloads (see
 // game/store.js setPlayer / applyProductionDelta, websockets handleReceive).
-export const CLIENT_STAMPED_KEYS = ['receivedAt', 'queueReceivedAt', 'resourcesReceivedAt'];
+export const CLIENT_STAMPED_KEYS = ['receivedAt', 'queueReceivedAt', 'queueClockAt', 'resourcesReceivedAt'];
 
 // Values the server advances every tick without broadcasting, which the
 // client extrapolates from its last snapshot instead: a differing number
@@ -29,7 +29,7 @@ export const CLIENT_STAMPED_KEYS = ['receivedAt', 'queueReceivedAt', 'resourcesR
 //     game date;
 //   * `value` of a countdown ({value, initial}) — cooldowns;
 //   * bare countdown numbers named here.
-export const COUNTDOWN_KEYS = ['ut_time_left', 'remaining_time'];
+export const COUNTDOWN_KEYS = ['ut_time_left', 'remaining_time', 'queue_remaining_time'];
 
 const isRunningValue = (parent) => parent && typeof parent === 'object'
   && typeof parent.value === 'number'

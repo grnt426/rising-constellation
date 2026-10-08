@@ -1,6 +1,7 @@
 import Vue from 'vue';
 import Cookies from 'js-cookie';
 import { setIncomeTicksPerHour } from '@/utils/format';
+import { queueStamps } from '@/game/queue-eta';
 
 const cookiesKeys = ['faction', 'instance', 'profile', 'registration_token', 'user_token'];
 
@@ -26,24 +27,14 @@ const patchBodyTiles = (bodies, uid, tiles) => (bodies || []).map((body) => {
   return body;
 });
 
-// Per-system anchor for the system list's queue ETA tooltip
-// (Player.StellarSystem.queue_remaining_time is a server snapshot in ticks,
-// counted down client-side from the moment it was taken). The server
-// re-sends EVERY system summary on each player broadcast, but only
-// re-converts the one whose system changed; the rest are older snapshots.
-// Anchoring them all to the broadcast's arrival rewound their countdown to
-// the stale value on every unrelated broadcast (ETA longer than the system
-// view's). A summary whose queue snapshot is unchanged keeps its anchor.
-const anchorQueueSnapshots = (systems, previous, now) => {
-  const previousById = new Map((previous || []).map((s) => [s.id, s]));
-  (systems || []).forEach((system) => {
-    const old = previousById.get(system.id);
-    const unchanged = old
-      && typeof old.queueReceivedAt === 'number'
-      && old.queue === system.queue
-      && old.queue_remaining_time === system.queue_remaining_time;
-    system.queueReceivedAt = unchanged ? old.queueReceivedAt : now;
-  });
+// Per-system anchors for the systems list's queue ETA (game/queue-eta.js).
+// The server counts every summary's queue_remaining_time down before it
+// sends the player, so all of them are current as of this payload. The
+// anchors stay per system: the slim production delta refreshes one summary
+// and leaves the others on theirs.
+const stampQueues = (systems, time, receivedAt) => {
+  const stamps = queueStamps(time, receivedAt);
+  (systems || []).forEach((system) => Object.assign(system, stamps));
 };
 
 const bodyUidExists = (bodies, uid) => (bodies || [])
@@ -462,13 +453,12 @@ const gameStore = {
       }
 
       player.receivedAt = Date.now();
-      const previous = state.player || {};
-      anchorQueueSnapshots(player.stellar_systems, previous.stellar_systems, player.receivedAt);
-      anchorQueueSnapshots(player.dominions, previous.dominions, player.receivedAt);
+      stampQueues(player.stellar_systems, state.time, player.receivedAt);
+      stampQueues(player.dominions, state.time, player.receivedAt);
       // Resource extrapolation (calc env) anchors on this; it is also
       // stamped by applyProductionDelta, which refreshes ONLY the
       // resource values — receivedAt stays the whole-struct anchor for
-      // queue_remaining_time / cooldown consumers.
+      // cooldown consumers.
       player.resourcesReceivedAt = player.receivedAt;
       state.player = Object.freeze(player);
 
@@ -526,11 +516,12 @@ const gameStore = {
     // value).
     //
     // Anchor discipline: `player.receivedAt` is NOT re-stamped — it anchors
-    // queue_remaining_time / cooldown consumers whose values this delta
-    // does not refresh (re-stamping made every OTHER system's ETA tooltip
-    // rewind). Only `resourcesReceivedAt` (calc extrapolation of the three
-    // refreshed resources) moves. The system's receivedAt IS re-stamped:
-    // its queue is fresh and Production.vue's ETA math anchors on it.
+    // cooldown consumers whose values this delta does not refresh. Only
+    // `resourcesReceivedAt` (calc extrapolation of the three refreshed
+    // resources) and the one refreshed summary's queue anchors move; the
+    // other systems keep counting down from theirs. The system's receivedAt
+    // IS re-stamped: its queue is fresh and Production.vue's ETA math
+    // anchors on it.
     applyProductionDelta(state, delta) {
       const receivedAt = Date.now();
 
@@ -539,8 +530,8 @@ const gameStore = {
       if (delta.technology) player.technology = delta.technology;
       if (delta.ideology) player.ideology = delta.ideology;
       if (delta.stellar_system && Array.isArray(player.stellar_systems)) {
-        // a freshly converted summary: its queue snapshot is from now
-        const fresh = { ...delta.stellar_system, queueReceivedAt: receivedAt };
+        // a freshly converted summary: its queue ETA is from now
+        const fresh = { ...delta.stellar_system, ...queueStamps(state.time, receivedAt) };
         player.stellar_systems = player.stellar_systems
           .map((s) => (s.id === fresh.id ? fresh : s));
       }

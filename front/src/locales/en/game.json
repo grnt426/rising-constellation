@@ -37,6 +37,7 @@
     },
     "system": {
       "queue": "{n} construction queued | {n} constructions queued",
+      "queue_done_at": "queue empty at {time}",
       "under_attack": "under attack",
       "region": "System briefing: {name}",
       "title": {
@@ -383,7 +384,10 @@
     },
     "closed_system": {
       "construction_queue": "Construction queue",
-      "foreign_agents": "{n} {faction} agent | {n} {faction} agents"
+      "foreign_agents": "{n} {faction} agent | {n} {faction} agents",
+      "queue_eta": "Queue empty in {duration}, at {time}",
+      "queue_stalled": "stalled",
+      "queue_stalled_hint": "No production: the queue is on hold"
     },
     "complex_bonus": {
       "not_implemented": "Not implemented"
@@ -1170,7 +1174,7 @@
       "search_placeholder": "Search by name…",
       "sector_unknown": "Unknown sector",
       "sort_name": "Sort by name",
-      "sort_queue": "Sort by construction queue length",
+      "sort_queue": "Sort by construction time left: the queue that empties soonest first",
       "status_busy": "Busy",
       "status_exposed": "Exposed",
       "status_idle": "Idle",

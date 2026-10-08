@@ -1138,6 +1138,13 @@ defmodule Instance.Player.Player do
         Map.replace!(acc, key, next_state)
       end)
 
+    # count the construction queues down (see Player.StellarSystem.advance_queue/2)
+    state = %{
+      state
+      | stellar_systems: Enum.map(state.stellar_systems, &Player.StellarSystem.advance_queue(&1, elapsed_time)),
+        dominions: Enum.map(state.dominions, &Player.StellarSystem.advance_queue(&1, elapsed_time))
+    }
+
     # accumulate the faction tax withheld this tick; the agent flushes
     # the accumulator to the faction treasury on the stats interval
     # (see the :remit_taxes change flag below)
