@@ -1209,10 +1209,20 @@ defmodule Instance.StellarSystem.StellarSystem do
       end)
       |> Enum.filter(fn penalty -> penalty.value > 0 end)
 
+    former_production = state.production.value
     state = %{state | happiness_penalties: happiness_penalties}
 
+    {change, notifs, state} = compute_bonus({change, notifs, state}, :without_player_update)
+
+    # A fading penalty is not worth a summary on every tick, but the owner
+    # counts the queue down at the production it last heard of: one that
+    # moved (the population calming down) has to reach it.
+    change =
+      if state.production.value != former_production,
+        do: MapSet.put(change, :player_update),
+        else: change
+
     {change, notifs, state}
-    |> compute_bonus(:without_player_update)
   end
 
   defp update_happiness_penalties({change, notifs, state}, _elapsed_time),

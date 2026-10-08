@@ -24,6 +24,12 @@ defmodule Instance.StellarSystem.QueueEtaSyncTest do
   penalty — it used to leave a stable-population system at zero production,
   constructions paused indefinitely.
 
+  Between two snapshots of a system (days apart for a long construction) the
+  owner's player counts the stored `queue_remaining_time` down on its own
+  tick, so every player payload — a freshly loaded page included — carries
+  the time left as of now, not as of the system's last change. A queue
+  without production (a siege) has no completion time: `:stalled`.
+
   Each scenario drives the real handlers with a running `Core.Tick` whose
   clock is shifted into the past, so elapsed game time is simulated without
   sleeping. Factor 18 makes 1 UT = 10 s of wall time.
@@ -190,6 +196,61 @@ defmodule Instance.StellarSystem.QueueEtaSyncTest do
       assert {:update_system, last} = List.last(FleetScenario.get_system_updates(owner_pid))
       assert last.siege == nil
     end
+
+    test "a besieged queue has no completion time until production is back", %{state: state} do
+      state = with_besieger(state)
+      {:noreply, state} = SystemAgent.on_cast({:besiege, :conquest, 10, 4242}, state)
+
+      assert state.data.production.value == 0
+      assert Snapshot.convert(state.data).queue_remaining_time == :stalled
+
+      {:reply, {:ok, released, _logs}, _state} =
+        SystemAgent.on_call({:release_siege, 0, 0, :normal_success}, self(), state)
+
+      assert is_number(Snapshot.convert(released).queue_remaining_time)
+    end
+  end
+
+  describe "the owner counts its summaries down between two snapshots" do
+    test "a summary counted down lands on what the system computes later", %{iid: iid, system: system} do
+      {body_uid, [t1, t2 | _]} = free_tiles(system)
+      {:ok, system} = StellarSystem.order_building_production(system, {body_uid, t1, :hab_open, 1})
+      {:ok, system} = StellarSystem.order_building_production(system, {body_uid, t2, :hab_open, 1})
+      summary = Snapshot.convert(system)
+
+      # 0.6 UT pass without the system sending its owner anything
+      {:reply, {:ok, later}, _state} = SystemAgent.on_call(:get_state, self(), gen_state(iid, system, 0.6))
+
+      assert_in_delta Snapshot.advance_queue(summary, 0.6).queue_remaining_time,
+                      Snapshot.convert(later).queue_remaining_time,
+                      0.05
+    end
+
+    test "the player's tick counts down every system and dominion with a running queue", %{iid: iid} do
+      player =
+        struct(Instance.Player.Player, %{
+          instance_id: iid,
+          next_stats: 0,
+          credit: Core.DynamicValue.new(100),
+          technology: Core.DynamicValue.new(0),
+          ideology: Core.DynamicValue.new(0),
+          is_bankrupt: false,
+          is_active: true,
+          connected_clients: 1,
+          last_connection: Core.DynamicValue.new(0),
+          policies_cooldown: Core.CooldownValue.new(),
+          characters: [],
+          character_deck: [],
+          stellar_systems: [summary(1, 5.0), summary(2, :never), summary(3, :stalled), summary(4, 0.2)],
+          dominions: [summary(5, 3.0)]
+        })
+
+      {_change, player} = Instance.Player.Player.next_tick(player, 0.5)
+
+      # a queue that ran out stays at 0 until its system says what is next
+      assert Enum.map(player.stellar_systems, & &1.queue_remaining_time) == [4.5, :never, :stalled, 0]
+      assert Enum.map(player.dominions, & &1.queue_remaining_time) == [2.5]
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -209,6 +270,8 @@ defmodule Instance.StellarSystem.QueueEtaSyncTest do
   end
 
   defp queue(system), do: Queue.to_list(system.queue.queue)
+
+  defp summary(id, remaining), do: struct(Snapshot, %{id: id, queue: 1, queue_remaining_time: remaining})
 
   # The armed :tick timer must match the schedule the system's CURRENT state
   # asks for: the queue head completing at the current production rate, or

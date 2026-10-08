@@ -569,7 +569,7 @@ function diffResult(diff) {
   };
 }
 
-const STAMPS = ['receivedAt', 'queueReceivedAt', 'resourcesReceivedAt'];
+const STAMPS = ['receivedAt', 'queueReceivedAt', 'queueClockAt', 'resourcesReceivedAt'];
 
 async function syncInfo(socket) {
   const g = store.state.game;

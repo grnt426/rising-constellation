@@ -19,6 +19,8 @@ defmodule Instance.Player.StellarSystem do
     field(:governor, integer() | nil)
     field(:characters, [%Instance.StellarSystem.Character{}] | [])
     field(:queue, integer())
+    # units of time until the queue is empty, counted down by the owner's
+    # player (advance_queue/2); :never when empty, :stalled without production
     field(:queue_remaining_time, float() | atom())
     field(:workforce, integer())
     field(:habitation, integer())
@@ -56,6 +58,23 @@ defmodule Instance.Player.StellarSystem do
       siege: system.siege
     }
   end
+
+  @doc """
+  Count the queue's remaining time down by `elapsed_time`.
+
+  A system only sends its owner a new summary when it changes, which for a
+  long construction can be days apart. The owner's player ticks before every
+  reply and broadcast, so counting down there keeps every summary's
+  `queue_remaining_time` true as of the moment it goes out — the client can
+  take any player payload at face value, a freshly loaded page included.
+  Production is constant between two summaries of a system (a change sends
+  one), so this lands on the value the system itself would compute.
+  """
+  def advance_queue(%{queue_remaining_time: remaining} = summary, elapsed_time)
+      when is_number(remaining) and remaining > 0,
+      do: %{summary | queue_remaining_time: max(remaining - elapsed_time, 0)}
+
+  def advance_queue(summary, _elapsed_time), do: summary
 
   # This struct goes over the owner's player channel, so it must not reveal
   # more than the sanctioned visibility rules: foreign Erased still under

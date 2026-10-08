@@ -37,6 +37,7 @@
     },
     "system": {
       "queue": "{n} construction en attente | {n} constructions en attente",
+      "queue_done_at": "file vide à {time}",
       "under_attack": "attaqué",
       "region": "Résumé du système : {name}",
       "title": {
@@ -383,7 +384,10 @@
     },
     "closed_system": {
       "construction_queue": "File d'attente des constructions",
-      "foreign_agents": "{n} agent {faction} | {n} agents {faction}"
+      "foreign_agents": "{n} agent {faction} | {n} agents {faction}",
+      "queue_eta": "File vide dans {duration}, à {time}",
+      "queue_stalled": "à l'arrêt",
+      "queue_stalled_hint": "Aucune production : la file est à l'arrêt"
     },
     "complex_bonus": {
       "not_implemented": "Pas implémenté"
@@ -1170,7 +1174,7 @@
       "search_placeholder": "Rechercher par nom…",
       "sector_unknown": "Secteur inconnu",
       "sort_name": "Trier par nom",
-      "sort_queue": "Trier par longueur de file de construction",
+      "sort_queue": "Trier par temps de construction restant : la file qui se vide le plus tôt en premier",
       "status_busy": "Occupé",
       "status_exposed": "Découvert",
       "status_idle": "Inactif",

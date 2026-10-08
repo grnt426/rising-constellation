@@ -112,6 +112,7 @@
 <script>
 import { foreignAgents } from '@/utils/foreign-agents';
 import { searchKey } from '@/utils/search-key';
+import { queueEta, compareQueueEta } from '@/game/queue-eta';
 import ListPanel from '@/game/components/navbar/ListPanel.vue';
 import ClosedSystemCard from '@/game/components/card/ClosedSystemCard.vue';
 
@@ -127,7 +128,7 @@ export default {
         emptyQueue: false,
       },
       // null keeps the server order (the pre-redesign behavior).
-      sortMode: null, // null | 'name' | 'queue'
+      sortMode: null, // null | 'name' | 'queue' (soonest empty queue first)
       groupMode: 'kind', // 'kind' (dominions/systems) | 'sector'
     };
   },
@@ -211,8 +212,16 @@ export default {
         return entries.slice().sort((a, b) => a.system.name.localeCompare(b.system.name));
       }
       if (this.sortMode === 'queue') {
-        return entries.slice().sort((a, b) => (b.system.queue - a.system.queue)
-          || a.system.name.localeCompare(b.system.name));
+        // Not re-sorted as time passes: every queue counts down at the same
+        // pace, so the order only moves when a summary does.
+        const now = Date.now();
+        const time = this.$store.state.game.time;
+        const msPerUnit = this.$store.getters['game/tickToMilisecondFactor'];
+        return entries
+          .map((entry) => ({ entry, eta: queueEta(entry.system, time, msPerUnit, now) }))
+          .sort((a, b) => compareQueueEta(a.eta, b.eta)
+            || a.entry.system.name.localeCompare(b.entry.system.name))
+          .map(({ entry }) => entry);
       }
       // Default order inside sector groups: dominions above systems,
       // mirroring the split the kind grouping makes explicit.

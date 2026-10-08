@@ -128,6 +128,9 @@ defmodule Instance.StellarSystem.ProductionQueue do
     end
   end
 
+  # Units of time until the whole queue is built at the current production:
+  # `:never` for an empty queue, `:stalled` for one nothing is being added to
+  # (a siege) — it has no completion time until production comes back.
   def get_total_remaining_time(stellar_system) do
     items = Queue.to_list(stellar_system.queue.queue)
 
@@ -137,7 +140,7 @@ defmodule Instance.StellarSystem.ProductionQueue do
 
       _ ->
         if stellar_system.production.value == 0 do
-          0
+          :stalled
         else
           total_prod = Enum.reduce(items, 0, fn item, acc -> acc + item.remaining_prod end)
           total_prod / stellar_system.production.value
