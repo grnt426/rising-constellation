@@ -18,7 +18,7 @@ import { mapProbe } from '@/game/debug/collector';
 import { reportFleet } from '@/game/components/chat/reportSighting';
 import { loadFonts, materialsFactory, colorsFactory } from './three-utils';
 import DestinationPulse from './destination-pulse';
-import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject, Ruler } from './blocks';
+import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject, Ruler, Gateway, SystemGlyphs } from './blocks';
 
 // Player-icon picker gesture thresholds. 500ms is the common
 // long-press convention (Material/iOS); 8px lets a small finger /
@@ -813,6 +813,11 @@ export default class Map {
           }
           // Touch has no hover to show where a fleet is going: a tap does.
           if (isTouch) tappedBlipTarget = blip.targetSystemId;
+        } else if (clickedObject.type === 'sector') {
+          // Far zoom: a click on a sector's name turns its card to the
+          // next faction there (the card sits away from the pointer and
+          // cannot be clicked itself).
+          if (button === 'left') this.$root.$emit('map:sectorClick', clickedObject.data);
         }
       } else if (button === 'left' && isTrueClick) {
         store.dispatch('game/unselectCharacter');
@@ -1152,7 +1157,12 @@ export default class Map {
       new Radar(this),
       new DetectedObject(this),
       new Sector(this),
+      // The faction's gateway links (far zoom): over the sector fill,
+      // under the system dots.
+      new Gateway(this),
       new System(this),
+      // Overview mode's rings around the system dots.
+      new SystemGlyphs(this),
       // Render SystemIcons AFTER System so the marker sprites layer
       // on top of the system dots/labels in scene-add order; the
       // explicit Z offset in system-icons.js is the primary defense,

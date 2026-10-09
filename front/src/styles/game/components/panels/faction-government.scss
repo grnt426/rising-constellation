@@ -80,6 +80,43 @@
     }
   }
 
+  // An amount of one resource: its icon, then the box (ResourceInput).
+  // One frame around the pair: the icon on a lighter tab, the box joined
+  // to it. Fields in a row stand well apart, so that an icon can only be
+  // read as belonging to the box it touches.
+  .resource-input {
+    display: inline-flex;
+    align-items: stretch;
+    margin-right: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(0, 0, 0, 0.55);
+
+    &:last-of-type { margin-right: 6px; }
+
+    .ri-icon {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      padding: 0 7px;
+      background: rgba(255, 255, 255, 0.12);
+      border-right: 1px solid rgba(255, 255, 255, 0.2);
+
+      .svg-icon {
+        width: 15px;
+        height: 15px;
+      }
+    }
+
+    input[type='number'] {
+      width: 88px;
+      border: none;
+      background: transparent;
+      text-align: right;
+    }
+
+    &:focus-within { border-color: rgba(255, 255, 255, 0.7); }
+  }
+
   input[type='range'] {
     -webkit-appearance: none;
     appearance: none;
@@ -663,10 +700,29 @@
 
       input[type='range'] { flex: 1 1 auto; min-width: 0; }
       .fg-pct { width: 42px; text-align: right; }
+
+      // what the rate on the slider would bring in; lit while it differs
+      // from the rate in force
+      .fg-tax-estimate {
+        flex: 0 0 76px;
+        text-align: right;
+        font-size: 12px;
+        opacity: 0.5;
+
+        &.is-changed { opacity: 1; }
+      }
     }
 
-    button {
-      margin: 6px 10px 0;
+    .fg-tax-apply {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px 0;
+
+      .fg-tax-hint {
+        font-size: 11px;
+        opacity: 0.7;
+      }
     }
   }
 
@@ -810,6 +866,64 @@
     }
   }
 
+  // Treasury ledger: one line per movement. The left edge says which way
+  // it went (faction colour in, grey out); the amounts carry the sign.
+  .fg-ledger-entry {
+    padding: 5px 10px 6px;
+    margin-bottom: 3px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 2px solid rgba(255, 255, 255, 0.22);
+    font-size: 11px;
+
+    .fg-ledger-head {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .fg-ledger-text {
+      flex: 1 1 auto;
+      opacity: 0.9;
+    }
+
+    .fg-ledger-time {
+      flex: 0 0 auto;
+      opacity: 0.5;
+      white-space: nowrap;
+    }
+
+    .fg-ledger-amounts {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 12px;
+      margin-top: 3px;
+    }
+
+    .fg-ledger-amount {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 13px;
+      white-space: nowrap;
+
+      .svg-icon {
+        width: 12px;
+        height: 12px;
+        opacity: 0.75;
+      }
+    }
+
+    &.is-out .fg-ledger-amount { opacity: 0.7; }
+
+    .fg-ledger-note { opacity: 0.55; }
+  }
+
+  .fg-ledger-more {
+    display: block;
+    margin: 6px 0 12px;
+  }
+
   .fg-result-row {
     display: flex;
     align-items: center;
@@ -874,6 +988,16 @@
 
     .fg-result-fill {
       background: rgba($color, 0.75);
+    }
+
+    .fg-ledger-entry.is-in {
+      border-left-color: $color;
+    }
+
+    .resource-input:focus-within {
+      border-color: $color;
+
+      .ri-icon { background: rgba($color, 0.45); }
     }
 
     .fg-decision-law.is-enact {

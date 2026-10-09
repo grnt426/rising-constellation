@@ -25,7 +25,9 @@
     <government
       v-show="activePanel === 'government'"
       ref="government" />
-    <treasury v-show="activePanel === 'treasury'" />
+    <treasury
+      v-show="activePanel === 'treasury'"
+      ref="treasury" />
     <diplomacy v-show="activePanel === 'diplomacy'" />
   </div>
 </template>
@@ -50,6 +52,13 @@ export default {
     theme() { return this.$store.getters['game/theme']; },
     pendingCount() { return this.$store.getters['game/pendingBallots'].length; },
   },
+  watch: {
+    // the treasury tab shows a ledger other members add to: read it
+    // again each time the tab comes up
+    activePanel(panel) {
+      if (panel === 'treasury') this.$refs.treasury.refresh();
+    },
+  },
   methods: {
     // { tab } opens on that section, { ballotId } on that vote.
     open(data) {
@@ -61,6 +70,10 @@ export default {
         this.activePanel = 'government';
         this.$refs.government.showBallot(data.ballotId);
       }
+
+      // the drawer stays mounted while closed: reopened on the treasury
+      // tab, it would still show the ledger of the last visit
+      if (this.activePanel === 'treasury') this.$refs.treasury.refresh();
     },
     close() {
       this.$emit('close');

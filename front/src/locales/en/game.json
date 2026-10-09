@@ -428,7 +428,33 @@
       "unmute_icons": "Unmute icons"
     },
     "sector": {
-      "repartition": "Number of star systems and dominions"
+      "repartition": "Number of star systems and dominions",
+      "held_by": "Held by {faction}",
+      "unclaimed": "Unclaimed",
+      "conquest_points": "point | points",
+      "control": "Control",
+      "inhabited_systems": "no inhabited system | {count} inhabited system | {count} inhabited systems",
+      "empty": "Nobody lives here yet: the first faction to settle a system takes the sector.",
+      "unopposed": "No rival faction has a system here.",
+      "needs": "{faction} takes the sector with {count} more system. | {faction} takes the sector with {count} more systems.",
+      "flipping": "{faction} holds more systems: the sector is changing hands.",
+      "faction_title": "{faction} in this sector",
+      "population_points": "Population points",
+      "visibility_points": "Visibility points",
+      "fleets": "Fleets",
+      "fleet_upkeep": "{upkeep} upkeep",
+      "foreign_fleets": "Foreign fleets in sight",
+      "output": "Income",
+      "census": "Cyber Command",
+      "census_count": "no enemy malware estimated | about {count} enemy malware | about {count} enemy malware",
+      "census_offline": "offline: last count",
+      "home_sector": "No rival faction has a system here. Neutral systems cannot take a home sector that never changed hands.",
+      "partial": "{count} of {total} systems",
+      "visibility_on_them": "Our visibility on them",
+      "fleets_in_sight": "Fleets in sight",
+      "nothing_own": "Your faction has nothing here.",
+      "nothing_known": "Nothing known of this faction here yet.",
+      "next_faction": "Click the sector's name for the next faction."
     },
     "ship": {
       "about": "About",
@@ -613,10 +639,23 @@
         "radar": "S.L.S.D. — Show the range within which hostile Navarchs can be detected",
         "ruler": "Ruler{hotkey} — Click a system to measure agent travel time. Click more to add waypoints, double-click empty space to clear.",
         "system-icons": "Player markers — Toggle the icons your factionmates have placed on systems",
-        "visibility": "Visibility — Show your intelligence level on visited systems (zoom in to see the numbers)"
+        "visibility": "Visibility — Show your intelligence level on visited systems (zoom in to see the numbers)",
+        "overview": "Overview — Show the fleets and agents standing in each system, and how well your faction's systems hold"
       },
       "orbit": "Orbit | Orbits",
-      "uninhabitable": "Uninhabitable"
+      "uninhabitable": "Uninhabitable",
+      "glyph": {
+        "fleets": "Fleets {count}",
+        "upkeep": "Upkeep {upkeep}",
+        "agents": "Agents {count}",
+        "siege": "Under siege",
+        "legend": {
+          "fleets": "Ring: one arc per fleet, in its faction's color; a full ring is 8,000 upkeep. A dashed arc is a fleet you cannot read.",
+          "agents": "Dots under the system: other agents in orbit (a ring is an Erased, a dot a Siderian).",
+          "stats": "Icons around your faction's systems, zoomed in: intelligence (top left), stability (top right) and defense (underneath). A large icon is 100, a small one 50, the last one part filled; split icons are negative stability.",
+          "siege": "Dashed orange ring: under siege."
+        }
+      }
     },
     "opened_character": {
       "army_details": "Army details",
@@ -1991,7 +2030,32 @@
         "threshold": "Passes if at least {pct}% of the active members approve. Not voting counts against it.",
         "threshold_weighted": "Passes if the approvals reach {pct}% of the faction’s voting weight (a vote weighs 3, 2 or 1 by rank). Not voting counts against it."
       },
-      "your_vote": "Your vote"
+      "your_vote": "Your vote",
+      "ledger": {
+        "title": "Recent transactions",
+        "subtitle": "taxes and station upkeep not listed",
+        "empty": "Nothing has moved in or out of the treasury yet, beyond taxes and upkeep.",
+        "show_all": "Show all {count}",
+        "show_less": "Show fewer",
+        "former_member": "a former member",
+        "unknown_system": "a system",
+        "received": "received {amounts} after the market tax",
+        "kinds": {
+          "donated": "{name} donated",
+          "withdrawn": "{name} withdrew",
+          "granted": "{name} granted {target}",
+          "distributed": "{name} paid out {pct}% of the treasury to {members} members",
+          "distributed_each": "{name} paid out {pct}% of the treasury, to each member",
+          "patent": "{name} bought the patent {item}",
+          "lex": "{name} bought the lex {item}",
+          "station_ordered": "{name} commissioned {item} (level {level}) at {system}",
+          "station_cancelled": "{name} canceled {item} at {system}: refunded",
+          "challenge_matched": "{name} matched a challenge with treasury funds",
+          "challenge_forfeit": "{name} lost their challenge: forfeit paid in"
+        }
+      },
+      "tax_estimate_hint": "Estimated treasury income at each rate, from the members' current income.",
+      "tax_estimate_changed": "Estimated change: {change}"
     },
     "messenger": {
       "add_to_group": "Add to group",

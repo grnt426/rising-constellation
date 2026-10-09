@@ -59,6 +59,7 @@ export default {
 
     Z_SECTOR_FAR: 0,
     Z_SYSTEM_FAR_OWN: 0.025,
+    Z_GATEWAY_LANE: 0.03,
     Z_SECTOR_FAR_LABEL: 0.05,
     Z_SYSTEM_FAR_STAR: 0.05,
   },

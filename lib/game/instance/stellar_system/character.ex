@@ -26,6 +26,10 @@ defmodule Instance.StellarSystem.Character do
     field(:training, map() | nil)
     # reallocations a student has earned so far (the ring around its seat)
     field(:reallocations, integer() | nil)
+    # upkeep of a Navarch's fleet (nil for the other agents): how large the
+    # fleet is, for the galaxy map's fleet gauge. Shown from the contact
+    # level that already shows an army's upkeep (Faction.Character).
+    field(:maintenance, float() | nil)
   end
 
   def convert(character) do
@@ -40,6 +44,12 @@ defmodule Instance.StellarSystem.Character do
         armada -> Map.get(armada, :id)
       end
 
+    maintenance =
+      case Map.get(character, :army) do
+        %{maintenance: %{value: value}} when character.type == :admiral -> value
+        _ -> nil
+      end
+
     %StellarSystem.Character{
       id: character.id,
       type: character.type,
@@ -51,7 +61,8 @@ defmodule Instance.StellarSystem.Character do
       cover: cover,
       armada_id: armada_id,
       training: Map.get(character, :training),
-      reallocations: Map.get(character, :reallocations, 0) || 0
+      reallocations: Map.get(character, :reallocations, 0) || 0,
+      maintenance: maintenance
     }
   end
 
@@ -61,7 +72,7 @@ defmodule Instance.StellarSystem.Character do
     fields_levels = %{
       2 => [:id, :type, :name, :level, :owner, :armada_id, :training],
       3 => [],
-      4 => [:determination],
+      4 => [:determination, :maintenance],
       5 => [:protection, :reallocations],
       6 => [:cover]
     }

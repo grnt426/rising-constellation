@@ -51,6 +51,10 @@ const loadAuthData = () => cookiesKeys.reduce((acc, key) => {
   return acc;
 }, {});
 
+// When the map intel was last asked for (see the refreshMapIntel action):
+// keeps a burst of callers from each sending their own request.
+let mapIntelRequestedAt = 0;
+
 const defaultState = () => {
   console.log('Game store created');
 
@@ -181,6 +185,12 @@ const defaultState = () => {
     // faction tick, and replacing `faction` that often would re-render
     // everything that reads the roster, the icons or the chat.
     sightings: [],
+    // What the galaxy map draws around systems and totals on the sector
+    // card (Instance.Faction.MapIntel): agents by system, the state of the
+    // faction's own systems, its income by sector. Asked for on demand
+    // (`refreshMapIntel`), never broadcast. Frozen: a plain lookup table,
+    // read by the map blocks every repaint. `null` until the first reply.
+    mapIntel: null,
     // The viewer's own answer to each open government ballot, keyed by
     // ballot id: their vote, or { abstained: true }. Votes are secret, so
     // they never ride the faction broadcast: `refreshGovernmentVotes`
@@ -328,6 +338,26 @@ const gameStore = {
 
     setGovernmentVotes(state, votes) {
       state.governmentVotes = votes || {};
+    },
+
+    setMapIntel(state, intel) {
+      const byId = (list) => (list || []).reduce((acc, item) => {
+        acc[item.id] = item;
+        return acc;
+      }, {});
+
+      // income sums: sector id -> faction key -> entry
+      const sectors = (intel.sectors || []).reduce((acc, entry) => {
+        acc[entry.id] = acc[entry.id] || {};
+        acc[entry.id][entry.faction] = entry;
+        return acc;
+      }, {});
+
+      state.mapIntel = Object.freeze({
+        systems: byId(intel.systems),
+        sectors,
+        at: Date.now(),
+      });
     },
 
     addMapOverlay(state, payload) {
@@ -698,6 +728,19 @@ const gameStore = {
     },
   },
   actions: {
+    // Ask the faction for its map intel, unless what the store holds is
+    // younger than `maxAge` (or a request is already out). The server
+    // answers from a per-faction cache it rebuilds at most every ~30 s, so
+    // asking more often than that only returns the same thing.
+    refreshMapIntel({ state, commit }, { socket, maxAge = 30000 }) {
+      const now = Date.now();
+      const fresh = state.mapIntel && now - state.mapIntel.at < maxAge;
+      if (fresh || now - mapIntelRequestedAt < 5000 || !socket || !socket.faction) return;
+
+      mapIntelRequestedAt = now;
+      socket.faction.push('get_map_intel', {})
+        .receive('ok', (intel) => commit('setMapIntel', intel));
+    },
     async openSystem(store, { vm, id }) {
       return new Promise((resolve, reject) => {
         vm.$socket.faction.push('get_system', { system_id: id })

@@ -5,6 +5,7 @@ defmodule Instance.Faction.Agent do
   alias Instance.Faction.Character
   alias Instance.Faction.GalacticSurvey
   alias Instance.Faction.Government
+  alias Instance.Faction.MapIntel
   alias Instance.Faction.Market
   alias Instance.Faction.StellarSystem
   alias Portal.Controllers.FactionChannel
@@ -18,22 +19,70 @@ defmodule Instance.Faction.Agent do
 
   @decorate tick()
   def on_call(:get_galactic_survey, _, state) do
-    # Read / write via Map.get + Map.put rather than the struct accessor
-    # because faction state is snapshotted to DB and restored across
-    # deploys: a snapshot taken before this field existed deserializes
-    # into a struct that's literally missing :galactic_survey_cache, and
-    # `state.data.galactic_survey_cache` or `%{state.data | …}` would
-    # both raise KeyError. Map-based access works for both shapes; subsequent
-    # writes back-fill the field so later access uses the normal layout.
-    {cache, rows} =
-      GalacticSurvey.get_or_build(
-        Map.get(state.data, :galactic_survey_cache),
-        state.data,
-        state.instance_id
-      )
+    {rows, state} = survey_rows(state)
+    {:reply, {:ok, rows}, state}
+  end
 
-    data = Map.put(state.data, :galactic_survey_cache, cache)
-    {:reply, {:ok, rows}, %{state | data: data}}
+  # The galaxy map's feed (see MapIntel): a projection of the survey rows,
+  # so it rides the survey's cache.
+  @decorate tick()
+  def on_call(:get_map_intel, _, state) do
+    {rows, state} = survey_rows(state)
+    {:reply, {:ok, MapIntel.project(rows, state.data.key)}, state}
+  end
+
+  # A background survey build reporting back (see survey_rows/1).
+  @decorate tick()
+  def on_cast({:galactic_survey_built, rows}, state) when is_list(rows) do
+    data = Map.put(state.data, :galactic_survey_cache, GalacticSurvey.store(rows))
+    {:noreply, %{state | data: data}}
+  end
+
+  # The survey rows on hand. An aged cache is still what the caller gets:
+  # its rebuild (one call per visible system) runs in a task and comes
+  # back as {:galactic_survey_built, rows}, so neither the request nor this
+  # agent waits on it. Only a cache never built, or left for minutes, is
+  # rebuilt here and now.
+  #
+  # Read / write via Map.get + Map.put rather than the struct accessor
+  # because faction state is snapshotted to DB and restored across
+  # deploys: a snapshot taken before this field existed deserializes
+  # into a struct that's literally missing :galactic_survey_cache, and
+  # `state.data.galactic_survey_cache` or `%{state.data | …}` would
+  # both raise KeyError. Map-based access works for both shapes; subsequent
+  # writes back-fill the field so later access uses the normal layout.
+  defp survey_rows(state) do
+    cache = Map.get(state.data, :galactic_survey_cache)
+
+    case GalacticSurvey.lookup(cache) do
+      {:stale, rows} ->
+        refresh_survey(state)
+        data = Map.put(state.data, :galactic_survey_cache, GalacticSurvey.mark_refreshing(cache))
+        {rows, %{state | data: data}}
+
+      {_fresh_or_refreshing, rows} ->
+        {rows, state}
+
+      :build ->
+        {cache, rows} = GalacticSurvey.get_or_build(cache, state.data, state.instance_id)
+        {rows, %{state | data: Map.put(state.data, :galactic_survey_cache, cache)}}
+    end
+  end
+
+  defp refresh_survey(state) do
+    view = GalacticSurvey.view(state.data)
+    instance_id = state.instance_id
+    faction_id = state.data.id
+
+    build = fn ->
+      rows = GalacticSurvey.build(view, instance_id)
+      Game.cast(instance_id, :faction, faction_id, {:galactic_survey_built, rows})
+    end
+
+    # supervised where the application runs; a bare task elsewhere (tests)
+    if Process.whereis(RC.TaskSupervisor),
+      do: Task.Supervisor.start_child(RC.TaskSupervisor, build),
+      else: Task.start(build)
   end
 
   @decorate tick()
@@ -364,10 +413,15 @@ defmodule Instance.Faction.Agent do
         {:reply, {:error, :government_disabled}, %{state | data: data}}
 
       government ->
+        taxes = Government.tax_figures(data)
+
         reply = %{
           government: government,
           my_votes: Government.own_votes(government, player_id),
-          tax_income: Government.tax_income(data)
+          tax_income: taxes.income,
+          # the members' income before tax, per resource: what the treasury
+          # panel estimates a rate being dragged against
+          tax_base: taxes.base
         }
 
         {:reply, {:ok, reply}, %{state | data: data}}
@@ -1380,6 +1434,12 @@ defmodule Instance.Faction.Agent do
     government_player_event(state, "government_overthrown", payload)
   end
 
+  # Only a match paid out of the treasury is the faction's business to
+  # audit; a personal one is the matcher's own money.
+  defp settle_government_event(state, %{type: :challenge_matched, treasury: true} = event) do
+    write_log_entry(state, "challenge_matched", event.by, nil, %{amount: event.amount, treasury: true})
+  end
+
   defp settle_government_event(state, %{type: :tithe_settled} = event) do
     write_log_entry(state, "tithe_settled", nil, nil, %{
       seat: event.seat,
@@ -1445,7 +1505,9 @@ defmodule Instance.Faction.Agent do
   defp settle_government_event(state, %{type: :treasury_distributed} = event) do
     write_log_entry(state, "treasury_distributed", event.by, nil, %{
       pct: event.pct,
-      shares: event.shares
+      shares: event.shares,
+      # how many members got a share: what left the treasury is shares x members
+      members: Map.get(event, :members)
     })
 
     government_player_event(state, "treasury_distributed", %{shares: event.shares})
@@ -1456,12 +1518,20 @@ defmodule Instance.Faction.Agent do
     write_log_entry(state, "government_purchase", event.by, nil, %{
       kind: event.type,
       key: event.key,
-      cost: event.cost
+      cost: event.cost,
+      credit_cost: Map.get(event, :credit_cost, 0)
     })
   end
 
   defp settle_government_event(state, %{type: :station_ordered} = event) do
-    payload = %{system_id: event.system_id, key: event.key, level: event.level, cost: event.cost}
+    payload = %{
+      system_id: event.system_id,
+      system_name: fetch_system_name(state.instance_id, event.system_id),
+      key: event.key,
+      level: event.level,
+      cost: event.cost
+    }
+
     write_log_entry(state, "station_ordered", event.by, nil, payload)
 
     government_player_event(state, "station_ordered", %{
@@ -1473,6 +1543,7 @@ defmodule Instance.Faction.Agent do
   defp settle_government_event(state, %{type: :station_cancelled} = event) do
     write_log_entry(state, "station_cancelled", event.by, nil, %{
       system_id: event.system_id,
+      system_name: fetch_system_name(state.instance_id, event.system_id),
       key: event.key,
       level: event.level,
       refund: event.refund

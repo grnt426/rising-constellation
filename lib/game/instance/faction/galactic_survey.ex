@@ -11,6 +11,12 @@ defmodule Instance.Faction.GalacticSurvey do
   GenServer state. Jitter staggers refresh across factions so synchronized
   fetches don't all expire on the same tick.
 
+  A request that finds the cache aged is still answered from it: the rebuild
+  (one call per visible system) runs in a task of its own and lands back on
+  the agent (`lookup/1`, `mark_refreshing/1`, `store/1`). Only a cache that
+  was never built, or one left untouched for minutes, is rebuilt while the
+  caller waits.
+
   ## Visibility gates (mirrors lib/game/instance/faction/{stellar_system,
   stellar_system/tile}.ex):
 
@@ -25,7 +31,9 @@ defmodule Instance.Faction.GalacticSurvey do
     the system (obfuscate/4 has already dropped other factions' undercover
     Erased, so the list follows the same intel rules as the system view).
   - vis >= 4: which buildings are built (megastructure detection), system-level
-    production / technology / ideology income.
+    production / technology / ideology / credit income, counter-intelligence,
+    and the upkeep of the fleets standing there (what `get_character` shows
+    of an army at that level).
   - vis 5 (own): everything; queue contents are own-only and are not surfaced
     in this aggregate.
   """
@@ -39,6 +47,13 @@ defmodule Instance.Faction.GalacticSurvey do
 
   @ttl_ms 30_000
   @jitter_ms 5_000
+  # How long past its expiry a cache may still be served while it is rebuilt
+  # behind the request. Older than that (nobody asked for minutes), the
+  # caller waits for fresh rows rather than be shown a stale table.
+  @max_stale_ms 120_000
+  # A background rebuild that has not reported back by then is given up on:
+  # the next aged request starts another.
+  @refresh_timeout_ms 60_000
   @megastructure_keys [:monument_dome, :high_factory_dome]
 
   # Maximum value an `industrial_factor` / `technological_factor` /
@@ -53,6 +68,9 @@ defmodule Instance.Faction.GalacticSurvey do
   typedstruct enforce: false do
     field(:expires_at, integer(), default: 0)
     field(:rows, list(), default: [])
+    # until when a background rebuild is considered under way (0: none).
+    # Postdates the first snapshots: Map.get only.
+    field(:refreshing_until, integer(), default: 0)
   end
 
   def new(), do: %__MODULE__{expires_at: 0, rows: []}
@@ -73,6 +91,50 @@ defmodule Instance.Faction.GalacticSurvey do
       {refreshed, rows}
     end
   end
+
+  @doc """
+  What the cache holds and what the caller should do about it:
+
+    * `{:fresh, rows}` — serve them
+    * `{:stale, rows}` — serve them and start a rebuild (`mark_refreshing/1`,
+      then `build/2` away from the agent and `store/1` with its result)
+    * `{:refreshing, rows}` — serve them, a rebuild is already under way
+    * `:build` — nothing worth serving: rebuild now (`get_or_build/3`)
+  """
+  def lookup(cache) do
+    cache = cache || new()
+    now = monotonic_now()
+
+    cond do
+      now < cache.expires_at -> {:fresh, cache.rows}
+      now - cache.expires_at > @max_stale_ms -> :build
+      now < (Map.get(cache, :refreshing_until) || 0) -> {:refreshing, cache.rows}
+      true -> {:stale, cache.rows}
+    end
+  end
+
+  def mark_refreshing(cache),
+    do: Map.put(cache || new(), :refreshing_until, monotonic_now() + @refresh_timeout_ms)
+
+  @doc "The cache holding freshly built `rows`."
+  def store(rows) when is_list(rows),
+    do: %__MODULE__{rows: rows, expires_at: monotonic_now() + jittered_ttl(), refreshing_until: 0}
+
+  @doc """
+  The part of the faction's state a build reads, small enough to hand to
+  another process (the full state carries the chat, the icons, the
+  government).
+  """
+  def view(faction_state),
+    do: %{
+      id: faction_state.id,
+      key: faction_state.key,
+      contacts: faction_state.contacts,
+      diplomacy: Map.get(faction_state, :diplomacy) || %{}
+    }
+
+  @doc "Builds the rows for a `view/1`. Slow: one call per visible system."
+  def build(view, instance_id), do: build_rows(view, instance_id)
 
   # --- internals --------------------------------------------------------
 
@@ -119,7 +181,11 @@ defmodule Instance.Faction.GalacticSurvey do
         vis = contact.value
 
         if vis > 0 do
-          obfuscated = FactionStellarSystem.obfuscate(system, contact, faction_state.id, instance_id)
+          obfuscated =
+            system
+            |> FactionStellarSystem.obfuscate(contact, faction_state.id, instance_id)
+            |> reveal_own_fleets(system, faction_state.key)
+
           project(obfuscated, snapshot, vis)
         else
           nil
@@ -127,6 +193,35 @@ defmodule Instance.Faction.GalacticSurvey do
 
       _ ->
         nil
+    end
+  end
+
+  # A faction knows the upkeep of its own fleets wherever they stand. The
+  # system's contact level only decides what it sees of the others: in a
+  # foreign system held at contact 2, obfuscate/4 has blanked the upkeep of
+  # every Navarch, the faction's own included.
+  @doc false
+  def reveal_own_fleets(obfuscated, system, faction_key) do
+    own =
+      for c <- Map.get(system, :characters) || [],
+          is_map(c.owner) and Map.get(c.owner, :faction) == faction_key,
+          into: %{},
+          do: {c.id, Map.get(c, :maintenance)}
+
+    case Map.get(obfuscated, :characters) do
+      characters when is_list(characters) and map_size(own) > 0 ->
+        characters =
+          Enum.map(characters, fn c ->
+            case Map.fetch(own, c.id) do
+              {:ok, maintenance} -> Map.put(c, :maintenance, maintenance)
+              :error -> c
+            end
+          end)
+
+        Map.put(obfuscated, :characters, characters)
+
+      _ ->
+        obfuscated
     end
   end
 
@@ -164,6 +259,11 @@ defmodule Instance.Faction.GalacticSurvey do
       current_prod: value_or_nil(Map.get(obf, :production)),
       current_sci: value_or_nil(Map.get(obf, :technology)),
       current_appeal: value_or_nil(Map.get(obf, :ideology)),
+      current_credit: value_or_nil(Map.get(obf, :credit)),
+      defense: value_or_nil(Map.get(obf, :defense)),
+      stability: value_or_nil(Map.get(obf, :happiness)),
+      counter_intelligence: value_or_nil(Map.get(obf, :counter_intelligence)),
+      siege: Map.get(obf, :siege) != nil,
       agents: agents(Map.get(obf, :characters))
     }
   end
@@ -180,7 +280,10 @@ defmodule Instance.Faction.GalacticSurvey do
         name: c.name,
         level: c.level,
         faction: Map.get(owner, :faction),
-        owner_name: Map.get(owner, :name)
+        owner_name: Map.get(owner, :name),
+        # a fleet's upkeep: nil for anything but a Navarch, and for a
+        # Navarch whose army this faction cannot read
+        upkeep: Map.get(c, :maintenance)
       }
     end)
   end

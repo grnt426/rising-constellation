@@ -2447,22 +2447,52 @@ defmodule Instance.Faction.Government do
   member's current remit rates. Fan-out read, same pattern as
   faction_ideology_income — used for the treasury income display.
   """
-  def tax_income(faction_state) do
+  def tax_income(faction_state), do: tax_figures(faction_state).income
+
+  @doc """
+  `tax_income/1` and, from the same fan-out, the income those taxes are
+  levied on: per resource, the members' income before tax (what a 100%
+  rate would take). The treasury panel multiplies it by a rate still being
+  dragged to say what that rate would bring in.
+
+  A member's taxable income is their net income plus what is withheld from
+  it; a member running a deficit pays nothing and counts for nothing.
+  """
+  def tax_figures(faction_state) do
     zero = %{credit: 0, technology: 0, ideology: 0}
 
     faction_state.players
     |> Task.async_stream(
       fn player ->
         case Game.call(faction_state.instance_id, :player, player.id, :get_state) do
-          {:ok, player_state} -> Map.get(player_state, :tax_remit_rates) || %{}
-          _ -> %{}
+          {:ok, player_state} ->
+            remit = Map.get(player_state, :tax_remit_rates) || %{}
+
+            base =
+              Map.new(zero, fn {key, _} ->
+                net =
+                  case Map.get(player_state, key) do
+                    %{change: change} when is_number(change) -> change
+                    _ -> 0
+                  end
+
+                {key, if(net > 0, do: net + Map.get(remit, key, 0), else: 0)}
+              end)
+
+            {remit, base}
+
+          _ ->
+            {%{}, %{}}
         end
       end,
       on_timeout: :kill_task
     )
-    |> Enum.reduce(zero, fn
-      {:ok, rates}, acc ->
-        Map.new(acc, fn {key, value} -> {key, value + Map.get(rates, key, 0)} end)
+    |> Enum.reduce(%{income: zero, base: zero}, fn
+      {:ok, {remit, base}}, acc ->
+        %{
+          income: Map.new(acc.income, fn {key, value} -> {key, value + Map.get(remit, key, 0)} end),
+          base: Map.new(acc.base, fn {key, value} -> {key, value + Map.get(base, key, 0)} end)
+        }
 
       _, acc ->
         acc
@@ -2525,7 +2555,7 @@ defmodule Instance.Faction.Government do
             apply_overreach(government, ctx, access, :economy, :distribute_treasury)
 
           {:ok, government,
-           [%{type: :treasury_distributed, pct: pct, shares: shares, by: actor_id} | grants] ++
+           [%{type: :treasury_distributed, pct: pct, shares: shares, members: member_count, by: actor_id} | grants] ++
              over_events}
         end
     end

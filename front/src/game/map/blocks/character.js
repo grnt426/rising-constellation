@@ -18,6 +18,7 @@ import config from '@/config';
 import store from '@/store';
 import Block from './block';
 import { disposeObject } from '../three-utils';
+import { glyphRadii, glyphScale } from '../system-glyph';
 
 function arrayToPoints(xs, z = 0) {
   return xs.map(([x, y]) => new Vector3(x, y, z));
@@ -312,19 +313,40 @@ export default class Character extends Block {
         return acc;
       }, {});
 
+    // Overview mode (SystemGlyphs): a governor or a student never leaves
+    // its system, so its name tag is dropped there, and the tags of the
+    // agents in orbit start past the rings drawn around the dot.
+    const overview = store.state.game.mapOptions.mode === 'overview';
+
     Object.values(groupedIdleCharacters).forEach((idleCharacters) => {
-      idleCharacters.forEach((c, i) => {
+      let row = 0;
+      idleCharacters.forEach((c) => {
+        if (overview && c.status !== 'on_board') {
+          this.names[c.name].visible = false;
+          return;
+        }
+
         this.names[c.name].children[1].geometry.computeBoundingBox();
 
         const size = this.names[c.name].children[1].geometry.boundingBox;
-        const x = Math.abs(size.max.x) + Math.abs(size.min.x) + 0.80;
+        const clear = overview ? 0.64 + this.glyphExtent(c.system) : 0.80;
+        const x = Math.abs(size.max.x) + Math.abs(size.min.x) + clear;
         const y = Math.abs(size.max.y) + Math.abs(size.min.y) - 0.68;
-        const shift = i * 0.46;
+        const shift = row * 0.46;
+        row += 1;
 
         this.names[c.name].visible = store.state.game.mapOptions.showCharacterLabel;
         this.names[c.name].position.set(c.position.x - x, c.position.y - size.max.y - y - shift, config.MAP.Z_SYSTEM_NEAR_STAR);
       });
     });
+  }
+
+  // How far the overview glyph reaches from the centre of a system.
+  glyphExtent(systemId) {
+    const system = this.map.data.systemsById.get(systemId);
+    const type = system && this.map.gameData.stellar_system.find((s) => s.key === system.type);
+    const held = !!system && system.faction === store.state.game.player.faction;
+    return glyphRadii(type ? type.display_size_factor : 1, held).extent * glyphScale(this.map.camera.position.z);
   }
 
   _createMovingEntry(id, faction, type) {

@@ -14,7 +14,9 @@ import {
 
 import config from '@/config';
 import store from '@/store';
+import formatNumber from '@/utils/format';
 import { disposeObjectTree } from '../three-utils';
+import { presence, glyphRadii, glyphScale } from '../system-glyph';
 
 import Block from './block';
 
@@ -46,7 +48,10 @@ const farUnitDisk = new RingGeometry(0.001, 1, 32);
 const _scratchDummy = new Object3D();
 const _scratchColor = new Color();
 
-const modes = ['population', 'visibility', 'radar'];
+// 'overview' draws no ring of its own here: the SystemGlyphs block draws
+// around the dot (who stands in the system, how well it holds), and the
+// labels below make room for it.
+const modes = ['population', 'visibility', 'radar', 'overview'];
 
 export default class System extends Block {
   constructor(map) {
@@ -103,12 +108,41 @@ export default class System extends Block {
 
     this.createSystems(true);
     this.resetRepaint();
+
+    // Overview mode: the labels follow the glyph as it grows with the
+    // camera's altitude. Every frame in range, paused game or not.
+    this.glyphScaleApplied = null;
+    this.animationCallbacks.push({ near: 20, far: Infinity, cb: () => this.syncGlyphScale() });
+  }
+
+  // Overview's labels are laid out against the glyph at its map size and
+  // carry, in `userData.glyphShift`, how far to move per unit of extra
+  // scale. Applied when the scale crosses a step (or after a repaint).
+  syncGlyphScale() {
+    if (this.mode !== 'overview') return;
+    const scale = glyphScale(this.map.camera.position.z);
+    if (scale === this.glyphScaleApplied) return;
+    this.glyphScaleApplied = scale;
+
+    const sng = this.groups.overview.children.find((group) => group.name === 'systems-near');
+    if (!sng) return;
+    sng.children.forEach((sn) => {
+      sn.children.forEach((label) => this.shiftLabel(label, scale));
+    });
+  }
+
+  shiftLabel(label, scale) {
+    const shift = label.userData.glyphShift;
+    if (!shift) return;
+    label.position.set(shift.x * (scale - 1), shift.y * (scale - 1), 0);
+    label.updateMatrix();
   }
 
   _update() {
     const mode = store.state.game.mapOptions.mode;
 
     if (this.mode !== mode) {
+      this.glyphScaleApplied = null;
       // Swap the active mode group in and out of the scene — detached
       // groups cost nothing per frame, unlike visible=false ones (see
       // _create). The outgoing group keeps its baked matrices, so
@@ -126,6 +160,8 @@ export default class System extends Block {
       this.createSystems();
       this.refresh();
       this.resetRepaint();
+      // fresh labels sit at their unscaled places
+      this.glyphScaleApplied = null;
     }
   }
 
@@ -414,10 +450,12 @@ export default class System extends Block {
     // majority at galaxy scale — are built lazily by attachHoverLabels
     // when the cursor first reaches the system, so they never weigh on
     // the per-frame scene walk (or on startup text-geometry generation).
-    this.labelSpecs(system, mode)
+    this.labelSpecs(system, mode, false)
       .filter((spec) => spec.isVisible)
       .forEach((spec) => {
-        sn.add(this.createSystemLabel(system, spec.shift, spec.text, true, spec.options));
+        const label = this.createSystemLabel(system, spec.shift, spec.text, true, spec.options);
+        if (spec.glyphShift) label.userData.glyphShift = spec.glyphShift;
+        sn.add(label);
       });
 
     return sn;
@@ -426,8 +464,10 @@ export default class System extends Block {
   // One spec per label the system can show: permanent ones
   // (isVisible: true) are attached at build time by nearSystem, the
   // rest exist only while hovered (attachHoverLabels). Kept as data so
-  // both paths derive from the same branching.
-  labelSpecs(system, mode) {
+  // both paths derive from the same branching. `withHoverLines`: also
+  // the overview mode's hover lines, which cost a look at the intel and
+  // the roster — only asked for when a system is actually hovered.
+  labelSpecs(system, mode, withHoverLines = true) {
     const faction = system.faction ? system.faction : 'neutral';
     const colors = this.colors[faction];
     const populationClass = store.state.game.data.population_class.find((pc) => pc.key === system.class);
@@ -436,13 +476,25 @@ export default class System extends Block {
     const systemName = ['inhabited_neutral', 'inhabited_dominion'].includes(system.status)
       ? `${system.name}*` : system.name;
 
+    // Overview mode: the glyph takes the room around the dot, so the
+    // labels start past its outer edge instead of against the star.
+    const overview = mode === 'overview';
+    // a system of the viewer's faction carries the stat ring too
+    const held = system.faction === store.state.game.player.faction;
+    const glyph = overview ? glyphRadii(this.sizeFactor(system), held) : null;
+    const labelX = overview ? glyph.extent + 0.12 : 0.46;
+    // how these labels follow the glyph when it is drawn larger (see
+    // syncGlyphScale): the lines to its right move out with its edge
+    const besideGlyph = overview ? { x: glyph.extent, y: 0 } : undefined;
+
     const specs = [];
 
     if ((ownDominion || ownSystem) || (!system.owner && system.visibility === 0)) {
       const labelVisibility = !!system.owner;
 
       specs.push({
-        shift: { x: 0.46, y: -0.12 },
+        shift: { x: labelX, y: -0.12 },
+        glyphShift: besideGlyph,
         text: systemName,
         isVisible: labelVisibility,
         options: {
@@ -454,7 +506,8 @@ export default class System extends Block {
       });
     } else {
       specs.push({
-        shift: { x: 0.46, y: 0.08 },
+        shift: { x: labelX, y: 0.08 },
+        glyphShift: besideGlyph,
         text: systemName,
         isVisible: false,
         options: {
@@ -472,7 +525,8 @@ export default class System extends Block {
           : `${system.score} ${this.map.vm.$tc('galaxy.map.orbit', system.score)}`);
 
       specs.push({
-        shift: { x: 0.46, y: -0.30 },
+        shift: { x: labelX, y: -0.30 },
+        glyphShift: besideGlyph,
         text: secondLine,
         isVisible: false,
         options: {
@@ -509,9 +563,107 @@ export default class System extends Block {
           zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
         },
       });
+    } else if (overview) {
+      // The contact level, where it earns something: on systems another
+      // faction holds. The faction's own systems say nothing by it.
+      const foreign = system.owner && system.faction !== store.state.game.player.faction;
+      if (foreign && system.visibility > 0) {
+        specs.push({
+          shift: { x: glyph.extent * 0.72, y: glyph.extent * 0.72 },
+          glyphShift: { x: glyph.extent * 0.72, y: glyph.extent * 0.72 },
+          text: `${system.visibility}`,
+          isVisible: true,
+          options: {
+            fontSize: 0.15,
+            textColor: this.map.materials.white,
+            zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
+          },
+        });
+      }
+
+      // What the glyph shows, in words, under the hovered system's name
+      // (under its owner's, where that line is shown).
+      const firstLineY = (ownDominion || ownSystem) ? -0.52 : -0.68;
+      (withHoverLines ? this.glyphLines(system) : []).forEach((text, i) => {
+        specs.push({
+          shift: { x: labelX, y: firstLineY - (i * 0.36) },
+          glyphShift: besideGlyph,
+          text,
+          isVisible: false,
+          options: {
+            fontSize: 0.15,
+            textColor: this.map.materials.white,
+            bckColor: this.map.materials.black,
+            zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
+          },
+        });
+      });
     }
 
     return specs;
+  }
+
+  sizeFactor(system) {
+    const type = this.map.gameData.stellar_system.find((s) => s.key === system.type);
+    return type ? type.display_size_factor : 1;
+  }
+
+  // Overview mode's hover lines: the fleets and agents standing in the
+  // system, then (the faction's own systems) its defense, stability and
+  // counter-intelligence. Same sources as the glyph: the faction's map
+  // intel, and the viewer's own roster for their own agents.
+  glyphLines(system) {
+    const { mapIntel, player } = store.state.game;
+    const intel = mapIntel && mapIntel.systems[system.id];
+    const vm = this.map.vm;
+    const characters = player.characters || [];
+
+    const { fleets, agents } = presence({
+      intelAgents: intel ? intel.agents : [],
+      liveAgents: characters
+        .filter((c) => c.status === 'on_board' && c.system === system.id)
+        .map((c) => ({
+          id: c.id,
+          type: c.type,
+          faction: player.faction,
+          upkeep: c.type === 'admiral' ? (c.army_maintenance || 0) : null,
+        })),
+      playerAgentIds: new Set(characters.map((c) => c.id)),
+      ownFaction: player.faction,
+    });
+
+    const lines = [];
+    const present = [];
+    if (fleets.length > 0) {
+      present.push(vm.$t('galaxy.map.glyph.fleets', { count: fleets.length }));
+      const known = fleets.filter((f) => typeof f.upkeep === 'number');
+      if (known.length > 0) {
+        const upkeep = formatNumber.integer(known.reduce((sum, f) => sum + f.upkeep, 0));
+        // a "+" when some of the fleets could not be read
+        present.push(vm.$t('galaxy.map.glyph.upkeep', {
+          upkeep: known.length < fleets.length ? `${upkeep}+` : upkeep,
+        }));
+      }
+    }
+    if (agents.length > 0) present.push(vm.$t('galaxy.map.glyph.agents', { count: agents.length }));
+    if (present.length > 0) lines.push(present.join(' / '));
+
+    if (intel && intel.own) {
+      // named as everywhere else in the game (counter-intelligence is
+      // "Intelligence" to players, happiness "Stability")
+      const names = {
+        defense: 'data.bonus_pipeline_out.sys_defense.name',
+        stability: 'data.bonus_pipeline_out.sys_happiness.name',
+        counter_intelligence: 'data.bonus_pipeline_out.sys_ci.name',
+      };
+      const stats = Object.keys(names)
+        .filter((key) => typeof intel[key] === 'number')
+        .map((key) => `${vm.$t(names[key])} ${formatNumber.integer(intel[key])}`);
+      if (stats.length > 0) lines.push(stats.join(' / '));
+    }
+    if (intel && intel.siege) lines.push(vm.$t('galaxy.map.glyph.siege'));
+
+    return lines;
   }
 
   // Map a hover-walk hit (the sn Group itself, or one of its label
@@ -530,6 +682,14 @@ export default class System extends Block {
 
     const system = sn.gameObject.data;
     const key = `${this.mode}|${system.id}`;
+
+    // Overview's hover lines say who stands in the system right now:
+    // built for each hover, never served from the cache.
+    if (this.mode === 'overview' && this.hoverLabelCache.has(key)) {
+      this.hoverLabelCache.get(key).forEach((label) => disposeObjectTree(label));
+      this.hoverLabelCache.delete(key);
+    }
+
     let labels = this.hoverLabelCache.get(key);
 
     if (!labels) {
@@ -541,13 +701,16 @@ export default class System extends Block {
           // relying on cache-key state (mode may have switched while
           // hovered).
           label.userData.lazyHoverLabel = true;
+          if (spec.glyphShift) label.userData.glyphShift = spec.glyphShift;
           return label;
         });
       this.hoverLabelCache.set(key, labels);
     }
 
+    const scale = glyphScale(this.map.camera.position.z);
     labels.forEach((label) => {
       label.visible = true;
+      this.shiftLabel(label, scale);
       sn.add(label);
     });
   }
