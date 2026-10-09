@@ -428,7 +428,33 @@
       "unmute_icons": "Afficher les icônes"
     },
     "sector": {
-      "repartition": "Nombre de systèmes & dominions"
+      "repartition": "Nombre de systèmes & dominions",
+      "held_by": "Tenu par {faction}",
+      "unclaimed": "Non revendiqué",
+      "conquest_points": "point | points",
+      "control": "Contrôle",
+      "inhabited_systems": "aucun système habité | {count} système habité | {count} systèmes habités",
+      "empty": "Personne ne vit encore ici : la première faction à s'y installer prend le secteur.",
+      "unopposed": "Aucune faction rivale n'a de système ici.",
+      "needs": "{faction} prend le secteur avec {count} système de plus. | {faction} prend le secteur avec {count} systèmes de plus.",
+      "flipping": "{faction} tient plus de systèmes : le secteur change de mains.",
+      "faction_title": "{faction} dans ce secteur",
+      "population_points": "Points de population",
+      "visibility_points": "Points de visibilité",
+      "fleets": "Flottes",
+      "fleet_upkeep": "{upkeep} d'entretien",
+      "foreign_fleets": "Flottes étrangères en vue",
+      "output": "Revenus",
+      "census": "Cyber-commandement",
+      "census_count": "aucun logiciel espion ennemi estimé | environ {count} logiciel espion ennemi | environ {count} logiciels espions ennemis",
+      "census_offline": "hors ligne : dernier relevé",
+      "home_sector": "Aucune faction rivale n'a de système ici. Les systèmes neutres ne peuvent pas prendre un secteur d'origine qui n'a jamais changé de mains.",
+      "partial": "{count} systèmes sur {total}",
+      "visibility_on_them": "Notre visibilité sur eux",
+      "fleets_in_sight": "Flottes en vue",
+      "nothing_own": "Votre faction n'a rien ici.",
+      "nothing_known": "Rien de connu sur cette faction ici pour l'instant.",
+      "next_faction": "Cliquez sur le nom du secteur pour la faction suivante."
     },
     "ship": {
       "about": "À propos",
@@ -613,10 +639,23 @@
         "radar": "D.S.S.L. — Afficher la portée à laquelle les Navarques hostiles peuvent être détectés",
         "ruler": "Règle{hotkey} — Cliquez un système pour mesurer le temps de trajet d'un agent. Cliquez sur d'autres systèmes pour ajouter des points de passage, double-cliquez dans le vide pour effacer.",
         "system-icons": "Marqueurs des joueurs — Activer ou masquer les icônes posées sur les systèmes par vos coéquipiers",
-        "visibility": "Visibilité — Afficher votre niveau de renseignement sur les systèmes visités (zoomez pour voir les chiffres)"
+        "visibility": "Visibilité — Afficher votre niveau de renseignement sur les systèmes visités (zoomez pour voir les chiffres)",
+        "overview": "Vue d'ensemble — Affiche les flottes et les agents présents dans chaque système, et la solidité des systèmes de votre faction"
       },
       "orbit": "Orbite | Orbites",
-      "uninhabitable": "Inhabitable"
+      "uninhabitable": "Inhabitable",
+      "glyph": {
+        "fleets": "Flottes {count}",
+        "upkeep": "Entretien {upkeep}",
+        "agents": "Agents {count}",
+        "siege": "Assiégé",
+        "legend": {
+          "fleets": "Anneau : un arc par flotte, à la couleur de sa faction ; un anneau complet vaut 8 000 d'entretien. Un arc en pointillés est une flotte que vous ne pouvez pas lire.",
+          "agents": "Points sous le système : les autres agents en orbite (un anneau est un Effacé, un point un Sidérien).",
+          "stats": "Icônes autour des systèmes de votre faction, en zoomant : renseignement (en haut à gauche), stabilité (en haut à droite) et défense (en dessous). Une grande icône vaut 100, une petite 50, la dernière partiellement remplie ; des icônes fendues indiquent une stabilité négative.",
+          "siege": "Anneau orange en pointillés : assiégé."
+        }
+      }
     },
     "opened_character": {
       "army_details": "Détail de l'armée",
@@ -1928,7 +1967,32 @@
         "threshold": "Adopté si au moins {pct} % des membres actifs approuvent. Ne pas voter compte contre.",
         "threshold_weighted": "Adopté si les approbations atteignent {pct} % du poids de vote de la faction (un vote pèse 3, 2 ou 1 selon le rang). Ne pas voter compte contre."
       },
-      "your_vote": "Votre vote"
+      "your_vote": "Votre vote",
+      "ledger": {
+        "title": "Transactions récentes",
+        "subtitle": "hors taxes et entretien des stations",
+        "empty": "Rien n'est encore entré ni sorti du trésor, hors taxes et entretien.",
+        "show_all": "Tout afficher ({count})",
+        "show_less": "Réduire",
+        "former_member": "un ancien membre",
+        "unknown_system": "un système",
+        "received": "{amounts} reçus après la taxe du marché",
+        "kinds": {
+          "donated": "{name} a fait un don",
+          "withdrawn": "{name} a retiré",
+          "granted": "{name} a accordé à {target}",
+          "distributed": "{name} a versé {pct} % du trésor à {members} membres",
+          "distributed_each": "{name} a versé {pct} % du trésor, à chaque membre",
+          "patent": "{name} a acheté le brevet {item}",
+          "lex": "{name} a acheté la lex {item}",
+          "station_ordered": "{name} a commandé {item} (niveau {level}) à {system}",
+          "station_cancelled": "{name} a annulé {item} à {system} : remboursé",
+          "challenge_matched": "{name} a répondu à un défi avec les fonds du trésor",
+          "challenge_forfeit": "{name} a perdu son défi : pénalité versée"
+        }
+      },
+      "tax_estimate_hint": "Revenu estimé du trésor à chaque taux, d'après le revenu actuel des membres.",
+      "tax_estimate_changed": "Variation estimée : {change}"
     },
     "messenger": {
       "add_to_group": "Ajouter au groupe",

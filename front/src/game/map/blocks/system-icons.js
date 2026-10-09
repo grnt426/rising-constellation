@@ -6,6 +6,7 @@ import config from '@/config';
 import store from '@/store';
 import { disposeObjectTree } from '../three-utils';
 import { loadIconTextures } from '../icon-textures';
+import { glyphRadii, glyphScale } from '../system-glyph';
 
 import Block from './block';
 
@@ -151,8 +152,21 @@ export default class SystemIcons extends Block {
         },
       };
 
-      const iconX = system.position.x + ICON_OFFSET_X;
-      const iconY = system.position.y + ICON_OFFSET_Y;
+      // Overview mode draws rings around the dot (SystemGlyphs): the
+      // marker moves out to their upper-left, past the outer one.
+      let offsetX = ICON_OFFSET_X;
+      let offsetY = ICON_OFFSET_Y;
+      if (store.state.game.mapOptions.mode === 'overview') {
+        const type = this.map.gameData.stellar_system.find((s) => s.key === system.type);
+        const held = system.faction === store.state.game.player.faction;
+        const extent = glyphRadii(type ? type.display_size_factor : 1, held).extent
+          * glyphScale(this.map.camera.position.z);
+        offsetX = -(extent * 0.72) - 0.1;
+        offsetY = (extent * 0.72) + 0.06;
+      }
+
+      const iconX = system.position.x + offsetX;
+      const iconY = system.position.y + offsetY;
 
       const sprite = new Sprite(material.clone());
       const scale = SCALE_BY_KIND[icon.kind] || ICON_SCALE_DEFAULT;
@@ -256,6 +270,10 @@ export default class SystemIcons extends Block {
   // insertion and reorders only on actual mutation.
   makeKey(icons) {
     if (!icons.length) return '';
-    return icons.map((i) => `${i.system_id}:${i.kind}:${i.placer_id || 0}`).join('|');
+    // the map mode moves the markers (see the offsets in _update), and
+    // in overview so does each step of the glyph's scale
+    const layout = store.state.game.mapOptions.mode === 'overview'
+      ? `o${glyphScale(this.map.camera.position.z)}` : 'd';
+    return `${layout}|${icons.map((i) => `${i.system_id}:${i.kind}:${i.placer_id || 0}`).join('|')}`;
   }
 }

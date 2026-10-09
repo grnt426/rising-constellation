@@ -4,7 +4,9 @@ defmodule Instance.Galaxy.Sector do
 
   alias Instance.Galaxy
 
-  def jason(), do: [except: [:area, :starter?]]
+  # `starter?` goes out (as "starter?"): the sector card needs it to tell
+  # whether the neutral systems could take the sector back.
+  def jason(), do: [except: [:area]]
 
   typedstruct enforce: true do
     field(:id, integer())

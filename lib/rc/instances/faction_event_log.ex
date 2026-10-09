@@ -5,8 +5,10 @@ defmodule RC.Instances.FactionEventLog do
 
   # Event types this log currently knows about. Validation rejects
   # everything else so a typo at the call site can't sneak garbage
-  # into a faction's history.
-  @event_types ~w(icon_removed icon_replaced election_opened election_closed government_seat_changed government_dissolved taxes_changed laws_changed laws_proposed laws_rejected government_purchase treasury_distributed diplomacy_changed seat_incapacitated deposition_started deposed deposition_failed nomination_window_expired cabinet_dissolved crisis_vote_started challenge_started challenge_defended government_overthrown tithe_settled withdraw_cap_changed treasury_withdrawn treasury_granted treasury_donated diplomacy_action leader_overreach)
+  # into a faction's history. Every type Faction.Agent writes has to be
+  # listed: a missing one is dropped with a warning (the station and
+  # gateway types were, until the treasury ledger needed them).
+  @event_types ~w(icon_removed icon_replaced election_opened election_closed government_seat_changed government_dissolved taxes_changed laws_changed laws_proposed laws_rejected government_purchase treasury_distributed diplomacy_changed seat_incapacitated deposition_started deposed deposition_failed nomination_window_expired cabinet_dissolved crisis_vote_started challenge_started challenge_defended government_overthrown tithe_settled withdraw_cap_changed treasury_withdrawn treasury_granted treasury_donated diplomacy_action leader_overreach challenge_matched station_ordered station_cancelled station_completed station_demolished station_status_changed station_construction_lost station_power_changed gateway_link_started gateway_linked gateway_unlink_started gateway_unlinked gateway_link_broken gateway_transit_interrupted)
 
   def event_types(), do: @event_types
 

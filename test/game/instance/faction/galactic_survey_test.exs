@@ -33,6 +33,69 @@ defmodule Instance.Faction.GalacticSurveyTest do
     end
   end
 
+  describe "cache" do
+    test "a cache never built has nothing to serve" do
+      assert GalacticSurvey.lookup(nil) == :build
+      assert GalacticSurvey.lookup(GalacticSurvey.new()) == :build
+    end
+
+    test "freshly stored rows are served as they are" do
+      assert {:fresh, [:row]} = GalacticSurvey.lookup(GalacticSurvey.store([:row]))
+    end
+
+    test "an aged cache is served while it is rebuilt, by one rebuild at a time" do
+      aged = %{GalacticSurvey.store([:row]) | expires_at: System.system_time(:millisecond) - 1_000}
+
+      assert {:stale, [:row]} = GalacticSurvey.lookup(aged)
+      assert {:refreshing, [:row]} = aged |> GalacticSurvey.mark_refreshing() |> GalacticSurvey.lookup()
+    end
+
+    test "a rebuild that never reported back is started again" do
+      now = System.system_time(:millisecond)
+      stuck = %{GalacticSurvey.store([:row]) | expires_at: now - 1_000, refreshing_until: now - 1}
+
+      assert {:stale, [:row]} = GalacticSurvey.lookup(stuck)
+    end
+
+    test "a cache left untouched for minutes is not served" do
+      old = %{GalacticSurvey.store([:row]) | expires_at: System.system_time(:millisecond) - 600_000}
+
+      assert GalacticSurvey.lookup(old) == :build
+    end
+
+    test "a cache restored from before the refresh mark still reads" do
+      legacy = GalacticSurvey.store([:row]) |> Map.delete(:refreshing_until)
+      legacy = %{legacy | expires_at: System.system_time(:millisecond) - 1_000}
+
+      assert {:stale, [:row]} = GalacticSurvey.lookup(legacy)
+    end
+  end
+
+  describe "fleet upkeep" do
+    test "another faction's fleet shows its upkeep from visibility 4 only" do
+      raider = %{admiral(10, @foreign_faction_id, :cardan, "Raider") | maintenance: 1200.0}
+
+      assert [%{upkeep: nil}] = survey_row(3, [raider]).agents
+      assert [%{upkeep: 1200.0}] = survey_row(4, [raider]).agents
+    end
+
+    test "the faction's own fleet keeps its upkeep whatever the contact on the system" do
+      own = %{admiral(11, @own_faction_id, :tetrarchy, "Warden") | maintenance: 800.0}
+      raider = %{admiral(10, @foreign_faction_id, :cardan, "Raider") | maintenance: 1200.0}
+
+      system = %{governor: nil, characters: [own, raider], bodies: bodies()}
+      contact = %Core.Value{value: 2, details: %{}}
+
+      row =
+        system
+        |> FactionStellarSystem.obfuscate(contact, @own_faction_id, 1)
+        |> GalacticSurvey.reveal_own_fleets(system, :tetrarchy)
+        |> GalacticSurvey.project(snapshot(), 2)
+
+      assert [%{id: 10, upkeep: nil}, %{id: 11, upkeep: 800.0}] = Enum.sort_by(row.agents, & &1.id)
+    end
+  end
+
   describe "project/3 — bodies" do
     test "nested moons and asteroids are counted by type" do
       row = survey_row(1, [])

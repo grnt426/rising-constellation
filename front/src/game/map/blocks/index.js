@@ -8,6 +8,8 @@ import SystemIcons from './system-icons';
 import Blackhole from './blackhole';
 import Character from './character';
 import Ruler from './ruler';
+import Gateway from './gateway';
+import SystemGlyphs from './system-glyphs';
 
 export {
   Crosshair,
@@ -20,4 +22,6 @@ export {
   Blackhole,
   Character,
   Ruler,
+  Gateway,
+  SystemGlyphs,
 };

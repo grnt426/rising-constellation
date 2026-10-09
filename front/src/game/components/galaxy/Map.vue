@@ -23,7 +23,7 @@
         <div
           class="map-options-item"
           v-for="mode in modes"
-          v-tooltip="$t(`galaxy.map.modes.${mode.key}`)"
+          v-tooltip="modeTooltip(mode.key)"
           :key="mode.key"
           :class="{ 'is-active': mode.key === mapOptions.mode }"
           @click="updateMapOptions('mode', mode.key)">
@@ -56,7 +56,11 @@
     <div
       v-if="activeSector"
       class="map-overlay">
-      <sector-card :sector="activeSector" />
+      <sector-card
+        :sector="activeSector"
+        :map-data="data"
+        :page="sectorPage"
+        :key="`sector-${activeSector.id}`" />
     </div>
     <system-icon-picker />
     <map-action-radial :data="data" />
@@ -89,7 +93,11 @@ export default {
         { key: 'population', icon: 'layers' },
         { key: 'visibility', icon: 'eye' },
         { key: 'radar', icon: 'disc' },
+        { key: 'overview', icon: 'overview' },
       ],
+      intelTimer: null,
+      // clicks on the hovered sector's name: the sector card's page
+      sectorPage: 0,
     };
   },
   computed: {
@@ -127,7 +135,31 @@ export default {
       return null;
     },
   },
+  watch: {
+    // entering overview mode: fetch at once rather than at the next poll
+    'mapOptions.mode': 'pollMapIntel',
+    // another sector's card starts on the viewer's own faction
+    activeSector(sector, previous) {
+      if (!sector || !previous || sector.id !== previous.id) this.sectorPage = 0;
+    },
+  },
   methods: {
+    // The overview mode explains its glyph in its tooltip: the fixed line
+    // every mode has, then one line per part of the glyph.
+    modeTooltip(key) {
+      const title = this.$t(`galaxy.map.modes.${key}`);
+      if (key !== 'overview') return title;
+      return [title, ...['fleets', 'agents', 'stats', 'siege']
+        .map((part) => this.$t(`galaxy.map.glyph.legend.${part}`))].join('<br>');
+    },
+    // Overview mode draws from the faction's map intel, which is only
+    // sent when asked for. Asked for while the mode is on and the map is
+    // what the player is looking at; the server rebuilds it every ~30 s
+    // at most, whatever the number of members asking.
+    pollMapIntel() {
+      if (this.mapOptions.mode !== 'overview' || this.view !== 'map' || document.hidden) return;
+      this.$store.dispatch('game/refreshMapIntel', { socket: this.$socket, maxAge: 40000 });
+    },
     updateMapOptions(key, value) {
       if (this.mapOptions[key] === value) {
         return;
@@ -189,8 +221,16 @@ export default {
 
     // background color
     renderer.setClearColor(0x000000, 1);
+
+    this.intelTimer = setInterval(() => this.pollMapIntel(), 15000);
+    this.pollMapIntel();
+
+    this.onSectorClick = () => { this.sectorPage += 1; };
+    this.$root.$on('map:sectorClick', this.onSectorClick);
   },
   beforeDestroy() {
+    this.$root.$off('map:sectorClick', this.onSectorClick);
+    clearInterval(this.intelTimer);
     unregisterMap(map);
     map.destroy();
   },

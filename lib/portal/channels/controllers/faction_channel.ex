@@ -155,6 +155,17 @@ defmodule Portal.Controllers.FactionChannel do
     end
   end
 
+  # The galaxy map's feed: agents by system, the state of the faction's own
+  # systems, its income by sector (Instance.Faction.MapIntel). Served from
+  # the survey's per-faction cache, so polling it costs one rebuild per
+  # cache lifetime at most, however many members ask.
+  record("get_map_intel", %{}, socket) do
+    case Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, :get_map_intel) do
+      {:ok, intel} -> {:ok, intel}
+      _ -> {:error, %{reason: "map_intel_unavailable"}}
+    end
+  end
+
   record("get_character", %{"character_id" => character_id}, socket) do
     query = {:get_character_state, character_id}
 
@@ -809,6 +820,24 @@ defmodule Portal.Controllers.FactionChannel do
         socket.assigns.instance_id,
         socket.assigns.faction_id,
         ["diplomacy_changed", "diplomacy_action"]
+      )
+
+    {:ok, %{entries: entries}}
+  end
+
+  # The treasury panel's ledger: what came into the treasury and what left
+  # it, newest first. Taxes and station upkeep run continuously and are not
+  # entries (the panel shows them as rates).
+  @treasury_log_types ~w(treasury_donated treasury_withdrawn treasury_granted treasury_distributed
+    government_purchase station_ordered station_cancelled challenge_matched challenge_defended)
+
+  record("get_treasury_log", %{}, socket) do
+    entries =
+      RC.Instances.FactionEventLogs.list_for_faction_by_types(
+        socket.assigns.instance_id,
+        socket.assigns.faction_id,
+        @treasury_log_types,
+        60
       )
 
     {:ok, %{entries: entries}}
