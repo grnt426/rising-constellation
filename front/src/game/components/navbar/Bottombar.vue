@@ -427,13 +427,16 @@ export default {
       isMiniPanelOpen: false,
       miniPanels: [
         { name: 'character-deck', height: 480 },
-        { name: 'patent', height: 480 },
+        // The tree panels dock a detail card top-right: card, action
+        // button, then the "right-click to hold" hint, which needs these
+        // 30px to clear the navbar.
+        { name: 'patent', height: 510 },
         // The doctrine cards stack two action rows (Buy / Buy and
         // Activate) below the 418px card, so this panel needs the extra
         // height to keep the second row clickable above the navbar.
         { name: 'doctrine', height: 545 },
-        { name: 'faction-patent', height: 480 },
-        { name: 'faction-lex', height: 480 },
+        { name: 'faction-patent', height: 510 },
+        { name: 'faction-lex', height: 510 },
       ],
       isActiveCharacterListOpen: true,
       isSystemListOpen: true,

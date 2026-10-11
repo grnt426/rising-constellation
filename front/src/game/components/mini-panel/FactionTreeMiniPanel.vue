@@ -1,7 +1,8 @@
 <template>
   <div
     class="mp-container"
-    :class="`f-${theme}`">
+    :class="`f-${theme}`"
+    @contextmenu.prevent="panelRightClick">
     <div class="mp-header">
       <div class="mph-title">
         {{ $t('minipanel.faction_tree.title') }}
@@ -63,7 +64,10 @@
               <template v-if="row">
                 <div
                   class="tree-node"
-                  :class="row.status">
+                  :class="[row.status, { 'is-detailed': !isMobileView && detailKey === row.key }]"
+                  @mouseenter="nodeEnter(row)"
+                  @mouseleave="nodeLeave"
+                  @contextmenu.prevent.stop="nodeLock(row)">
                   <div class="tree-node-effect"></div>
                   <div class="tree-node-links">
                     <div
@@ -92,7 +96,10 @@
                     {{ $t(`data.${dataKey}.${row.key}.name`) }}
                   </div>
                 </div>
-                <div class="tree-node-card">
+                <div
+                  v-if="isMobileView"
+                  class="tree-node-card"
+                  :class="{ 'is-open': activeCardKey === row.key }">
                   <faction-tree-card
                     :node="row"
                     :kind="activeTab"
@@ -101,9 +108,8 @@
                     :treasury="treasury"
                     :enacted="activeLaws.includes(row.key)"
                     :canEnact="isLawmaker"
-                    :enactDisabled="lawCooldownLocked
-                      || (!activeLaws.includes(row.key) && activeLaws.length >= maxLaws)"
-                    @purchase="purchase"
+                    :enactDisabled="enactDisabled(row)"
+                    @purchase="purchaseFromCard"
                     @toggle-law="toggleLaw" />
                 </div>
               </template>
@@ -112,19 +118,58 @@
         </div>
       </div>
     </v-scrollbar>
+
+    <!-- desktop detail dock, as on the player's patent tree: one sticky
+         card that hovering a node retargets after a dwell, and that a
+         right-click holds in place -->
+    <div
+      v-if="!isMobileView && detailNode"
+      class="mpc-patent-dock">
+      <faction-tree-card
+        :key="`dock-${activeTab}-${detailNode.key}`"
+        :node="detailNode"
+        :kind="activeTab"
+        :theme="theme"
+        :isBuyer="isBuyer"
+        :treasury="treasury"
+        :enacted="activeLaws.includes(detailNode.key)"
+        :canEnact="isLawmaker"
+        :enactDisabled="enactDisabled(detailNode)"
+        :pinned="dockLocked"
+        @close="unlockDock"
+        @purchase="purchase"
+        @toggle-law="toggleLaw" />
+      <div class="dock-hint">
+        {{ dockLocked
+          ? $t('minipanel.faction_tree.dock_locked')
+          : $t('minipanel.faction_tree.dock_hint') }}
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import Tree from '@/utils/tree';
+import viewport from '@/utils/viewport';
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
+import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 
 import Counter from '@/game/components/generic/Counter.vue';
 import FactionTreeCard, { NODE_ICONS } from '@/game/components/card/FactionTreeCard.vue';
 
 export default {
   name: 'faction-tree-mini-panel',
-  mixins: [MiniPanelMixin],
+  mixins: [MiniPanelMixin, HoverCardMixin],
+  data() {
+    return {
+      // Mobile tap-to-card state (see tryPurchase).
+      activeCardKey: null,
+      // Desktop dock state: the node whose card is docked top-right, and
+      // whether a right-click has locked it there.
+      detailKey: null,
+      dockLocked: false,
+    };
+  },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
     player() { return this.$store.state.game.player; },
@@ -189,15 +234,86 @@ export default {
     root() { return this.nodesAsTree[0]; },
     nodesAsTree() { return Tree.fromList(this.nodes); },
     nodesAsGrid() { return Tree.trimGrid(Tree.toGrid(this.root)); },
+    detailNode() {
+      return this.nodes.find((node) => node.key === this.detailKey) || null;
+    },
+  },
+  watch: {
+    // covers panel open too: the mixin's mounted() calls switchTab
+    activeTab() {
+      this.hoverCardClearTimers();
+      this.dockLocked = false;
+      this.activeCardKey = null;
+      const fallback = this.nodes.find((node) => node.status === 'available') || this.nodes[0];
+      this.detailKey = fallback ? fallback.key : null;
+    },
   },
   methods: {
     iconFor(node) {
       return NODE_ICONS[node.key] || 'doctrine_stamp';
     },
+    // enacting is closed while the law-change cooldown runs, or when the
+    // law slots are full and this lex is not one of the enacted
+    enactDisabled(node) {
+      return this.lawCooldownLocked
+        || (!this.activeLaws.includes(node.key) && this.activeLaws.length >= this.maxLaws);
+    },
+    nodeEnter(node) {
+      if (this.isMobileView || this.dockLocked) return;
+      this.hoverCardShow(node.key);
+    },
+    // leaving a node cancels its pending retarget: without this a grazed
+    // node swaps the dock long after the pointer has moved on
+    nodeLeave() {
+      if (this.isMobileView) return;
+      this.hoverCardClearTimers();
+    },
+    // right-click a node: hold the dock on it. While held, any right-click
+    // releases (this handler on a node, panelRightClick elsewhere).
+    nodeLock(node) {
+      if (this.isMobileView) return;
+      this.hoverCardClearTimers();
+
+      if (this.dockLocked) {
+        this.dockLocked = false;
+        return;
+      }
+
+      this.detailKey = node.key;
+      this.dockLocked = true;
+    },
+    panelRightClick() {
+      if (this.isMobileView) return;
+      if (this.dockLocked) {
+        this.dockLocked = false;
+      }
+    },
+    unlockDock() {
+      this.dockLocked = false;
+    },
+    // the dock is sticky: a card is only ever replaced by another
+    hoverCardApply(key) {
+      if (key !== null) {
+        this.detailKey = key;
+      }
+    },
+    hoverCardVisible() {
+      return this.detailKey !== null;
+    },
     tryPurchase(node) {
+      // Touch: the first tap opens the detail card, whose button completes
+      // the purchase. A bare icon tap must never spend the treasury.
+      if (viewport.isMobile) {
+        this.activeCardKey = this.activeCardKey === node.key ? null : node.key;
+        return;
+      }
       if (node.status === 'available' && this.isBuyer) {
         this.purchase(node.key);
       }
+    },
+    purchaseFromCard(key) {
+      this.activeCardKey = null;
+      this.purchase(key);
     },
     purchase(key) {
       const op = this.activeTab === 'patent' ? 'gov_purchase_patent' : 'gov_purchase_lex';

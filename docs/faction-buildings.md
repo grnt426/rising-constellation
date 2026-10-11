@@ -129,6 +129,16 @@ periodically reconciles a noisy public count of enemy contacts across
 its sector (every 6h: too low → +0..3, too high → −0..2; multiple
 commands in a sector sum).
 
+## Where players read about them
+
+`FactionBuildingCard.vue` is the detail card: what the building does,
+its figures (read from the content and the constants, so they follow
+the game speed), upkeep, and who orders it. It opens from three places:
+the unlock row of a faction patent's card (Faction advancement panel),
+an option of the station's build picker, and a built or under-
+construction cell of the station. Icons and illustrations are stand-ins
+listed in `front/src/game/faction-buildings.js`.
+
 ## Gateway system (implemented)
 
 Authority model: **the government owns both the link records and the

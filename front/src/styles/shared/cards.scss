@@ -649,6 +649,18 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
         font-weight: bold;
       }
 
+      // what the card is about in a plain sentence, above the figures
+      // (faction patents, lexes and buildings)
+      .card-summary {
+        margin: 0;
+        padding: 2px 4px 8px 4px;
+        border-bottom: $card-border-alt;
+
+        text-transform: none;
+        font-size: 1.3rem;
+        line-height: 1.35;
+      }
+
       .complex-bonus {
         display: flex;
         flex-wrap: wrap;
@@ -663,6 +675,12 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
           width: 16px; height: 16px;
           margin-left: 5px;
         }
+
+        // a row whose tooltip says more
+        &.has-hint { cursor: help; }
+
+        // one resource of a row that lists several
+        .card-amount:not(:first-child) { margin-left: 8px; }
       }
 
       .character-skill-active {
@@ -866,6 +884,12 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
         top: -2px;
       }
     }
+  }
+
+  // four amounts on the cost row (labor and the three treasury
+  // resources): tighter than the two of a body building
+  &.is-faction-building .card-cost .icon-value {
+    padding: 0 6px;
   }
 
   .card-child {
