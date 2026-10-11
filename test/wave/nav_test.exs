@@ -34,6 +34,11 @@ defmodule Wave.NavTest do
     assert Nav.hop_distances(Nav.adjacency(@galaxy), 1) == %{1 => 0, 2 => 1, 3 => 2, 4 => 3, 5 => 2}
   end
 
+  test "hop_distances from several systems gives the distance to the nearest of them" do
+    assert Nav.hop_distances(Nav.adjacency(@galaxy), [4, 5]) == %{4 => 0, 5 => 0, 3 => 1, 2 => 1, 1 => 2}
+    assert Nav.hop_distances(Nav.adjacency(@galaxy), []) == %{}
+  end
+
   # A jump takes lane length × character_movement_factor (Jump.pre_validate/2).
   test "travel_ut sums lane lengths times the movement factor, either direction" do
     weighted = %{

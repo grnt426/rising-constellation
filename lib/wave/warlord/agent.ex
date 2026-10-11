@@ -50,7 +50,7 @@ defmodule Wave.Warlord.Agent do
   require Logger
 
   alias Instance.Character.{ActionQueue, Character, Speaker, Spy}
-  alias Wave.{Blueprints, Doctrine, Erased, Fleet, Geometry, Nav, Research, Siderian, Warlord}
+  alias Wave.{Blueprints, Doctrine, Erased, Fleet, Geometry, Nav, Pressure, Research, Siderian, Warlord}
 
   @colony_ship :transport_1
 
@@ -238,7 +238,11 @@ defmodule Wave.Warlord.Agent do
           distances: %{},
           hold_margin: hold_margin,
           sector_of: sector_of,
-          pending: pending
+          pending: pending,
+          # What other factions hold: where pressure is counted, and the ground
+          # new agitators, seducers and Erased are deployed toward.
+          held: geo |> Geometry.held_by_others() |> MapSet.new(& &1.id),
+          captures: []
         }
 
         data =
@@ -250,6 +254,7 @@ defmodule Wave.Warlord.Agent do
 
         colonisation = Geometry.colonisation_candidates(geo, workable)
         captures = Geometry.capture_candidates(geo, workable)
+        ctx = %{ctx | captures: captures}
 
         # The ceilings scale with the humans the Rebellion faces.
         humans = galaxy.players |> Map.values() |> Enum.count(&(&1.faction != data.bot_faction))
@@ -507,6 +512,31 @@ defmodule Wave.Warlord.Agent do
     if Enum.any?(player.stellar_systems, &(&1.id == system_id and Map.get(&1, :siege) == nil)),
       do: {:ok, system_id},
       else: home_system(player)
+  end
+
+  # Where a new Siderian or Erased is deployed: the system the Rebellion runs
+  # itself with the most of the ground it will work within a day's travel
+  # (Geometry.forward_base/4). Capture Siderians work the capture targets;
+  # agitators, seducers and the Erased work what other factions hold. The
+  # default home is whichever system the player's list happens to start with,
+  # which on i185 put fresh agitators 350 ut (most of a match day) from the
+  # systems they were bought to strike. nil, and so the default home, when
+  # there is no such ground to be near.
+  defp forward_base(data, ctx, role) do
+    ground =
+      case role do
+        :capture -> Enum.map(ctx.captures, & &1.id)
+        _ -> MapSet.to_list(ctx.held)
+      end
+
+    if knob(data, "deploy_forward", true) == true and ground != [] do
+      bases = for system <- ctx.player.stellar_systems, Map.get(system, :siege) == nil, do: system.id
+      weights = Nav.lane_weights(ctx.galaxy)
+      factor = movement_factor(data)
+      reach = knob(data, "destab_max_travel_ut", 480.0) * 1.0
+
+      Geometry.forward_base(ctx.geo, bases, ground, &Nav.travel_times(ctx.geo.adjacency, weights, &1, factor, reach))
+    end
   end
 
   # The same check `home_system/1` makes, run before any credit is spent.
@@ -881,7 +911,7 @@ defmodule Wave.Warlord.Agent do
   defp hire_siderian(data, ctx, [role | rest], specializations, quotas) do
     strength = fn character -> Siderian.strength(Map.get(character, :skills), specializations, role) end
 
-    case hire_agent(data, ctx, :speaker, strength) do
+    case hire_agent(data, ctx, :speaker, strength, forward_base(data, ctx, role)) do
       {:ok, candidate, home_id} ->
         Logger.info(
           "[wave] instance #{data.instance_id}: rebellion deployed Siderian #{candidate.id} (#{role}) at system #{home_id}"
@@ -1089,38 +1119,39 @@ defmodule Wave.Warlord.Agent do
     commit_siderian(data, ctx, character, plan, without_target)
   end
 
-  # Enemy systems and dominions within a day's travel, converging on one at a
-  # time: the one agitators already work comes first, and each takes up to
-  # `destab_focus_cap` until the Rebellion's estimate of its happiness reaches
-  # `destab_floor`; after that one agitator keeps it there.
+  # Enemy systems and dominions within a day's travel. The systems the
+  # Rebellion has leaned on lately are thinned out first (Wave.Pressure), then
+  # the target is drawn by weight (Siderian.destab_weight/2): bigger, softer,
+  # nearer systems and the sectors nearest rebel space draw more. So the
+  # agitators work several systems instead of converging on one. A system
+  # takes no more agitators than it needs strikes to reach `destab_floor`, at
+  # most `destab_focus_cap`; after that one agitator keeps it there.
   defp plan_mass_destab(data, ctx, view, character, times) do
-    reach = knob(data, "destab_max_travel_ut", 480.0)
+    reach = knob(data, "destab_max_travel_ut", 480.0) * 1.0
     {cap, floor, margin, decay} = destab_limits(data)
     commitments = Warlord.role_commitments(data, :destab, character.id)
+    stacks_on = Warlord.pressure_reader(data)
     now = data.elapsed
 
     ctx.geo.systems
-    |> Enum.filter(fn system ->
-      system.faction not in [nil, data.bot_faction] and
-        system.status in [:inhabited_player, :inhabited_dominion] and
-        within?(times, system.id, reach)
-    end)
+    |> Enum.filter(&(MapSet.member?(ctx.held, &1.id) and within?(times, &1.id, reach)))
     |> Enum.map(fn system ->
       reading = Warlord.siderian_reading(data, system.id)
-      committed = Map.get(commitments, {:system, system.id}, 0)
 
       %{
         id: system.id,
-        committed: committed,
+        committed: Map.get(commitments, {:system, system.id}, 0),
         need: Siderian.destab_need(reading, now, decay, floor, margin, cap),
-        working_sector?: Geometry.class_of(ctx.geo, system) in [:frontier, :border],
+        stacks: stacks_on.(system.id),
+        depth: Geometry.depth_of(ctx.geo, system),
         population: if(view && Wave.Recon.visibility(view, system.id) >= 3, do: Map.get(system, :population)),
         estimate: Siderian.estimate(reading, now, decay),
         travel: Map.fetch!(times, system.id)
       }
     end)
     |> Enum.filter(&(&1.committed < &1.need))
-    |> Enum.min_by(&Siderian.destab_priority/1, fn -> nil end)
+    |> rested(data, & &1.id)
+    |> Siderian.pick_destab(roll(data), rear_factor: knob(data, "destab_rear_factor", 0.5) * 1.0, reach: reach)
     |> case do
       nil ->
         nil
@@ -1130,7 +1161,8 @@ defmodule Wave.Warlord.Agent do
           purpose: :mass,
           travel: target.travel,
           estimate: target.estimate,
-          overlap: target.committed
+          overlap: target.committed,
+          pressure: Float.round(target.stacks, 2)
         })
     end
   end
@@ -1317,6 +1349,7 @@ defmodule Wave.Warlord.Agent do
       knob(data, "erased_overlap_falloff", 0.35) * 1.0,
       trunc(knob(data, "erased_target_cap", 5))
     )
+    |> rested(data, & &1.system)
     |> Enum.map(fn hostile ->
       chance = seduction_chance(data, attack, character.level, hostile, decay)
       {Erased.removal_priority(hostile, chance, Map.fetch!(distances, hostile.system)), hostile, chance}
@@ -1428,6 +1461,7 @@ defmodule Wave.Warlord.Agent do
               data
               |> Warlord.siderian_dispatched(character.id, target, info)
               |> Warlord.count(siderian_counter(action, training?))
+              |> press(ctx, action, target)
               |> then(&if(Map.get(plan, :ground), do: Warlord.set_destab_ground(&1, target), else: &1))
           end
 
@@ -1544,7 +1578,7 @@ defmodule Wave.Warlord.Agent do
           informer_bonus * Erased.strength(skills, specializations, :spy_infiltrate)
       end
 
-      case hire_agent(data, ctx, :spy, score) do
+      case hire_agent(data, ctx, :spy, score, forward_base(data, ctx, :erased)) do
         {:ok, candidate, home_id} ->
           posting = roll_posting(data, Map.get(candidate, :skills))
 
@@ -1965,6 +1999,7 @@ defmodule Wave.Warlord.Agent do
             )
           )
           |> Warlord.count(if(practice?, do: :erased_practice, else: counter_for(action)))
+          |> then(&if(move_only?, do: &1, else: press(&1, ctx, action, target_id)))
           |> then(&if(Map.get(info, :overlap, 0) > 0, do: Warlord.count(&1, :erased_overlaps), else: &1))
 
         {:error, reason} ->
@@ -2005,7 +2040,7 @@ defmodule Wave.Warlord.Agent do
       view
       |> then(&reachable_hostiles(data, &1, entry, character, distances))
       |> Enum.filter(&Erased.removable?/1)
-      |> admit(data, entry, character, &{:character, &1.id})
+      |> admit(data, entry, character, &{:character, &1.id}, & &1.system)
 
     candidates
     |> Enum.map(fn hostile ->
@@ -2049,7 +2084,7 @@ defmodule Wave.Warlord.Agent do
     view
     |> then(&reachable_hostiles(data, &1, entry, character, distances))
     |> Enum.filter(&Erased.worth_sabotaging?(&1, min_tiles))
-    |> admit(data, entry, character, &{:character, &1.id})
+    |> admit(data, entry, character, &{:character, &1.id}, & &1.system)
     |> Enum.min_by(&Erased.sabotage_priority(&1, Map.fetch!(distances, &1.system)), fn -> nil end)
     |> case do
       nil ->
@@ -2085,7 +2120,7 @@ defmodule Wave.Warlord.Agent do
         Erased.worth_infiltrating?(Wave.Recon.visibility(view, system.id)) and
         workable?(data, gate, system.id, infiltration_chance(data, attack, character.level, system.id))
     end)
-    |> admit(data, entry, character, &{:system, &1.id})
+    |> admit(data, entry, character, &{:system, &1.id}, & &1.id)
     |> Enum.min_by(&{infiltration_rank(&1), Map.fetch!(distances, &1.id), &1.id}, fn -> nil end)
     |> case do
       nil ->
@@ -2130,7 +2165,7 @@ defmodule Wave.Warlord.Agent do
 
     candidates
     |> Enum.map(&elem(&1, 0))
-    |> admit(data, entry, character, &{:system, &1.id})
+    |> admit(data, entry, character, &{:system, &1.id}, & &1.id)
     |> Enum.min_by(
       &Erased.forward_priority(duty, &1, Geometry.depth_of(ctx.geo, &1), chances[&1.id], Map.fetch!(distances, &1.id)),
       fn -> nil end
@@ -2210,7 +2245,7 @@ defmodule Wave.Warlord.Agent do
 
     candidates
     |> Enum.map(&elem(&1, 0))
-    |> admit(data, entry, character, &{:system, &1.id})
+    |> admit(data, entry, character, &{:system, &1.id}, & &1.id)
     |> Enum.min_by(&Erased.practice_priority(&1, chances[&1.id], Map.fetch!(distances, &1.id)), fn -> nil end)
     |> case do
       nil ->
@@ -2527,7 +2562,9 @@ defmodule Wave.Warlord.Agent do
 
   # One shared roll admits (or closes) the crowded targets, so the drop-off
   # reads as a decision by this agent rather than a lottery per candidate.
-  defp admit(candidates, data, entry, character, key_fun) do
+  # `system_fun` names the system a candidate's strike would land in: with it,
+  # the systems the Rebellion has leaned on lately are thinned out as well.
+  defp admit(candidates, data, entry, character, key_fun, system_fun \\ nil) do
     commitments = Warlord.erased_commitments(data, character.id)
 
     cap =
@@ -2535,13 +2572,41 @@ defmodule Wave.Warlord.Agent do
         do: trunc(knob(data, "erased_home_target_cap", 7)),
         else: trunc(knob(data, "erased_target_cap", 5))
 
-    Erased.admit(
-      candidates,
+    candidates
+    |> Erased.admit(
       &Map.get(commitments, key_fun.(&1), 0),
       roll(data),
       knob(data, "erased_overlap_falloff", 0.35) * 1.0,
       cap
     )
+    |> then(&if(system_fun, do: rested(&1, data, system_fun), else: &1))
+  end
+
+  # --- pressure (Wave.Pressure) -----------------------------------------------
+
+  # The candidates left once the systems the Rebellion has leaned on lately
+  # are thinned out: a system at the cap is closed, and below it one roll,
+  # shared by the whole list, drops the most pressed first. Only systems
+  # another faction holds ever carry pressure, so targets on rebel or neutral
+  # ground always pass.
+  defp rested(candidates, data, system_fun) do
+    {falloff, cap} = pressure_limits(data)
+    stacks_on = Warlord.pressure_reader(data)
+    Pressure.admit(candidates, &stacks_on.(system_fun.(&1)), roll(data), falloff, cap)
+  end
+
+  # `{falloff, cap}`. A cap of 0 is no cap: a knob cannot be set to nil.
+  defp pressure_limits(data) do
+    cap = knob(data, "pressure_cap", 5)
+    {knob(data, "pressure_falloff", 0.7) * 1.0, if(is_number(cap) and cap > 0, do: cap * 1.0)}
+  end
+
+  # Book an accepted order against the system it lands in, when another
+  # faction holds that system.
+  defp press(data, ctx, action, system_id) do
+    if MapSet.member?(ctx.held, system_id),
+      do: Warlord.press(data, system_id, Pressure.weight(action, knob(data, "pressure_weights", %{}))),
+      else: data
   end
 
   defp overlap(data, character_id, key), do: Map.get(Warlord.erased_commitments(data, character_id), key, 0)

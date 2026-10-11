@@ -132,6 +132,46 @@ defmodule Wave.Geometry do
   end
 
   @doc """
+  The systems and dominions another faction holds: the ground the Rebellion's
+  strikes land on, and what `Wave.Pressure` keeps count of.
+  """
+  def held_by_others(%__MODULE__{} = geo) do
+    Enum.filter(geo.systems, fn system ->
+      system.faction not in [nil, geo.faction] and system.status in [:inhabited_player, :inhabited_dominion]
+    end)
+  end
+
+  @doc """
+  Where to deploy an agent that will work `ground` (system ids): of the
+  `bases` (system ids it could be deployed in), the one with the most of that
+  ground within reach, then the one nearest to some of it, then the one the
+  fewest lanes from any of it, then the lowest id.
+
+  `times` answers, for a base, the travel time to every system within the
+  agent's reach (`Wave.Nav.travel_times/5`); lanes differ a great deal in
+  length, so a lane count alone can pick a base that is further away. A base
+  with nothing in reach is judged on lanes alone. nil when there is no ground,
+  no base, or no lane path between them.
+  """
+  def forward_base(geo, bases, ground, times \\ fn _base -> %{} end)
+
+  def forward_base(%__MODULE__{}, _bases, [], _times), do: nil
+
+  def forward_base(%__MODULE__{} = geo, bases, ground, times) when is_function(times, 1) do
+    lanes = Nav.hop_distances(geo.adjacency, ground)
+
+    bases
+    |> Enum.filter(&Map.has_key?(lanes, &1))
+    |> Enum.min_by(
+      fn base ->
+        reached = base |> times.() |> Map.take(ground) |> Map.values()
+        {-length(reached), Enum.min(reached, fn -> 0.0 end), Map.fetch!(lanes, base), base}
+      end,
+      fn -> nil end
+    )
+  end
+
+  @doc """
   Which theatre a system sits in for the Erased: `:home` inside a sector the
   Rebellion owns, `:field` within `field_depth` sectors of one, `:far` beyond
   that (or unreachable).

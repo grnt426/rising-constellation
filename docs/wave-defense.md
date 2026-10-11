@@ -695,6 +695,11 @@ to below −30 in three successes, which is the 80% cut.
 
 #### 2. Mass destabilization
 
+> Points 1 to 3 are the rules as first built. Since 2026-10-11 agitators no
+> longer converge on one focus: the target is drawn by weight, and every order
+> sent at a system makes it less likely to be considered for the next. See
+> "Spreading the pressure" below.
+
 An idle agitator with no cooldown picks, in order:
 
 1. **The focus.** Agitators converge on one enemy system at a time: a human
@@ -811,7 +816,7 @@ and are counted (`evasions`).
   governors too (`governor?: true`), which removal and sabotage skip.
 
 Knobs: `siderian_role_weights`, `destab_max_travel_ut` (480), `destab_focus_cap` (5),
-`destab_floor` (−30), `destab_rehit_margin` (10), `capture_soften_above` (10),
+`destab_floor` (−30), `destab_rehit_margin` (10), `destab_rear_factor` (0.5), `capture_soften_above` (10),
 `siderian_train_max_level` (none), `siderian_train_max_travel_ut` (480),
 `seduce_gate` (like `erased_removal_gate`), `siderian_evade` (true),
 `seducers_before_contact` (1), `seduce_contact_depth` (1).
@@ -880,6 +885,174 @@ sector, the seducer included; when the capture Siderian took that softened
 neutral as a dominion, the cluster moved to another neutral in the same
 sector. The stale flag is covered by unit tests; the admin page itself was not
 opened in this run.
+
+### Spreading the pressure; deploying at the front (built 2026-10-11)
+
+User report (2026-10-11, i185 day 14): the bot looked as if it was putting
+all its effort into one system, Mited. The reasoning held up: every strike on
+a system improves the odds of the next one there, so every trade ends up
+ranking the same system first. "From the perspective of the human the system
+becomes useless, and it isn't fun"; and the systems the bot never looks at are
+damage it never does. Asked for: a stacking debuff on target selection each
+time the same system is chosen, some spread around the sector and into the
+sectors behind it, and a check on where agents are deployed.
+
+#### What the log showed
+
+`instance_event_log`, i185, four days to 2026-10-11 20:30 UTC. The humans
+held 71 systems and dominions in 8 sectors.
+
+| | |
+|---|---|
+| Mass-destabilization orders | 51 |
+| Nebla (103) | 23 |
+| Mited (106) | 11 |
+| Alushat (136) | 9 |
+| Boranasat (108) | 7 |
+| Dinde (116) | 1 |
+| The other 66 holdings | 0 |
+
+All five are in Cel Chatur, the sector the humans own nearest rebel space.
+Three things made it so:
+
+- **The focus rule.** `destab_priority/1` ranked "the system agitators are
+  already working" above everything else, by design. With agitators always in
+  flight to Nebla it never stopped being first.
+- **Overshoot.** A system took up to `destab_focus_cap` (5) agitators until
+  its estimate reached the floor, and agitators in flight are not in the
+  estimate. Mited went from happiness 36 to an estimated −71 in 25 hours,
+  Boranasat to −83. The floor is −30 and nothing below it does anything more.
+- **The other trades followed.** A seducer's odds improve with unrest, and a
+  remover's with the Intelligence and protection unrest cuts. In the same four
+  days Mited also took 6 infiltrations, 2 removals and 2 seductions (both
+  seductions succeeded once it was below 0), and Nebla 6 infiltrations and 2
+  removals: 21 and 31 hostile orders on two systems.
+
+Nebla is the other face of it. Its owner answered every strike: the estimate
+went 80, −10, then back to 25 and has held near 20 through ten more orders.
+The bot was never going to reach the floor there and never stopped trying.
+
+#### Pressure (`Wave.Pressure`)
+
+The Warlord keeps a ledger of how hard it has leaned on each system another
+faction holds (`pressure`, `%{system_id => %{stacks:, at:}}`).
+
+- **Stacks.** Every accepted order against such a system adds its weight:
+  1 for a destabilization, a seduction, a removal or a sabotage, 0.5 for an
+  infiltration, which the owner never sees unless it fails
+  (`pressure_weights`). Captures, scouting trips and practice on neutral
+  ground add nothing.
+- **Fade.** A stack wears off in `pressure_fade_ut` (240 ut, half a match
+  day), one after the other.
+- **Closed at the cap.** A system at `pressure_cap` (5) stacks is no target
+  for any trade until it has worn some off. So one system takes a burst of
+  five orders at most, and after that two a day, from every trade together.
+  Nebla was taking nine a day from the agitators alone.
+- **The debuff.** Below the cap an agent choosing a target considers a
+  system with probability `pressure_falloff ^ stacks` (0.7): 70% after one
+  order, 49% after two, 24% after four.
+
+The debuff thins the list before the agent chooses, the way slots do: one
+roll per decision, shared by every candidate, and a system stays in while
+`falloff ^ stacks` beats the roll (`rested/3`). A rested system is always in;
+the most pressed drop out first. Every trade goes through it: mass
+destabilization, seduction, removal, sabotage, field and forward
+infiltration, and infiltration practice on a human dominion. Among what is
+left each trade chooses as it always did, except the agitators (next
+section). A target standing on rebel or neutral ground carries no pressure
+and always passes, so home defense is untouched.
+
+An agent with nothing left to choose from does what it did before with no
+target: it practices, scouts or waits. That matters most where the humans
+have one system in reach: it takes a strike, and the next agitator to look
+goes to the practice ground seven times in ten.
+
+#### Mass destabilization, drawn by weight
+
+`destab_priority/1` is gone. Every human system or dominion within
+`destab_max_travel_ut` that still needs strikes and came through the debuff
+gets a weight (`Wave.Siderian.destab_weight/2`), and the agitator draws one
+(`pick_destab/3`):
+
+| factor | value |
+|---|---|
+| size | 1 to 2 with the population it can see (1.5 unseen) |
+| softness | 2 at an estimate of −10 or less, 1 at 30 or unknown, 0.5 from 50 up |
+| depth | `destab_rear_factor` (0.5) per sector further back than the nearest sector with a target in reach |
+| travel | 1 next door, 0.5 at the edge of reach |
+
+- **Softness is what is left of the focus.** A strike on a system at 5 turns
+  into lost production; one on a system at 60 changes nothing yet. So a system
+  that has been brought near 0 draws twice what an unknown one does, while
+  the debuff makes it less and less likely to be in the draw at all. The
+  result is short campaigns that move on, where the old rule was one siege
+  that never ended.
+- **Depth is the spread into the backline.** With four targets in the front
+  sector and four in the one behind it, the front takes two thirds of the
+  orders and the rear one third. Reach still applies: an agitator goes no
+  further than a day's travel from where it stands.
+- **No more overshoot.** `destab_need/6` now asks for the strikes still
+  needed to reach the floor (15 each), up to `destab_focus_cap`: a system at
+  an estimate of 5 takes three agitators, one at −19 takes one. A system
+  nobody has reported on yet takes two, and the first report says how many
+  more it is worth. The hold (one agitator when a floored system climbs back
+  above floor + margin) is unchanged, and its orders count as pressure like
+  any other.
+
+⚑ The weights are mine. The user asked for the debuff and the spread; the
+size, softness and travel factors are how I kept some of the tactical sense
+the user said the focus had.
+
+#### Deploying at the front
+
+Asked: where are the agents that sabotage, seduce, remove and infiltrate
+deployed, and do they waste time walking from the home sector?
+
+They were all deployed in one system, and not a chosen one. `home_system/1`
+prefers a system flagged `capital?`, a flag player systems do not carry, and
+so falls back to the first system in the player's list. The list is newest
+first, so every hire appeared in the Rebellion's most recent colony:
+seventeen different systems over i185's two weeks, Anuadris (180) since
+2026-10-09.
+
+| Where the 51 mass-destabilization orders set out from | Orders | Travel |
+|---|---|---|
+| The hire site, Anuadris | 7 | 350 ut (17.5 real hours) |
+| The practice ground, Sezk | 3 | 431 ut |
+| Somewhere within 150 ut of the target | 25 | 74 ut on average |
+| Anywhere else | 16 | 279 ut on average |
+
+Over the match the Siderians have spent 43,700 ut moving against 14,600
+acting, and the Erased 52,000 against 22,100. (Evasion hops count as moving,
+so the Siderian figure overstates it.)
+
+A new Siderian or Erased is now deployed in the rebel system with the most
+of the ground it will work within a day's travel (`destab_max_travel_ut`):
+the capture targets for a capturer, what other factions hold for an agitator,
+a seducer or an Erased (`Wave.Geometry.forward_base/4`). Between two bases
+with as much in reach the one nearest to some of it wins; with nothing in
+reach of any base, the one the fewest lanes away. It must be a system the
+Rebellion runs itself and not under siege, as before; with no such ground (no
+human in the galaxy's lanes, nothing to capture) it falls back to the old
+home. `deploy_forward` false restores the old behavior. Colonizing and fleet
+Navarchs are unchanged.
+
+Not changed, and worth knowing: the practice ground is chosen as before (a
+neutral in a rebel border sector, least happy first), which on i185 is Sezk,
+a day's travel from the human front. An agitator that finds nothing to strike
+walks back there.
+
+#### Bookkeeping
+
+- Warlord state gains `pressure`, back-filled by `upgrade/1`. A match in
+  progress starts with an empty ledger on deploy: orders already in flight
+  land as ordered and are not counted.
+- `wave_siderian_dispatched` payloads for mass destabilization carry
+  `pressure` (the stacks on the target before the order). The status and
+  diagnostics readouts carry `pressure`, the twenty most pressed systems.
+- Knobs: `pressure_weights`, `pressure_fade_ut` (240), `pressure_falloff`
+  (0.7), `pressure_cap` (5), `destab_rear_factor` (0.5), `deploy_forward`
+  (true). A falloff of 1 with a cap of 0 switches pressure off.
 
 ### Research: patents and lexes (built 2026-10-01)
 

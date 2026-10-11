@@ -131,12 +131,26 @@ defmodule Wave.SiderianTest do
       assert Siderian.destab_need(reading, 0.0, @decay, -30, 10, 5) == 0
       # 1,100 ut later each 20 has decayed to 9: back to -12, above -30 + 10.
       assert Siderian.destab_need(reading, 1_100.0, @decay, -30, 10, 5) == 1
-      assert Siderian.destab_need(nil, 0.0, @decay, -30, 10, 5) == 5
     end
 
-    test "above the floor and never held, a system takes the whole focus" do
+    test "a system nobody has reported on takes two agitators, not the whole focus" do
+      assert Siderian.destab_need(nil, 0.0, @decay, -30, 10, 5) == 2
+      assert Siderian.destab_need(nil, 0.0, @decay, -30, 10, 1) == 1
+    end
+
+    test "above the floor and never held, a system takes the strikes it still needs, up to the focus" do
+      # Estimate 5: 35 above the floor is three strikes of 15, not the whole focus.
       reading = Siderian.record_destab(nil, 20.0, 15, 0.0, @decay, -30)
-      assert Siderian.destab_need(reading, 0.0, @decay, -30, 10, 5) == 5
+      assert Siderian.destab_need(reading, 0.0, @decay, -30, 10, 5) == 3
+
+      # One strike from the floor takes one agitator, however many are idle.
+      close = Siderian.record_destab(nil, 1.0, 20, 0.0, @decay, -30)
+      assert Siderian.estimate(close, 0.0, @decay) == -19.0
+      assert Siderian.destab_need(close, 0.0, @decay, -30, 10, 5) == 1
+
+      # A happy system is more strikes away than the focus allows.
+      happy = Siderian.record_destab(nil, 95.0, 15, 0.0, @decay, -30)
+      assert Siderian.destab_need(happy, 0.0, @decay, -30, 10, 5) == 5
     end
 
     test "the penalty is read off the cooldown the Siderian came back with" do
@@ -150,34 +164,78 @@ defmodule Wave.SiderianTest do
 
   describe "targets" do
     defp target(id, opts),
+      do: Map.merge(%{id: id, population: nil, estimate: nil, depth: 1, travel: 0.0}, Map.new(opts))
+
+    defp weight(opts, context \\ []),
       do:
-        Map.merge(
-          %{id: id, committed: 0, working_sector?: false, population: nil, estimate: nil, travel: 100.0},
-          Map.new(opts)
+        Siderian.destab_weight(
+          target(1, opts),
+          Keyword.merge([nearest_depth: 1, rear_factor: 0.5, reach: 480.0], context)
         )
 
-    test "agitators converge: the system already worked comes first" do
-      order =
-        [target(1, working_sector?: true, population: 90), target(2, committed: 2), target(3, estimate: -5)]
-        |> Enum.sort_by(&Siderian.destab_priority/1)
-        |> Enum.map(& &1.id)
-
-      assert order == [2, 1, 3]
+    # How often each target is drawn over an even spread of rolls.
+    defp shares(targets) do
+      rolls = for n <- 0..999, do: n / 1000
+      drawn = Enum.frequencies_by(rolls, &Siderian.pick_destab(targets, &1, rear_factor: 0.5, reach: 480.0).id)
+      Map.new(targets, &{&1.id, Map.get(drawn, &1.id, 0) / 1000})
     end
 
-    test "then sectors the Rebellion works, then the biggest it can see, then the unhappiest, then the nearest" do
-      order =
-        [
-          target(1, population: 50),
-          target(2, population: 90),
-          target(3, working_sector?: true),
-          target(4, population: 50, estimate: -10),
-          target(5, population: 50, estimate: -10, travel: 20.0)
-        ]
-        |> Enum.sort_by(&Siderian.destab_priority/1)
-        |> Enum.map(& &1.id)
+    test "a bigger system draws more, up to twice a small one; one it cannot read sits in the middle" do
+      assert weight(population: 0) == 1.0
+      assert weight(population: 50) == 1.5
+      assert weight(population: 100) == 2.0
+      assert weight(population: 250) == 2.0
+      assert weight(population: nil) == 1.5
+    end
 
-      assert order == [3, 2, 5, 4, 1]
+    test "a system near 0 draws more than a happy one: the next strike there changes something" do
+      size = weight([])
+      assert weight(estimate: -10) == size * 2.0
+      assert weight(estimate: -70) == size * 2.0
+      assert weight(estimate: 30) == size * 1.0
+      assert weight(estimate: nil) == size * 1.0
+      assert weight(estimate: 50) == size * 0.5
+      assert weight(estimate: 90) == size * 0.5
+    end
+
+    test "each sector further back than the nearest in reach halves the draw" do
+      assert weight(depth: 2) == weight(depth: 1) / 2
+      assert weight(depth: 3) == weight(depth: 1) / 4
+      # A sector nothing connects to rebel space counts as three back.
+      assert weight(depth: nil) == weight(depth: 1) / 8
+      # Depth is relative: with nothing nearer in reach, depth 2 is the front.
+      assert weight([depth: 2], nearest_depth: 2) == weight(depth: 1)
+    end
+
+    test "travel halves the draw at the edge of reach" do
+      assert weight(travel: 480.0) == weight(travel: 0.0) / 2
+    end
+
+    test "agitators no longer converge: equal systems share the orders evenly" do
+      assert shares([target(1, []), target(2, []), target(3, []), target(4, [])]) ==
+               %{1 => 0.25, 2 => 0.25, 3 => 0.25, 4 => 0.25}
+    end
+
+    test "a softened system draws twice what an unknown one does, and the rest still take some" do
+      shares = shares([target(1, estimate: -5), target(2, []), target(3, [])])
+
+      assert_in_delta shares[1], 1.875 / 3.875, 0.002
+      assert_in_delta shares[2], 1 / 3.875, 0.002
+    end
+
+    test "the front takes most of the orders and the sector behind it some" do
+      front = for id <- 1..4, do: target(id, depth: 2)
+      rear = for id <- 5..8, do: target(id, depth: 3)
+      shares = shares(front ++ rear)
+
+      assert_in_delta shares |> Map.take([1, 2, 3, 4]) |> Map.values() |> Enum.sum(), 2 / 3, 0.002
+      assert_in_delta shares |> Map.take([5, 6, 7, 8]) |> Map.values() |> Enum.sum(), 1 / 3, 0.002
+      assert Enum.all?(Map.values(shares), &(&1 > 0))
+    end
+
+    test "nothing to draw from is no target" do
+      assert Siderian.pick_destab([], 0.5) == nil
+      assert Siderian.pick_destab([target(7, [])], 0.999).id == 7
     end
 
     test "practice grounds: neutrals the capturers want, then the unhappiest, then the nearest" do

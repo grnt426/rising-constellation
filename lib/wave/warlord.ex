@@ -177,6 +177,11 @@ defmodule Wave.Warlord do
     field(:human_hulls, list(), default: [])
     # Game time at which a human was first seen holding a capital hull.
     field(:capital_since, float() | nil, default: nil)
+
+    # --- added 2026-10-11 (back-filled by upgrade/1) ---
+    # %{system_id => %{stacks: float(), at: float()}}: how hard the Rebellion
+    # has leaned on each system another faction holds (Wave.Pressure).
+    field(:pressure, map(), default: %{})
   end
 
   @added_fields %{
@@ -210,7 +215,8 @@ defmodule Wave.Warlord do
     design_seq: 0,
     doctrine_at: nil,
     human_hulls: [],
-    capital_since: nil
+    capital_since: nil,
+    pressure: %{}
   }
 
   def new(instance_id, bot_faction) do
@@ -1300,6 +1306,52 @@ defmodule Wave.Warlord do
   def siderian_reading(%__MODULE__{} = state, system_id),
     do: state |> Map.get(:siderian_intel, %{}) |> Map.get(system_id)
 
+  # --- pressure on the systems others hold ---------------------------------------
+
+  @doc "How long one stack of pressure takes to wear off, in ut."
+  def pressure_fade(%__MODULE__{instance_id: instance_id}),
+    do: positive(Wave.Config.knob(instance_id, "pressure_fade_ut", 240.0), 240.0)
+
+  @doc "The stacks of pressure standing on a system right now (Wave.Pressure)."
+  def pressure(%__MODULE__{} = state, system_id), do: pressure_reader(state).(system_id)
+
+  @doc """
+  `pressure/2` for many systems: a function from system id to stacks, with the
+  fade knob read once.
+  """
+  def pressure_reader(%__MODULE__{} = state) do
+    ledger = Map.get(state, :pressure, %{})
+    fade = pressure_fade(state)
+    now = state.elapsed
+
+    fn system_id -> Wave.Pressure.stacks(Map.get(ledger, system_id), now, fade) end
+  end
+
+  @doc "Book an order of `weight` against a system; entries that have worn off are dropped on the way."
+  def press(%__MODULE__{} = state, system_id, weight) when is_number(weight) and weight > 0 do
+    fade = pressure_fade(state)
+    ledger = state |> Map.get(:pressure, %{}) |> Wave.Pressure.prune(state.elapsed, fade)
+    entry = Wave.Pressure.add(Map.get(ledger, system_id), weight, state.elapsed, fade)
+
+    Map.put(state, :pressure, Map.put(ledger, system_id, entry))
+  end
+
+  def press(%__MODULE__{} = state, _system_id, _weight), do: state
+
+  # The most pressed systems, for the status readout.
+  defp pressure_view(state) do
+    stacks_on = pressure_reader(state)
+
+    for {system_id, _entry} <- Map.get(state, :pressure, %{}),
+        stacks = stacks_on.(system_id),
+        stacks > 0 do
+      {system_id, round1(stacks)}
+    end
+    |> Enum.sort_by(fn {system_id, stacks} -> {-stacks, system_id} end)
+    |> Enum.take(20)
+    |> Map.new()
+  end
+
   def destab_ground(%__MODULE__{} = state), do: Map.get(state, :destab_ground)
   def set_destab_ground(%__MODULE__{} = state, system_id), do: Map.put(state, :destab_ground, system_id)
 
@@ -1949,6 +2001,7 @@ defmodule Wave.Warlord do
       yards: state |> Map.get(:yards, %{}) |> Map.keys() |> Enum.sort(),
       training_dummy: training_dummy(state),
       intel_known: map_size(Map.get(state, :erased_intel, %{})),
+      pressure: pressure_view(state),
       research: research_view(state),
       gauges: state.gauges,
       telemetry: telemetry_view(state.telemetry),

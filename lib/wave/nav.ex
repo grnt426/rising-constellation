@@ -50,9 +50,13 @@ defmodule Wave.Nav do
   @doc """
   Hop distance from `from` to every reachable system, as `%{system_id => hops}`.
   One BFS instead of one per candidate — use this to rank many targets.
+
+  `from` may be a list of systems: each system's distance is then to the
+  nearest of them, still in one BFS.
   """
   def hop_distances(adjacency, from) when is_map(adjacency) do
-    do_distances(adjacency, :queue.from_list([from]), %{from => 0})
+    sources = List.wrap(from)
+    do_distances(adjacency, :queue.from_list(sources), Map.new(sources, &{&1, 0}))
   end
 
   @doc "Lane lengths as `%{{a, b} => weight}`, both directions, from galaxy edges."
