@@ -2199,15 +2199,15 @@
     "faction_building": {
       "gateway": {
         "name": "Portail",
-        "description": "Un anneau colossal d'espace replié. Une fois lié à un portail jumeau, les agents et flottes de la faction peuvent voyager entre les deux systèmes. Occupe toute la station."
+        "description": "Lié à un portail jumeau dans un autre système, il permet aux agents de la faction et à leurs flottes de passer de l'un à l'autre, un à la fois."
       },
       "training_center": {
         "name": "Centre d'entraînement",
-        "description": "Les académies de la faction entraînent les agents stationnés dans ce système : toutes les 12 heures, un agent de la faction présent ici gagne 1 XP par niveau du centre."
+        "description": "Les académies de la faction entraînent les agents stationnés ici. À chaque séance, un agent de la faction présent dans le système gagne de l'expérience."
       },
       "cyber_command": {
         "name": "Cyber-commandement",
-        "description": "Un centre étatique de renseignement d'origine électromagnétique. Balaye périodiquement le secteur et estime les logiciels malveillants ennemis implantés sur ses systèmes. Occupe toute la station."
+        "description": "Un centre étatique de renseignement électromagnétique. Il balaye son secteur et tient une estimation des logiciels malveillants ennemis qui y sont implantés."
       }
     }
   }

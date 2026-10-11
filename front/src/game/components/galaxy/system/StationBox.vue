@@ -21,6 +21,8 @@
         class="station-cell"
         :class="entry.classes"
         :style="entry.style"
+        @mouseenter="cellEnter(entry)"
+        @mouseleave="cardLeave"
         @click="entry.onClick && entry.onClick()">
         <template v-if="entry.type === 'building'">
           <svgicon
@@ -139,6 +141,8 @@
         v-tooltip="option.reason"
         class="picker-option"
         :class="{ 'is-disabled': option.status !== 'available' }"
+        @mouseenter="optionEnter(option)"
+        @mouseleave="cardLeave"
         @click="option.status === 'available' && order(option)">
         <svgicon
           :name="option.icon"
@@ -158,6 +162,13 @@
             </span>
           </div>
         </div>
+        <!-- touch has no hover: the card opens from its own button -->
+        <span
+          v-if="isMobileView"
+          class="option-info"
+          :class="{ 'is-open': card && card.key === option.key }"
+          :aria-label="$t('galaxy.station.details')"
+          @click.stop="toggleCard(option)">?</span>
       </div>
 
       <div
@@ -166,25 +177,44 @@
         {{ $t('galaxy.station.close') }}
       </div>
     </div>
+
+    <!-- what a faction building does: hangs beside the box (or the
+         picker) on hover, and can be entered to read its tooltips -->
+    <div
+      v-if="card"
+      class="station-card"
+      :class="{ 'is-beside-picker': picker !== null }"
+      @mouseenter="hoverCardEnter"
+      @mouseleave="cardLeave">
+      <faction-building-card
+        :key="`card-${card.key}`"
+        :buildingKey="card.key"
+        :level="card.level"
+        :context="card.context"
+        :showCost="card.showCost"
+        :system="system"
+        :theme="theme"
+        :pinned="cardPinned"
+        @close="hoverCardClose" />
+    </div>
   </div>
 </template>
 
 <script>
+import viewport from '@/utils/viewport';
+import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 import Counter from '@/game/components/generic/Counter.vue';
 import CircleProgressValue from '@/game/components/generic/CircleProgressValue.vue';
+import FactionBuildingCard from '@/game/components/card/FactionBuildingCard.vue';
+import { STATION_SLOTS, factionBuildingIcon } from '@/game/faction-buildings';
 
 const GRID_COLS = 2;
-const GRID_SLOTS = 4;
-
-const BUILDING_ICONS = {
-  gateway: 'building/hypergate',
-  training_center: 'building/military_school_dome',
-  cyber_command: 'building/counterintelligence_open',
-};
+const GRID_SLOTS = STATION_SLOTS;
 
 export default {
   name: 'station-box',
-  components: { Counter, CircleProgressValue },
+  mixins: [HoverCardMixin],
+  components: { Counter, CircleProgressValue, FactionBuildingCard },
   props: {
     system: Object,
     color: String,
@@ -193,9 +223,16 @@ export default {
     return {
       picker: null,
       linkTarget: null,
+      // the building whose detail card is shown: { key, level, context,
+      // showCost }, or null
+      card: null,
     };
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
+    // the card wears the viewer's own faction colour, like the build
+    // menu's cards
+    theme() { return this.$store.getters['game/theme']; },
     player() { return this.$store.state.game.player; },
     faction() { return this.$store.state.game.faction; },
     government() { return (this.faction && this.faction.government) || null; },
@@ -253,7 +290,7 @@ export default {
         entries.push({
           key: `building-${building.id}`,
           type: 'building',
-          icon: BUILDING_ICONS[building.key] || 'building/frame_orbital',
+          icon: factionBuildingIcon(building.key),
           level: building.level,
           maxLevel: data ? data.levels.length : 1,
           seat,
@@ -278,7 +315,9 @@ export default {
         entries.push({
           key: 'construction',
           type: 'construction',
-          icon: BUILDING_ICONS[this.construction.key] || 'building/frame_orbital',
+          icon: factionBuildingIcon(this.construction.key),
+          buildingKey: this.construction.key,
+          level: this.construction.level,
           done: this.construction.total_labor - this.construction.remaining_labor,
           total: this.construction.total_labor,
           increase: this.system.production.value,
@@ -339,7 +378,7 @@ export default {
           seat: data.seat,
           shape: data.shape,
           anchor,
-          icon: BUILDING_ICONS[data.key] || 'building/frame_orbital',
+          icon: factionBuildingIcon(data.key),
           costs: this.costList(levelInfo.cost),
           status: reasons.length === 0 ? 'available' : 'unavailable',
           reason: reasons.join('<br>'),
@@ -378,9 +417,48 @@ export default {
     },
   },
   watch: {
-    'system.id': function onSystemChange() { this.picker = null; },
+    'system.id': function onSystemChange() {
+      this.picker = null;
+      this.hoverCardClose();
+    },
+    // an order closes the picker under the pointer: its card goes too
+    picker(value) {
+      if (value === null) this.hoverCardClose();
+    },
   },
   methods: {
+    // Detail cards (hover-intent, see HoverCardMixin). Touch opens them
+    // from the picker's own button instead: a tap fires mouseenter too,
+    // and would flash a card under the order it places.
+    cellEnter(entry) {
+      if (this.isMobileView || !entry.buildingKey) return;
+      this.hoverCardShow({
+        key: entry.buildingKey,
+        level: entry.level,
+        context: entry.type === 'building' ? 'built' : 'preview',
+        showCost: false,
+      });
+    },
+    optionEnter(option) {
+      if (this.isMobileView) return;
+      this.hoverCardShow(this.optionCard(option));
+    },
+    cardLeave() {
+      if (this.isMobileView) return;
+      this.hoverCardHide();
+    },
+    toggleCard(option) {
+      this.card = this.card && this.card.key === option.key ? null : this.optionCard(option);
+    },
+    optionCard(option) {
+      return { key: option.key, level: 1, context: 'preview', showCost: true };
+    },
+    hoverCardApply(payload) {
+      this.card = payload;
+    },
+    hoverCardVisible() {
+      return this.card !== null;
+    },
     dataFor(key) { return this.buildingData.find((d) => d.key === key); },
     holdsSeat(seat) {
       const holder = this.government && this.government.seats[seat];

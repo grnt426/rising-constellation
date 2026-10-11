@@ -2199,15 +2199,15 @@
     "faction_building": {
       "gateway": {
         "name": "Gateway",
-        "description": "A colossal ring of folded space. Once linked to a twin gateway, faction agents and fleets can portal between the two systems. Occupies the entire station."
+        "description": "Linked to a twin Gateway in another system, it lets the faction's agents and their fleets portal between the two, one at a time."
       },
       "training_center": {
         "name": "Training Center",
-        "description": "Faction academies drill agents stationed in this system: every 12 hours, a random agent of the faction present here gains 1 XP per center level."
+        "description": "Faction academies drill the agents stationed here. At each session, one of the faction's agents in the system gains experience."
       },
       "cyber_command": {
         "name": "Cyber Command",
-        "description": "A state signals-intelligence hub. Periodically sweeps the sector and reports an estimate of enemy malware planted on its systems. Occupies the entire station."
+        "description": "A state signals-intelligence hub. It sweeps its sector and keeps a running estimate of the enemy malware planted there."
       }
     }
   }
