@@ -77,6 +77,7 @@ defmodule Wave.Diagnostics do
       :ceilings,
       :training_dummy,
       :intel_known,
+      :pressure,
       :research,
       :gauges,
       :perf,

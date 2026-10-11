@@ -168,41 +168,122 @@ defmodule Wave.Siderian do
     anchor - remaining
   end
 
+  # What a successful destabilization takes off (EncourageHate: 15, critical 20).
+  @strike 15
+  # Agitators sent at a system nobody has reported on yet.
+  @probe 2
+
   @doc """
   Whether a system still wants destabilizing, and by how many agitators at
-  most: until the estimate reaches `floor` it takes up to `cap`; once it has
-  been driven there it is *held*, and one agitator tops it up whenever the
-  estimate climbs back above `floor + margin`. An unknown system always does.
+  most. Until the estimate reaches `floor` it takes the strikes still needed
+  to get there, up to `cap`: agitators already on their way are not seen in
+  the estimate until they land, and sending the whole focus at a system two
+  strikes from the floor drove it far past it. Once it has been driven there
+  it is *held*, and one agitator tops it up whenever the estimate climbs back
+  above `floor + margin`. A system with no report yet takes two, for the same
+  reason: the first report says how many more it is worth.
   """
   def destab_need(reading, now, decay, floor, margin, cap) do
     case estimate(reading, now, decay) do
       nil ->
-        cap
+        min(cap, @probe)
 
       est ->
         if(Map.get(reading, :held, false),
           do: if(est > floor + margin, do: 1, else: 0),
-          else: if(est > floor, do: cap, else: 0)
+          else: min(cap, strikes_to(est, floor))
         )
     end
   end
 
+  defp strikes_to(estimate, floor) when estimate > floor, do: ceil((estimate - floor) / @strike)
+  defp strikes_to(_estimate, _floor), do: 0
+
   @doc """
-  Rank mass-destabilization targets. First the one agitators are already
-  working (so they converge), then systems in sectors the Rebellion works,
-  then the most populous it can see, then the least happy, then the nearest.
-  `target` carries `:committed`, `:working_sector?`, `:population` (nil when
-  not legible), `:estimate` (nil when unknown) and `:travel`.
+  How strongly a mass-destabilization target draws an agitator. Nothing here
+  is first past the post: every system in reach has a weight and the target is
+  drawn by it (`pick_destab/3`), so the agitators spread instead of all
+  ranking the same system first. The systems the Rebellion has leaned on
+  lately are thinned out before the draw (`Wave.Pressure`).
+
+  `target` carries `:population` (nil when not legible), `:estimate` (nil
+  when unknown), `:depth` (its sector's distance from rebel space, nil when
+  no chain of sectors reaches it) and `:travel`. `opts` gives
+  `:nearest_depth` (the shallowest depth among the candidates), `:rear_factor`
+  and `:reach`.
+
+  | factor | value |
+  |---|---|
+  | size | 1 to 2 with the population it can see (1.5 unseen) |
+  | softness | 2 at an estimate of −10 or less, 1 at 30 or unknown, 0.5 from 50 up: a strike on a system near 0 changes what it produces, one on a system at 60 changes nothing yet |
+  | depth | `rear_factor` per sector further back than the nearest one in reach |
+  | travel | 1 next door, 0.5 at the edge of `reach` |
   """
-  def destab_priority(target) do
-    {
-      if(Map.get(target, :committed, 0) > 0, do: 0, else: 1),
-      if(Map.get(target, :working_sector?, false), do: 0, else: 1),
-      -(Map.get(target, :population) || 0),
-      Map.get(target, :estimate) || 1_000.0,
-      Map.get(target, :travel, 0.0),
-      target.id
-    }
+  def destab_weight(target, opts) do
+    size(Map.get(target, :population)) *
+      softness(Map.get(target, :estimate)) *
+      depth_factor(Map.get(target, :depth), opts) *
+      nearness(Map.get(target, :travel, 0.0), Keyword.get(opts, :reach, 480.0))
+  end
+
+  @doc """
+  Draw a mass-destabilization target by weight. `roll` is uniform in [0, 1);
+  `opts` takes `:rear_factor` and `:reach` (see `destab_weight/2`). nil when
+  there is no target.
+  """
+  def pick_destab(targets, roll, opts \\ [])
+
+  def pick_destab([], _roll, _opts), do: nil
+
+  def pick_destab(targets, roll, opts) when is_number(roll) do
+    nearest = targets |> Enum.map(&Map.get(&1, :depth)) |> Enum.reject(&is_nil/1) |> Enum.min(fn -> 0 end)
+    opts = Keyword.put(opts, :nearest_depth, nearest)
+
+    weighted =
+      targets
+      |> Enum.sort_by(& &1.id)
+      |> Enum.map(&{&1, destab_weight(&1, opts)})
+      |> Enum.filter(fn {_target, weight} -> weight > 0 end)
+
+    case weighted do
+      [] -> nil
+      _ -> draw(weighted, roll)
+    end
+  end
+
+  defp size(population) when is_number(population), do: 1.0 + min(max(population, 0), 100) / 100
+  defp size(_population), do: 1.5
+
+  defp softness(estimate) when is_number(estimate), do: (1.75 - estimate / 40) |> max(0.5) |> min(2.0)
+  defp softness(_estimate), do: 1.0
+
+  # A sector nothing connects to rebel space counts as three further back.
+  @unreached_sectors 3
+
+  defp depth_factor(depth, opts) do
+    nearest = Keyword.get(opts, :nearest_depth, 0)
+    behind = if is_integer(depth), do: max(depth - nearest, 0), else: @unreached_sectors
+
+    :math.pow(Keyword.get(opts, :rear_factor, 0.5), behind)
+  end
+
+  defp nearness(travel, reach) when is_number(travel) and is_number(reach) and reach > 0,
+    do: 1.0 / (1.0 + max(travel, 0.0) / reach)
+
+  defp nearness(_travel, _reach), do: 1.0
+
+  defp draw(weighted, roll) do
+    total = weighted |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+    aim = roll * total
+
+    weighted
+    |> Enum.reduce_while(0.0, fn {target, weight}, acc ->
+      if aim < acc + weight, do: {:halt, {:drawn, target}}, else: {:cont, acc + weight}
+    end)
+    |> case do
+      {:drawn, target} -> target
+      _ -> weighted |> List.last() |> elem(0)
+    end
   end
 
   @doc """

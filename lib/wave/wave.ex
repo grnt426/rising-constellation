@@ -244,15 +244,43 @@ defmodule Wave do
       # takes its share while there are capture targets; the rest goes to
       # destabilization and seduction by weight (Wave.Siderian.quotas/3).
       "siderian_role_weights" => %{"capture" => 40, "destab" => 30, "seduce" => 30},
-      # Mass destabilization: agitators converge on one enemy system or
-      # dominion within this much travel, at most `destab_focus_cap` at a
-      # time, until the estimated happiness reaches `destab_floor` (general
-      # uprising, the 80% cut); then one keeps it there, striking again when
-      # the estimate climbs back above floor + margin.
+      # Mass destabilization: agitators work the enemy systems and dominions
+      # within this much travel, each drawing its target by weight
+      # (Wave.Siderian.destab_weight/2). A system takes the agitators it needs
+      # strikes to reach `destab_floor` (general uprising, the 80% cut), at
+      # most `destab_focus_cap` at a time; then one keeps it there, striking
+      # again when the estimate climbs back above floor + margin.
       "destab_max_travel_ut" => 480.0,
       "destab_focus_cap" => 5,
       "destab_floor" => -30,
       "destab_rehit_margin" => 10,
+      # Each sector further back than the nearest one with a target in reach
+      # counts for this much of the one before it: the front draws most of the
+      # agitators and the sectors behind it some.
+      "destab_rear_factor" => 0.5,
+
+      # --- pressure (Wave.Pressure) -----------------------------------------
+      # Every order against a system another faction holds adds its weight to
+      # that system's stacks, and a stack wears off in `pressure_fade_ut`
+      # (half a match day), one after the other. A system at `pressure_cap`
+      # stacks is closed to every trade; below that it counts for
+      # `pressure_falloff ^ stacks` of what it otherwise would: 70% after one
+      # order, 49% after two, 24% after four. A falloff of 1 and a cap of 0
+      # switch it off.
+      "pressure_weights" => %{
+        "encourage_hate" => 1.0,
+        "conversion" => 1.0,
+        "assassination" => 1.0,
+        "sabotage" => 1.0,
+        "infiltrate" => 0.5
+      },
+      "pressure_fade_ut" => 240.0,
+      "pressure_falloff" => 0.7,
+      "pressure_cap" => 5,
+      # New Siderians and Erased are deployed at the rebel system nearest the
+      # ground they will work (capture targets for capturers, what the humans
+      # hold for the rest). False deploys everyone at the default home.
+      "deploy_forward" => true,
       # With no enemy in reach, an agitator softens the neutral a capture
       # Siderian is heading for while its estimate is above this.
       "capture_soften_above" => 10,

@@ -88,6 +88,47 @@ defmodule Wave.GeometryTest do
                MapSet.new([1, 2, 4, 5])
     end
 
+    test "what other factions hold is their systems and dominions, wherever they lie", %{geo: geo} do
+      assert Geometry.held_by_others(geo) == []
+      assert with_human(30, :inhabited_player) |> Geometry.held_by_others() |> Enum.map(& &1.id) == [30]
+      assert with_human(11, :inhabited_dominion) |> Geometry.held_by_others() |> Enum.map(& &1.id) == [11]
+    end
+
+    test "a new agent is deployed in the rebel system the fewest lanes from the ground it will work", %{geo: geo} do
+      # Lanes: 10—11—20—21—22—23—24—30 and 40—50. The humans hold 23.
+      assert Geometry.forward_base(geo, [10, 11, 21], [23]) == 21
+      assert Geometry.forward_base(geo, [10, 11], [23, 30]) == 11
+      # Several pieces of ground: the nearest of them counts.
+      assert Geometry.forward_base(geo, [10, 22], [11, 30]) == 10
+      # Equally near: the lowest id.
+      assert Geometry.forward_base(geo, [22, 20], [21]) == 20
+      # No lane leads from 40 or 50 to that ground, and with no ground or no
+      # base there is nowhere better than home.
+      assert Geometry.forward_base(geo, [40, 50], [23]) == nil
+      assert Geometry.forward_base(geo, [10, 50], [23]) == 10
+      assert Geometry.forward_base(geo, [10, 11], []) == nil
+      assert Geometry.forward_base(geo, [], [23]) == nil
+    end
+
+    test "travel time outranks the lane count: most ground in reach, then the nearest of it", %{geo: geo} do
+      # What each base has within a day's travel, in ut. 21 is two lanes from
+      # the ground at 23 and 11 is five, but the lane out of 21 is a long one.
+      times = fn
+        10 -> %{11 => 50.0, 20 => 200.0}
+        11 -> %{20 => 150.0, 23 => 400.0, 30 => 470.0}
+        21 -> %{22 => 300.0}
+        22 -> %{23 => 100.0}
+      end
+
+      assert Geometry.forward_base(geo, [11, 21], [23, 30], times) == 11
+      # 22 and 11 both reach ground; 11 reaches more of it.
+      assert Geometry.forward_base(geo, [11, 22], [23, 30], times) == 11
+      # The same amount in reach: the base nearest to some of it.
+      assert Geometry.forward_base(geo, [11, 22], [23], times) == 22
+      # Nothing in reach of either: back to the lane count.
+      assert Geometry.forward_base(geo, [10, 21], [30], times) == 21
+    end
+
     test "a human system or dominion in a neighbouring sector, or in a rebel one, is contact" do
       assert Geometry.contact?(with_human(23, :inhabited_player))
       assert Geometry.contact?(with_human(20, :inhabited_dominion))

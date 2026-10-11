@@ -449,6 +449,45 @@ defmodule Wave.WarlordTest do
     end
   end
 
+  describe "pressure on a system" do
+    test "orders stack, wear off one per fade, and the readout lists what still stands" do
+      state =
+        warlord()
+        |> Warlord.press(103, 1.0)
+        |> Warlord.press(103, 1.0)
+        |> Warlord.press(106, 0.5)
+
+      assert Warlord.pressure(state, 103) == 2.0
+      assert Warlord.pressure(state, 106) == 0.5
+      assert Warlord.pressure(state, 999) == 0.0
+
+      # Half a match day (the default `pressure_fade_ut`) wears one stack off.
+      later = Warlord.advance(state, 240.0)
+      assert Warlord.pressure(later, 103) == 1.0
+      assert Warlord.pressure(later, 106) == 0.0
+      assert Warlord.summary(later).pressure == %{103 => 1.0}
+      assert is_binary(Jason.encode!(Warlord.summary(later)))
+
+      # The next order builds on what is left and drops what has worn off.
+      again = Warlord.press(later, 103, 1.0)
+      assert Warlord.pressure(again, 103) == 2.0
+      assert Map.keys(again.pressure) == [103]
+    end
+
+    test "an order that weighs nothing books nothing" do
+      assert Warlord.press(warlord(), 103, 0.0).pressure == %{}
+    end
+
+    test "a snapshot taken before pressure existed restores with nothing booked" do
+      old = Map.drop(warlord(), [:pressure])
+
+      assert Warlord.pressure(old, 103) == 0.0
+      assert Warlord.pressure(Warlord.press(old, 103, 1.0), 103) == 1.0
+      assert Warlord.upgrade(old).pressure == %{}
+      assert Warlord.summary(old).pressure == %{}
+    end
+  end
+
   describe "stuck orders" do
     test "an agent on an order is counted each pass the engine shows it idle, and cleared when it moves" do
       state =
