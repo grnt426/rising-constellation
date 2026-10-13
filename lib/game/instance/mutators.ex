@@ -129,6 +129,9 @@ defmodule Instance.Mutators do
   @doc "The daily's ISO date (string) for `instance_id`, or nil."
   def daily_date(instance_id), do: meta(instance_id, :daily_date)
 
+  @doc "The enemy (puppet) faction's key (string) on a puppet-faction daily, or nil."
+  def daily_puppet_faction(instance_id), do: meta(instance_id, :daily_puppet_faction)
+
   defp meta(instance_id, key) when is_integer(instance_id) do
     try do
       Data.Data.get(instance_id, :metadata)[key]
