@@ -1248,7 +1248,7 @@
         "name": "Goldener Fluss"
       },
       "headhunter": {
-        "description": "Ein feindlicher Hof erstreckt sich über die Marken. Ermorde bis zum Ende so viele seiner Agenten wie möglich; Gleichstände entscheidet die Stufe deines besten Erased.",
+        "description": "Ein feindlicher Hof schickt alle 15 Sekunden einen Erased in dein System. Je 25 Punkte Spionage enttarnen mehr von ihnen, die niedrigstufigen zuerst. Beseitige bis zum Ende so viele wie möglich und schütze deine eigenen Erased; Gleichstände entscheidet die Stufe deines besten Erased.",
         "name": "Kopfjäger"
       },
       "hegemon": {
@@ -1260,7 +1260,7 @@
         "name": "Landnahme"
       },
       "monumental": {
-        "description": "Ein Wettlauf: Errichte das Monument in deinem Reich. Der Score ist die verbleibende Zeit bei Fertigstellung; Gleichstände entscheidet der Stand deiner Wirtschaft.",
+        "description": "Ein Wettlauf: Errichte den Monolithen auf dem kargen Planeten deines Systems. Seine Patente besitzt du bereits. Der Score ist die verbleibende Zeit bei Fertigstellung; Gleichstände entscheidet der Stand deiner Wirtschaft.",
         "name": "Monumental"
       },
       "rising_creed": {

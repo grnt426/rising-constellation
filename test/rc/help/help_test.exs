@@ -695,8 +695,9 @@ defmodule RC.HelpTest do
     test "daily challenge races are listed last, as a side use", %{ctx: ctx} do
       md = Catalog.body(ctx, %Page{slug: "patent/capital_1", kind: :catalog, body: ""})
       assert md =~ ~r/## Unlocking.*## Also used in\n\n- Daily challenge race The Destroyer's Blueprint: buying this patent completes it\.\z/s
-      md = Catalog.body(ctx, %Page{slug: "building/monument_open", kind: :catalog, body: ""})
+      md = Catalog.body(ctx, %Page{slug: "building/monument_dome", kind: :catalog, body: ""})
       assert md =~ "- Daily challenge race Monumental: finishing this building completes it."
+      refute Catalog.body(ctx, %Page{slug: "building/monument_open", kind: :catalog, body: ""}) =~ "Monumental"
       refute Catalog.body(ctx, %Page{slug: "patent/citadel", kind: :catalog, body: ""}) =~ "Also used in"
     end
 

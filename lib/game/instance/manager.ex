@@ -412,6 +412,9 @@ defmodule Instance.Manager do
       # score without re-reading the instance row on every stats tick.
       daily_objective: get_in(game_data, ["daily", "objective"]),
       daily_date: get_in(game_data, ["daily", "date"]),
+      # Puppet-faction days: the enemy faction's key, so the Daily.Director
+      # can tell the puppet player from the human one.
+      daily_puppet_faction: get_in(game_data, ["daily", "puppet_faction"]),
       # Cheat access: opt-in at game creation. Gates the in-game cheat
       # panel (CheatChannel) and the engine-side cheat handlers.
       cheats_enabled: game_data["cheats_enabled"] == true,

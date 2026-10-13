@@ -149,7 +149,7 @@ defmodule Instance.Player.Player do
         credit: Core.DynamicValue.new(starting_credit),
         technology: Core.DynamicValue.new(round(c.player_starting_technology * tech_mult)),
         ideology: Core.DynamicValue.new(round(c.player_starting_ideology * ideo_mult)),
-        patents: [],
+        patents: granted_patents(instance_id),
         doctrines: [],
         policies: [],
         character_deck: [],
@@ -175,6 +175,26 @@ defmodule Instance.Player.Player do
       |> hire_character({0, 0, 0}, character)
 
     state
+  end
+
+  # A daily objective can hand the player a research line up front
+  # (Monumental: the Monolith's patents, which cost more technology than a
+  # run earns). Each granted patent comes with its ancestors, oldest first.
+  # Empty outside such a day.
+  defp granted_patents(instance_id) do
+    instance_id
+    |> Instance.Mutators.daily_objective()
+    |> Daily.Objective.granted_patents()
+    |> Enum.flat_map(&patent_line(instance_id, &1))
+    |> Enum.uniq()
+  end
+
+  defp patent_line(instance_id, key) do
+    case Data.Querier.one(Data.Game.Patent, instance_id, key) do
+      nil -> []
+      %{ancestor: nil} -> [key]
+      %{ancestor: ancestor} -> patent_line(instance_id, ancestor) ++ [key]
+    end
   end
 
   def compute_next_tick_interval(%Player.Player{} = state) do

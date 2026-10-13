@@ -110,14 +110,26 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   the `quit_daily` flow after a 15 s countdown ("Leave now" skips it). The
   faction victory banner and the countdown clock are suppressed for dailies
   in favor of the result banner.
-- **Monumental** (a sixth race) — raise the Monument fastest. Keyed to
-  `monument_open` (open biome, always buildable on the guaranteed habitable
-  planet, so no sterile-planet guarantee needed). Building completion has no
-  player-visible signal, so a new one was added following the `:ship_built`
+- **Monumental** (a sixth race) — raise the Monolith (`monument_dome`)
+  fastest. Reworked 2026-10-13: it first shipped keyed to `monument_open`,
+  which the game calls the Floating Gardens, while players read "the Monument"
+  as the Monolith and looked for a barren world that the system often did not
+  have. The objective now carries two specs any objective can use:
+  `requires: %{bodies: [...]}`, body kinds every system of the day must hold
+  (`StellarSystem.ensure_required_bodies/3` adds a missing one as a further
+  planet, rolled from the seeded generator), and `grants: %{patents: [...]}`,
+  research the player starts with, ancestors included (`Player.new/4`). The
+  Monolith's line costs about 165,000 technology against a best recorded
+  30-minute stock of 145,000, so it is granted and the race is the build:
+  9,000 credits and 130 production for the dome infrastructure, then 160,000
+  credits and 20,000 production, from a start of 300,000 credits and about
+  130 production. That is roughly two minutes for a player who goes straight
+  for it. Building completion has no
+  player-visible signal, so one was added following the `:ship_built`
   pattern: when a tracked wonder (`@wonder_keys` in `StellarSystem`) finishes
   in a player-owned system, `next_tick` tags the change set `{:wonder_built,
   key}`, `StellarSystem.Agent.cast_hook` forwards it to the owner's player
-  agent, and the agent latches the key onto `player.wonders_built` (a new
+  agent, and the agent latches the key onto `player.wonders_built` (a
   snapshot-tolerant, server-only field, alongside `daily_race_won`).
   `race_completed?` checks membership; the DNF tiebreak is total system
   production. Verified live end-to-end (cast → latch → race completes,
@@ -177,8 +189,49 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   its own sector, no crash. **Headhunter** scoring is wired —
   `player.agents_assassinated` (incremented in `Assassination.start` on a
   successful kill; a snapshot-tolerant, jason-excluded field) is the score,
-  ties on the player's best Erased level. The remaining piece is the
-  **enemy-agent seeding** (placing the assassination targets), the next slice.
+  ties on the player's best Erased level.
+- **Headhunter made playable** (2026-10-13). The day had no targets: nothing
+  seeded enemy agents, and the browser boot (`boot_persisted`) created only
+  the player's faction, so the enemy had no player at all. Both runs recorded
+  on 2026-10-12 scored 0. Now `boot_persisted` seats the puppet profile in
+  the enemy faction, and `Daily.Director` (a task started with the run's
+  clock) plays the rules in `Daily.Headhunter`:
+  - one enemy Erased into the player's home system every 15 real seconds,
+    119 a run, counted off the game clock so a late pass catches up. The
+    roster is a function of the date. A recruit's level is drawn evenly
+    from a band that widens with the clock: it opens at 1 to 3 (average 2),
+    and every 2 minutes the average rises by 0.75, the bottom staying at 1
+    and the top gaining a level and a half, to 1 to 24 (average 12.5) in
+    the last two minutes. Removal skill is half the level;
+  - exposure by Intelligence, a rule of this day only: chance = whole 25s of
+    Intelligence × 20% ÷ level, compared with a fixed per-recruit `evasion`
+    rather than rolled each pass. The same Intelligence exposes the same
+    agents for every player, and raising it later still catches earlier
+    arrivals. An exposed agent stays exposed (the Director holds its cover
+    under the threshold through the `{:daily_expose, cover}` character cast);
+  - one recruit in eight is bold and, while hidden, has a 25% chance per pass
+    to make a single ordinary removal attempt on one of the player's Erased
+    in the system. Protection plus the system's Intelligence defend. It
+    takes about 42 Intelligence to shut out each point of the attacker's
+    removal skill: a little over 200 stops an agent of level 10, and no
+    system stops the level 20s of the last minutes (41% against a level-5
+    Erased behind 300 Intelligence).
+
+  Why a threshold and not a repeated roll: with a roll every 15 seconds a
+  simulated player had more exposed targets than its Erased could ever
+  strike, and the score stopped depending on Intelligence above 100. Each
+  Erased manages about 21 removals a run (a removal costs 20 to 30 cover,
+  which takes about 75 seconds to come back), so the supply of targets has
+  to be the scarcer side for Intelligence to matter. With the threshold the
+  roster of 2026-10-27 exposes 17 / 31 / 47 / 65 of 119 at 50 / 100 / 200 /
+  300 Intelligence. Simulated scores with the level band above: 13 (100
+  Intelligence, two Erased), 41 (200, four), 67 (300, six), and close to
+  nothing for one Erased under 100 Intelligence, because the player loses
+  1.5 to 6 of its own Erased a run. An earlier, gentler band (1 to 1 at the
+  start, top +1 per 2 minutes, capped at 9) gave 36 / 58 / 86 with under one
+  Erased lost. The
+  model, with its assumptions about how a player plays, is
+  `bin/headhunter_sim.exs` (`mix run --no-start bin/headhunter_sim.exs`).
 - **World-gen mutators wired** (`on_galaxy_spawn`) — Worlds of Plenty /
   Hardscrabble Worlds / Gilded Orbitals (force body factors to their range
   max/min) and Sprawling / Open Frontier (extra building tiles) apply in

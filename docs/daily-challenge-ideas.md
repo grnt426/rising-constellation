@@ -165,7 +165,7 @@ Feasibility legend: **shapes** / **seeded** / **sector** / **v1** /
 |---|---|---|
 | **Charter of Prosperity** | Push *this system* (not the empire) to 800 credit / 50 tech / 40 ideology income simultaneously, fastest. | shapes |
 | **The Destroyer's Blueprint** | Research the Destroyer ship patent fastest. (Maps to the internal patent key at implementation; the pattern generalizes to other named patents later.) | shapes |
-| **Monumental** | Raise the Monument fastest. Shipped keyed to `monument_open` (open biome, so it's always buildable on the daily's guaranteed habitable planet — no need to guarantee a sterile planet for the dome wonders). | **shipped** |
+| **Monumental** | Raise the Monolith (`monument_dome`) fastest. The day guarantees a barren world to build it on and grants its patent line, which costs about 165,000 technology, more than a run earns. The Floating Gardens (`monument_open`) do not count. First shipped keyed to `monument_open`, with no barren-world guarantee: players read "the Monument" as the Monolith and found no barren world to put it on. | **shipped** (reworked 2026-10-13) |
 | **Fleet in Being: Raiders** | Field a fleet totalling ≥ 50 bombing (raid) power, fastest. | shapes |
 | **Fleet in Being: Vanguard** | Field a fleet totalling ≥ 50 conquest (invasion) power, fastest. | shapes |
 | **Fleet in Being: Armada** | Field a fleet costing ≥ 500 credits of upkeep, fastest. | shapes |
@@ -186,7 +186,7 @@ Feasibility legend: **shapes** / **seeded** / **sector** / **v1** /
 | **Scorched Path** | Five neutral systems of escalating defense; deal the most cumulative raid damage before the clock. | sector + a damage-dealt counter |
 | **Siegebreaker** | A neutral sector; conquer and hold the most systems (scored on owned systems only, so vassalizing doesn't count). Shipped as a count rather than a race — with one fleet, five sieges won't all fit in 30 min. | **shipped** |
 | **Convoy Season** | Starting at 10:00 and every 2:00 after, a mono-fleet crosses your system: one ship type per wave, in escalating order — scouts ×2, colony ship, light fighters ×2, fighter-bombers ×2, interceptors ×2, then the ×4 variants of those, light corvettes ×2, heavy corvettes ×2, and so on up the classes. Destroy as many ships as possible (reaction stances and pickets finally matter solo). | v2 |
-| **Headhunter** | Enemy agents populate the enemy marches; assassinate the most. Difficulty is the target systems' counter-intelligence (which the player's Erased must beat), not the enemy agents' levels; bombing a system first to knock its intel down is a legitimate line. Tiebreak: your best Erased's level. | **partial** — puppet foundation + assassination counter + scoring wired; enemy-agent seeding is the next slice |
+| **Headhunter** | An enemy court sends one Erased into the player's system every 15 seconds (119 a run, the same roster for everyone that day; levels are drawn from 1 to 3 at the start and the average rises by 0.75 every 2 minutes, to 1 to 24 at the end). They arrive under cover; every 25 Intelligence exposes more of them, the low levels first, and one in eight tries once to remove one of the player's Erased. Score: enemy Erased removed. Tiebreak: your best Erased's level. Rules and numbers: `Daily.Headhunter`. The first version put the targets in the enemy marches and never seeded any, so every run scored 0. | **shipped** (2026-10-13) |
 
 ### Expansion and agent-craft
 

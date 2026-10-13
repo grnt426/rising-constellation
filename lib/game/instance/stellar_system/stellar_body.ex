@@ -24,6 +24,20 @@ defmodule Instance.StellarSystem.StellarBody do
 
     body_data = Game.call(instance_id, :rand, :master, {:random, bodies_data})
 
+    build(body_data, id, prefix_name, instance_id, type, parent_id)
+  end
+
+  @doc """
+  A primary body of a chosen kind (a `Data.Game.StellarBody` key) rather than
+  a rolled one — for a daily objective that needs one the rolls left out.
+  Its moons, tiles and factors are rolled as usual.
+  """
+  def new_of_kind(id, prefix_name, instance_id, key) do
+    body_data = Data.Querier.one(Data.Game.StellarBody, instance_id, key)
+    build(body_data, id, prefix_name, instance_id, body_data.type, nil)
+  end
+
+  defp build(body_data, id, prefix_name, instance_id, type, parent_id) do
     # World-gen mutators (on_galaxy_spawn). These never touch the RNG stream —
     # the draws below still happen, only their results are overridden — so a
     # body generated without these mutators is identical to vanilla. See
