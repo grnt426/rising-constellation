@@ -10,6 +10,9 @@
 #       recall refused during fatigue; wind-down frees the pair on its
 #       own clock.
 #   R2  orders cleared mid-charge -> lock released immediately.
+#   R2b treasury dry at the upkeep settlement, mid-charge -> stations
+#       unpowered, agent stood down, lock released; refill -> powered
+#       again at the next settlement.
 #   R3  charging agent assassinated -> agent gone, lock released.
 #   R4  unlink (cost + teardown window) -> demolition allowed once free.
 #
@@ -92,6 +95,10 @@ function CharStatus($cid) {
 
 function GovStatus() { GetJson "/api/harness/gov-debug/status?iid=$iid&fid=$fid" }
 function GovAdvance($ut) { PostJson "/api/harness/gov-debug/advance" @{ iid = $iid; fid = $fid; ut = $ut } | Out-Null }
+
+# Station upkeep settles once per player_stats_interval (the tax
+# cadence): 250 ut on the fast-dev clock the fixture runs on.
+$taxInterval = 250
 
 function WaitFor($label, $timeoutSec, [scriptblock]$check) {
   $deadline = (Get-Date).AddSeconds($timeoutSec)
@@ -212,6 +219,44 @@ CharOpExpectError $p2 "deactivate" @{ character_id = $speaker } "character_must_
 CharOp $p2 "clear_actions" @{ character_id = $speaker; index = 0 } | Out-Null
 WaitFor "lock released after clear" 10 { $null -eq (GovStatus).gateway_links[0].transit }
 Pass "R2 orders cleared mid-charge -- gateway lock released"
+
+# ---- R2b: the treasury runs dry mid-charge -> stations unpowered, the
+# charging agent stood down, the pair freed; a refill restores power
+CharOp $p2 "add_actions" @{ character_id = $speaker; actions = @(@{ type = "gateway_charge"; data = @{ source = $sysA; target = $sysB } }) } | Out-Null
+WaitFor "speaker charging again" 20 { (CharStatus $speaker).action_status -eq "gateway_charging" }
+
+# grant the till away (a settlement landing between the read and the
+# grant moves it: read again), then run the government clock one tax
+# interval forward so the upkeep bill settles against the empty till
+$drained = 0
+for ($try = 0; $try -lt 5 -and $drained -eq 0; $try++) {
+  $amount = [math]::Floor((GovStatus).treasury.credit)
+  $reply = TryPostJson "/api/harness/gov-debug/op" @{ iid = $iid; fid = $fid; actor = $p2; op = "grant"; args = @{ player_id = $p2; credit = $amount } }
+  if ($reply -isnot [string]) { $drained = $amount }
+}
+if ($drained -eq 0) { Fail "could not drain the treasury: $reply" }
+GovAdvance $taxInterval
+
+$status = GovStatus
+if ($status.station_powered -ne $false) { Fail "a dry treasury did not unpower the stations at the settlement" }
+if ($null -ne $status.gateway_links[0].transit) { Fail "power cut did not free the gateway pair" }
+WaitFor "speaker stood down by the power cut" 10 { $s = CharStatus $speaker; $s.action_status -eq "idle" -and $s.queue.Count -eq 0 }
+if ((CharStatus $speaker).system -ne $sysA) { Fail "stood-down agent should still sit in system A" }
+WaitFor "station A reads unpowered" 10 {
+  $sys = GetJson "/api/harness/gov-debug/station-status?iid=$iid&pid=$p2"
+  ($sys.systems | Where-Object { $_.id -eq $sysA }).station.powered -eq $false
+}
+Pass "R2b treasury dry mid-charge -- stations unpowered, agent stood down in A, pair freed"
+
+PostJson "/api/harness/gov-debug/deposit" @{ iid = $iid; fid = $fid; credit = $drained } | Out-Null
+if ((GovStatus).station_powered -ne $false) { Fail "power came back before a bill was paid in full" }
+GovAdvance $taxInterval
+if ((GovStatus).station_powered -ne $true) { Fail "refilled treasury did not restore power at the settlement" }
+WaitFor "station A reads powered" 10 {
+  $sys = GetJson "/api/harness/gov-debug/station-status?iid=$iid&pid=$p2"
+  ($sys.systems | Where-Object { $_.id -eq $sysA }).station.powered -eq $true
+}
+Pass "R2b treasury refilled -- stations powered again"
 
 # ---- R3: assassinating the charging agent releases the lock
 CharOp $p2 "add_actions" @{ character_id = $admiral2; actions = @(@{ type = "gateway_charge"; data = @{ source = $sysA; target = $sysB } }) } | Out-Null

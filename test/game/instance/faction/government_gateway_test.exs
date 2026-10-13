@@ -45,6 +45,8 @@ defmodule Instance.Faction.GovernmentGatewayTest do
         government_law_cooldown: 10,
         government_lockout_duration: 30,
         market_taxe: 0.1,
+        # upkeep settles on the tax cadence; 1 ut settles on every advance
+        player_stats_interval: Keyword.get(opts, :upkeep_interval, 1),
         gateway_charge_time: 12,
         gateway_jump_time: 4,
         gateway_fatigue_time: 4,
@@ -274,6 +276,48 @@ defmodule Instance.Faction.GovernmentGatewayTest do
 
       # 2 gateways (1000c/ut) + charge surcharge (250c/ut) over 10 ut
       assert credit_before - government.treasury.credit == 12_500
+    end
+
+    test "a dry treasury stands a charging traveler down and frees the pair" do
+      ctx = ctx()
+      government = linked_government(ctx)
+      {:ok, government, _} = Government.gateway_reserve(government, 100, 42)
+
+      # the till runs dry mid-charge: 10 ut of upkeep is 12_500 credit
+      government = %{government | treasury: %{credit: 100, technology: 0, ideology: 0}}
+      {government, events} = Government.advance(government, 10, ctx)
+
+      assert Map.get(government, :station_powered) == false
+      assert government.treasury.credit == 0
+      assert link(government).transit == nil
+
+      assert [%{type: :gateway_charge_aborted, character_id: 42, link: %{transit: nil}}] =
+               Enum.filter(events, &(&1.type == :gateway_charge_aborted))
+
+      # nobody rides an unpowered gateway: the charge-finish gate refuses
+      assert {:error, :not_reserved} = Government.gateway_begin_jump(government, 42)
+      assert {:error, :station_unpowered} = Government.gateway_reserve(government, 100, 42)
+    end
+
+    test "a dry treasury leaves a mid-jump traveler and a wind-down alone" do
+      ctx = ctx()
+      government = linked_government(ctx)
+      {:ok, government, _} = Government.gateway_reserve(government, 100, 42)
+      {:ok, government} = Government.gateway_begin_jump(government, 42)
+
+      government = %{government | treasury: %{credit: 100, technology: 0, ideology: 0}}
+      {government, events} = Government.advance(government, 1, ctx)
+
+      assert Map.get(government, :station_powered) == false
+      assert link(government).transit.phase == :jumping
+      refute Enum.any?(events, &(&1.type == :gateway_charge_aborted))
+
+      # the traveler still lands, and the pair cools down unpowered
+      {:ok, government} = Government.gateway_begin_wind_down(government, 42, ctx)
+      {government, events} = Government.advance(government, 4, ctx)
+
+      assert link(government).transit == nil
+      assert Enum.any?(events, &(&1.type == :gateway_ready))
     end
   end
 

@@ -489,7 +489,7 @@
     "faction_building": {
       "kind": "Faction building",
       "upkeep": "Upkeep",
-      "upkeep_hint": "Paid from the faction treasury for as long as the building stands. If the treasury cannot cover the upkeep of every station, all of the faction's buildings go offline until it can.",
+      "upkeep_hint": "Billed to the faction treasury each time taxes come in, for as long as the building stands. If the treasury cannot pay the whole bill for every station, it pays what it has and all of the faction's buildings go offline until a bill is paid in full.",
       "labor": "production",
       "labor_hint": "The host system's production works it off on a track of its own. The owner's build queue is not slowed.",
       "labor_time": "About {time} at this system's current production.",
@@ -515,7 +515,7 @@
       "link_cost": "Link cost",
       "link_cost_hint": "Billed to the treasury for as long as the link is forming. If the treasury runs dry, the link waits.",
       "charge_upkeep": "Charge upkeep",
-      "charge_upkeep_hint": "Added to the upkeep while an agent charges the Gateway.",
+      "charge_upkeep_hint": "Added to the upkeep while an agent charges the Gateway. If the stations go offline during the charge, the agent stands down and the Gateway is free again.",
       "unlink_cost": "Unlinking",
       "unlink_cost_hint": "Paid once to sever the link, which takes {time}. A linked Gateway cannot be demolished.",
       "training_interval": "Session every",

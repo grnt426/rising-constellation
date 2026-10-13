@@ -41,6 +41,8 @@ defmodule Instance.Faction.GovernmentCensusTest do
         government_law_cooldown: 10,
         government_lockout_duration: 30,
         market_taxe: 0.1,
+        # upkeep settles on the tax cadence; 1 ut settles on every advance
+        player_stats_interval: Keyword.get(opts, :upkeep_interval, 1),
         gateway_charge_time: 12,
         gateway_jump_time: 4,
         gateway_fatigue_time: 4,

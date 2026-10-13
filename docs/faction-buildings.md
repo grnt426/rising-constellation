@@ -63,11 +63,26 @@ multi-cell construction concept in the game.
   government must never be able to clog a member's build queue.)
 - **Cancel** refunds the full treasury cost. **Demolish** is instant
   and free (gateway link guards arrive with the link phase).
-- **Upkeep** accrues per faction tick (`rate × elapsed ut`) against the
-  treasury. If the treasury cannot cover the faction's whole station
-  upkeep for the elapsed period, nothing is paid and every station
-  building of that faction is **unpowered** (no benefits) until the
-  treasury recovers — all-or-nothing for v1, surfaced with an event.
+- **Upkeep** accrues per faction tick (`rate × elapsed ut`) into a
+  bill, settled against the treasury once per `player_stats_interval`:
+  the cadence members remit their taxes on, so each settlement weighs
+  one round of taxes against one round of upkeep (user decision
+  2026-10-13; debiting every tick starved a treasury living on its
+  taxes between two remittances and flipped the power with it).
+  Insolvency follows the player bankruptcy rule: a bill the treasury
+  cannot pay in full takes what is there, the remainder is written
+  off, and every station building of that faction is **unpowered** (no
+  benefits) until a later bill is paid in full. All-or-nothing across
+  the faction, surfaced with an event. Dark stations keep billing, as
+  a bankrupt player's agents keep drawing wages, so a faction whose
+  taxes fall short stays dark until the budget is fixed (raise taxes,
+  demolish, donate) instead of flickering. Power only changes at a
+  settlement: a donation relights the stations at the next one.
+  The system owner never pays: upkeep is the treasury's bill alone.
+  The faction re-sends its power state to a system whenever a building
+  there completes or comes back under its control, so a station won
+  back or rebuilt during a shortfall starts dark, and one rebuilt
+  after the shortfall starts lit.
 - **Capture/abandon**: buildings persist physically but become
   `:disabled` (no benefits, no upkeep, not usable by the captor —
   keyed to faction command codes). They re-enable automatically when a
@@ -158,7 +173,8 @@ status: :linking | :linked | :unlinking, remaining, transit}` where
   neither already in a link. Forms over `gateway_link_time`, billed
   per ut (3000c + 500t) through the station-upkeep pool — if the
   treasury can't pay (all-or-nothing power-down), link formation and
-  teardown PAUSE until it can. **Unlink**: one-time 150k c + 20k t,
+  teardown PAUSE until it can, and the paused formation stops billing.
+  **Unlink**: one-time 150k c + 20k t,
   `gateway_unlink_time` of teardown; refused while forming or while
   any transit holds the pair. **Demolition** of a gateway is refused
   in any link state.
@@ -173,6 +189,10 @@ status: :linking | :linked | :unlinking, remaining, transit}` where
   a government-side wind-down equal to the fatigue window — killing
   the arrived traveler does NOT shorten it. A `:charging` transit
   bills +250c +50t per ut.
+- **A power-down stops the gateway**: no new reservation
+  (`:station_unpowered`), and a traveler caught charging is stood down
+  in place with the pair freed (`:gateway_charge_aborted`). A traveler
+  already mid-jump lands, and a wind-down runs its clock out.
 - **Interruption releases the lock** (only a `:charging` transit ever
   releases): orders cleared, flee, fight death, assassination (both
   the kill branch and the fleet-survives-under-default-agent branch),
