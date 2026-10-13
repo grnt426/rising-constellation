@@ -854,8 +854,8 @@ defmodule Instance.StellarSystem.StellarSystem do
 
         {station, changed} = StellarSystem.Station.sync_statuses(station, state.status, state.owner)
 
-        # Fresh control resets the power flag; the owning government's
-        # next upkeep tick re-asserts it if the treasury is dry.
+        # Fresh control resets the power flag; the owning government
+        # answers the status cast below with its real power state.
         station = %{station | powered: true}
 
         Enum.each(changed, fn building ->

@@ -183,8 +183,15 @@ defmodule Instance.StellarSystem.Station do
   @doc "Drop the active construction (government cancel, or lost on capture)."
   def clear_construction(%Station{} = station), do: %{station | construction: nil}
 
-  def remove_building(%Station{} = station, building_id),
-    do: %{station | buildings: Enum.reject(station.buildings, &(&1.id == building_id))}
+  # An emptied station has nothing left to power: clear the flag, or a
+  # station demolished while unpowered would read offline forever (the
+  # faction only pushes power to systems in its billing registry).
+  def remove_building(%Station{} = station, building_id) do
+    buildings = Enum.reject(station.buildings, &(&1.id == building_id))
+    powered = buildings == [] or station.powered
+
+    %{station | buildings: buildings, powered: powered}
+  end
 
   @doc """
   Re-derive every building's enabled/disabled status against the

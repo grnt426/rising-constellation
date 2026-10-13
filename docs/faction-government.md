@@ -142,6 +142,14 @@ what makes Cardan and ARK affordable (§3).
   mechanism* — a temporary per-player negative income entry plus an even
   redistribution entry, both expiring after 72h. Building taxes and the
   tithe on one hook keeps them consistent and cheap.
+  **As built (2026-10-13):** the income tax is levied last, in
+  `Player.levy_faction_tax/1`, as `rate`% of each resource's net income
+  after wages, fleet upkeep and tuition. A member running a deficit in
+  a resource pays nothing in it, the tax is never negative and cannot
+  turn a surplus into a deficit, and the member's income drops by
+  exactly what is remitted. The income is reduced continuously; only
+  the transfer to the treasury is batched, once per
+  `player_stats_interval`.
 - **Hard caps on tax rates by design** (see §5.1) — this is the main
   "don't punish dissenters" lever.
 - Faction→player grants mirror `send_resources` with the treasury as

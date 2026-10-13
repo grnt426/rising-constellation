@@ -1810,11 +1810,24 @@ defmodule Instance.Faction.Government do
   # Station upkeep: every active (built, control intact) faction
   # building bills the treasury per unit-time, plus the gateway
   # surcharges — link formation (3000c/500t per ut while :linking) and
-  # a charging transit (250c/50t per ut). All-or-nothing: when the
-  # treasury can't cover the whole bill for the elapsed period, nothing
-  # is paid and every station is unpowered (no benefits, no new gateway
-  # reservations, link timers pause) until the treasury recovers. The
-  # agent turns the :station_power event into set-power casts.
+  # a charging transit (250c/50t per ut).
+  #
+  # The bill accrues every tick and is settled once per
+  # player_stats_interval, the cadence members remit their taxes on:
+  # each settlement weighs one round of taxes against one round of
+  # upkeep. (Debiting every tick starved a treasury that lives on its
+  # taxes between two remittances, and flipped the power with it.)
+  #
+  # Insolvency follows the player rule (Player.detect_bankruptcy: the
+  # stock is empty and the income does not cover the outgoings, and the
+  # outgoings keep being charged). A bill the treasury cannot pay in
+  # full takes what is there and unpowers every station (no benefits,
+  # no new gateway reservations, link timers pause, a traveler caught
+  # charging is stood down); the unpaid remainder is written off, and
+  # the power returns with the first bill paid in full. The stations
+  # keep billing while dark, so a faction whose taxes fall short stays
+  # dark instead of saving up for one lit round in two. The agent turns
+  # the :station_power event into set-power casts.
   defp tick_station_upkeep(%Government{} = government, elapsed_time, ctx) do
     active =
       government
@@ -1824,31 +1837,90 @@ defmodule Instance.Faction.Government do
     powered = Map.get(government, :station_powered, true)
 
     due =
-      station_upkeep_due(active, elapsed_time, ctx)
-      |> add_gateway_surcharges(government, elapsed_time, ctx)
+      government
+      |> get_meta(:upkeep_due, %{})
+      |> add_station_upkeep(active, elapsed_time, ctx)
 
-    if due.credit == 0 and due.technology == 0 and due.ideology == 0 do
-      {Map.put(government, :station_powered, true), []}
-    else
-      case treasury_covers(government, due) do
-        :ok ->
-          government =
-            government
-            |> Map.put(:treasury, debit_treasury(government.treasury, due))
-            |> Map.put(:station_powered, true)
+    # a paused link forms nothing and nobody charges an unpowered gateway
+    due = if powered, do: add_gateway_surcharges(due, government, elapsed_time, ctx), else: due
 
-          if powered,
-            do: {government, []},
-            else: {government, [station_power_event(government, true)]}
+    elapsed = get_meta(government, :upkeep_elapsed, 0) + elapsed_time
 
-        {:error, _} ->
-          government = Map.put(government, :station_powered, false)
+    cond do
+      # nothing standing and nothing owed: there is no bill to fall behind on
+      active == [] and Enum.all?(due, fn {_resource, amount} -> amount == 0 end) ->
+        {government |> put_upkeep_bill(%{}, 0) |> Map.put(:station_powered, true), []}
 
-          if powered,
-            do: {government, [station_power_event(government, false)]},
-            else: {government, []}
-      end
+      elapsed < ctx.constants.player_stats_interval ->
+        government = put_upkeep_bill(government, due, elapsed)
+
+        if powered,
+          do: {government, []},
+          else: abort_charging_transits(government)
+
+      true ->
+        government |> put_upkeep_bill(%{}, 0) |> settle_station_upkeep(due, powered)
     end
+  end
+
+  defp put_upkeep_bill(government, due, elapsed) do
+    government
+    |> put_meta(:upkeep_due, due)
+    |> put_meta(:upkeep_elapsed, elapsed)
+  end
+
+  defp settle_station_upkeep(%Government{} = government, due, powered) do
+    case treasury_covers(government, due) do
+      :ok ->
+        government =
+          government
+          |> Map.put(:treasury, debit_treasury(government.treasury, due))
+          |> Map.put(:station_powered, true)
+
+        if powered,
+          do: {government, []},
+          else: {government, [station_power_event(government, true)]}
+
+      {:error, _} ->
+        paid =
+          Map.new(due, fn {resource, amount} ->
+            {resource, amount |> min(Map.get(government.treasury, resource, 0)) |> max(0)}
+          end)
+
+        government =
+          government
+          |> Map.put(:treasury, debit_treasury(government.treasury, paid))
+          |> Map.put(:station_powered, false)
+
+        {government, abort_events} = abort_charging_transits(government)
+
+        if powered,
+          do: {government, [station_power_event(government, false) | abort_events]},
+          else: {government, abort_events}
+    end
+  end
+
+  # An unpowered gateway charges nobody: the traveler stands down and
+  # the pair is free again. Runs on every unpowered tick, not
+  # only the flip, so a lock restored from an older snapshot goes too.
+  # A :jumping traveler lands regardless (aborting would strand it) and
+  # a wind-down runs its own clock out.
+  defp abort_charging_transits(%Government{} = government) do
+    {links, events} =
+      government
+      |> Map.get(:gateway_links, [])
+      |> Enum.map_reduce([], fn link, events ->
+        case link.transit do
+          %{phase: :charging, character_id: character_id} ->
+            link = %{link | transit: nil}
+            {link, events ++ [%{type: :gateway_charge_aborted, link: link, character_id: character_id}]}
+
+          _ ->
+            {link, events}
+        end
+      end)
+
+    {Map.put(government, :gateway_links, links), events}
   end
 
   defp add_gateway_surcharges(due, government, elapsed_time, ctx) do
@@ -1891,8 +1963,10 @@ defmodule Instance.Faction.Government do
     %{type: :station_power, powered: powered, system_ids: system_ids}
   end
 
-  defp station_upkeep_due(entries, elapsed_time, ctx) do
-    Enum.reduce(entries, %{credit: 0, technology: 0, ideology: 0}, fn entry, acc ->
+  defp add_station_upkeep(due, entries, elapsed_time, ctx) do
+    due = Map.merge(%{credit: 0, technology: 0, ideology: 0}, due)
+
+    Enum.reduce(entries, due, fn entry, acc ->
       node = Data.Querier.one(Data.Game.FactionBuilding, ctx.instance_id, entry.key)
       level_info = node && Enum.find(node.levels, &(&1.level == entry.level))
       upkeep = if level_info, do: level_info.upkeep, else: %{}

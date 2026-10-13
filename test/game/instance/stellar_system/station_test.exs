@@ -248,4 +248,26 @@ defmodule Instance.StellarSystem.StationTest do
       assert [%{status: :built}] = station.buildings
     end
   end
+
+  describe "Station.remove_building/2" do
+    test "an emptied station drops its unpowered flag, a shared one keeps it" do
+      station = %Station{
+        buildings: [
+          %{id: 1, key: :training_center, level: 1, faction_id: 1, slots: [0, 1], status: :built},
+          %{id: 2, key: :training_center, level: 1, faction_id: 1, slots: [2, 3], status: :built}
+        ],
+        construction: nil,
+        powered: false,
+        next_building_id: 3
+      }
+
+      station = Station.remove_building(station, 1)
+      assert [%{id: 2}] = station.buildings
+      assert station.powered == false
+
+      station = Station.remove_building(station, 2)
+      assert station.buildings == []
+      assert station.powered == true
+    end
+  end
 end

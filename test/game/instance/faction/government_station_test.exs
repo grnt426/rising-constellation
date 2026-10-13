@@ -43,7 +43,9 @@ defmodule Instance.Faction.GovernmentStationTest do
         government_max_laws: 2,
         government_law_cooldown: 10,
         government_lockout_duration: 30,
-        market_taxe: 0.1
+        market_taxe: 0.1,
+        # upkeep settles on the tax cadence; 1 ut settles on every advance
+        player_stats_interval: Keyword.get(opts, :upkeep_interval, 1)
       },
       faction_ideology_income: fn -> 100 end,
       faction_credit_total: fn -> 100_000 end,
@@ -315,8 +317,10 @@ defmodule Instance.Faction.GovernmentStationTest do
 
       assert Map.get(government, :station_powered) == false
       assert [%{type: :station_power, powered: false, system_ids: [77]}] = Enum.filter(events, &(&1.type == :station_power))
-      # nothing was paid
-      assert government.treasury.credit == 500
+      # the bill takes what is there (and all it is owed of the rest)
+      assert government.treasury.credit == 0
+      assert government.treasury.technology == 9_800
+      assert government.treasury.ideology == 9_700
 
       # refill and tick again → power restored and upkeep paid
       government = %{government | treasury: %{credit: 5_000, technology: 10_000, ideology: 10_000}}
@@ -325,6 +329,62 @@ defmodule Instance.Faction.GovernmentStationTest do
       assert Map.get(government, :station_powered) == true
       assert [%{type: :station_power, powered: true}] = Enum.filter(events, &(&1.type == :station_power))
       assert government.treasury.credit == 4_000
+    end
+
+    test "the bill accrues every tick and settles once per tax interval" do
+      ctx = ctx(:myrmezir, players(5), upkeep_interval: 10)
+      government = running_government(ctx, treasury: %{credit: 0, technology: 10_000, ideology: 10_000})
+
+      government =
+        Government.station_registry_complete(government, 77, %{id: 1, key: :training_center, level: 1, faction_id: 1, slots: [0, 1], status: :built})
+
+      # an empty till between two remittances is not insolvency
+      {government, events} = Government.advance(government, 4, ctx)
+      {government, more_events} = Government.advance(government, 4, ctx)
+
+      assert Map.get(government, :station_powered) == true
+      refute Enum.any?(events ++ more_events, &(&1.type == :station_power))
+      assert government.treasury.technology == 10_000
+
+      # the round of taxes lands, then the round of upkeep is taken from it:
+      # 10 ut at 100c/20t/30i per ut
+      government = Government.deposit(government, %{credit: 1_200})
+      {government, events} = Government.advance(government, 2, ctx)
+
+      assert Map.get(government, :station_powered) == true
+      refute Enum.any?(events, &(&1.type == :station_power))
+      assert government.treasury.credit == 200
+      assert government.treasury.technology == 9_800
+      assert government.treasury.ideology == 9_700
+    end
+
+    test "taxes that fall short keep the stations dark, round after round" do
+      ctx = ctx(:myrmezir, players(5), upkeep_interval: 10)
+      government = running_government(ctx, treasury: %{credit: 0, technology: 10_000, ideology: 10_000})
+
+      government =
+        Government.station_registry_complete(government, 77, %{id: 1, key: :training_center, level: 1, faction_id: 1, slots: [0, 1], status: :built})
+
+      # each round brings 600 credit against a 1000 credit bill
+      {government, flips} =
+        Enum.reduce(1..5, {government, []}, fn _round, {government, flips} ->
+          government = Government.deposit(government, %{credit: 600})
+          {government, events} = Government.advance(government, 10, ctx)
+
+          assert Map.get(government, :station_powered) == false
+          assert government.treasury.credit == 0
+          {government, flips ++ Enum.filter(events, &(&1.type == :station_power))}
+        end)
+
+      # one power-down, never a flicker back on
+      assert [%{powered: false}] = flips
+
+      # the budget is fixed: the first bill paid in full relights them
+      government = Government.deposit(government, %{credit: 1_000})
+      {government, events} = Government.advance(government, 10, ctx)
+
+      assert Map.get(government, :station_powered) == true
+      assert [%{type: :station_power, powered: true}] = Enum.filter(events, &(&1.type == :station_power))
     end
   end
 
