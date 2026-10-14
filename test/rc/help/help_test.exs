@@ -120,9 +120,7 @@ defmodule RC.HelpTest do
       assert Compiler.render(md, placeholders) =~
                ~s(<a href="/help/g#how-bonuses-add-up" class="help-ref" data-help="g" data-anchor="how-bonuses-add-up">How bonuses add up</a>)
 
-      {page, _issues} =
-        Compiler.compile_page(%Page{slug: "g", title: "Guide", body: "## How bonuses add up\n\nText."}, ctx)
-
+      {page, _issues} = Compiler.compile_page(%Page{slug: "g", title: "Guide", body: "## How bonuses add up\n\nText."}, ctx)
       assert page.html[:slow] =~ ~s(<h2 id="how-bonuses-add-up">How bonuses add up</h2>)
       assert Compiler.anchor_id("What {icon:resource/credit} it gives") == "what-it-gives"
     end
@@ -291,9 +289,7 @@ defmodule RC.HelpTest do
       assert md =~ "{table:building_levels factory_open}"
       assert md =~ "{table:building_unlock factory_open}"
       refute md =~ "shipyard_ships"
-
-      assert Catalog.body(ctx, %{page | slug: "building/shipyard_1_orbital"}) =~
-               "{table:shipyard_ships shipyard_1_orbital}"
+      assert Catalog.body(ctx, %{page | slug: "building/shipyard_1_orbital"}) =~ "{table:shipyard_ships shipyard_1_orbital}"
     end
 
     test "the card has a radio pip, a panel and a cost row per level", %{ctx: ctx} do
@@ -310,10 +306,7 @@ defmodule RC.HelpTest do
     test "the card of a school's building ends with its training seats", %{ctx: ctx} do
       # a Delta Polytech seats one agent at every level
       {:ok, polytech} = Catalog.block(ctx, "card", "building", "university_open")
-
-      assert length(
-               Regex.scan(~r/Training seats<\/span><span class="help-bcard-bonus-value"><strong>1<\/strong>/, polytech)
-             ) == 5
+      assert length(Regex.scan(~r/Training seats<\/span><span class="help-bcard-bonus-value"><strong>1<\/strong>/, polytech)) == 5
 
       # a university seats one agent of its type per level
       {:ok, monolith} = Catalog.block(ctx, "card", "building", "monument_dome")
@@ -326,24 +319,14 @@ defmodule RC.HelpTest do
       # a Citadel seats one agent like a Polytech, and both say what they
       # give the students of their system, as a percentage
       {:ok, citadel} = Catalog.block(ctx, "card", "building", "ideo_open")
-
-      assert length(
-               Regex.scan(~r/Training seats<\/span><span class="help-bcard-bonus-value"><strong>1<\/strong>/, citadel)
-             ) == 5
-
-      assert citadel =~
-               ~r/data-level="2">.*?Neural Rewire Time<\/span><span class="help-bcard-bonus-value"><strong>-3%<\/strong>/s
-
-      assert polytech =~
-               ~r/data-level="5">.*?Training Experience<\/span><span class="help-bcard-bonus-value"><strong>\+15%<\/strong>/s
+      assert length(Regex.scan(~r/Training seats<\/span><span class="help-bcard-bonus-value"><strong>1<\/strong>/, citadel)) == 5
+      assert citadel =~ ~r/data-level="2">.*?Neural Rewire Time<\/span><span class="help-bcard-bonus-value"><strong>-3%<\/strong>/s
+      assert polytech =~ ~r/data-level="5">.*?Training Experience<\/span><span class="help-bcard-bonus-value"><strong>\+15%<\/strong>/s
 
       # a Holodome seats one agent too, and cuts the fee of the system's courses
       {:ok, holodome} = Catalog.block(ctx, "card", "building", "ideo_dome")
       assert holodome =~ "Training seats"
-
-      assert holodome =~
-               ~r/data-level="5">.*?Training Cost<\/span><span class="help-bcard-bonus-value"><strong>-20%<\/strong>/s
-
+      assert holodome =~ ~r/data-level="5">.*?Training Cost<\/span><span class="help-bcard-bonus-value"><strong>-20%<\/strong>/s
       refute holodome =~ "Training Experience"
       refute holodome =~ "Neural Rewire Time"
 
@@ -360,9 +343,7 @@ defmodule RC.HelpTest do
         Map.merge(ctx.index, %{
           slugs: Map.put(ctx.index.slugs, "buildings", "Buildings"),
           aliases: Map.put(ctx.index.aliases, "unique-buildings", "buildings"),
-          alias_anchors: %{
-            "unique-buildings" => %{anchor: "unique-and-limited-buildings", heading: "Unique and Limited"}
-          }
+          alias_anchors: %{"unique-buildings" => %{anchor: "unique-and-limited-buildings", heading: "Unique and Limited"}}
         })
 
       {:ok, linked} = Catalog.block(%{ctx | index: index}, "facts", "building", "monument_dome")
@@ -461,9 +442,7 @@ defmodule RC.HelpTest do
     end
 
     test "buildings_by_tag lists buildings by content tag", %{ctx: ctx} do
-      tagged =
-        RC.Help.Data.buildings(:slow) |> Enum.count(&(&1.biome in [:open, :dome, :orbital] and :defense in &1.outputs))
-
+      tagged = RC.Help.Data.buildings(:slow) |> Enum.count(&(&1.biome in [:open, :dome, :orbital] and :defense in &1.outputs))
       {:ok, md} = Tables.render(ctx, "buildings_by_tag", ["defense"])
       assert md |> String.split("\n") |> Enum.drop(2) |> length() == tagged
       assert md =~ "{icon:building/radar_orbital}"
@@ -494,11 +473,7 @@ defmodule RC.HelpTest do
       assert card =~ ~s(<span class="help-amount"><span class="help-unit-tick">)
       assert card =~ ~r/<span class="help-unit-hour">\+[\d.,k]+\/h<\/span>/
 
-      page = %Page{
-        slug: "amounts",
-        body: "Gain {amount:+2.8}, {amount:-0.05} and {amount:+6000}. {units:Per tick.|Per hour.}"
-      }
-
+      page = %Page{slug: "amounts", body: "Gain {amount:+2.8}, {amount:-0.05} and {amount:+6000}. {units:Per tick.|Per hour.}"}
       {compiled, issues} = Compiler.compile_page(page, ctx)
       html = compiled.html[:slow]
       assert html =~ ~s(<span class="help-unit-tick">+2.8</span><span class="help-unit-hour">+56/h</span>)
@@ -514,19 +489,13 @@ defmodule RC.HelpTest do
       {:ok, bare} = Catalog.block(ctx, "facts", "building", "hab_open")
       refute bare =~ "help-partof"
 
-      index =
-        Map.merge(ctx.index, %{
-          slugs: Map.merge(ctx.index.slugs, %{"buildings" => "Buildings", "upgrades" => "Upgrades"})
-        })
-
+      index = Map.merge(ctx.index, %{slugs: Map.merge(ctx.index.slugs, %{"buildings" => "Buildings", "upgrades" => "Upgrades"})})
       linked = %{ctx | index: index}
       assert Catalog.body(linked, page) =~ ~r/## Levels\n\nEvery level above 1 is an upgrade\. See \[\[upgrades\]\]/
       # A one-level building (every building at Flash) has no upgrades to point to.
       refute Catalog.body(%{linked | speed: :fast}, %{page | slug: "building/mine_dome"}) =~ "Every level above 1"
       {:ok, facts} = Catalog.block(linked, "facts", "building", "hab_open")
-
-      assert facts =~
-               ~s(<p class="help-partof">Part of the <a href="/help/buildings" class="help-ref" data-help="buildings">Buildings</a> guide</p>)
+      assert facts =~ ~s(<p class="help-partof">Part of the <a href="/help/buildings" class="help-ref" data-help="buildings">Buildings</a> guide</p>)
     end
 
     test "the manual recompiles when the set of page files changes" do
@@ -596,15 +565,10 @@ defmodule RC.HelpTest do
     test "a page of levels lists each level's price, requirement and unlocks", %{ctx: ctx} do
       md = Catalog.body(ctx, %Page{slug: "patent/infra_open", kind: :catalog, body: "PROSE"})
       assert md =~ ~r/\A\{facts:patent infra_open\}\s+PROSE\s+\{card:patent infra_open\}\s+## Levels/
-
-      assert md =~
-               "| {icon:patent/infra_open_2} II | 400 | Urbanization | Megapolis level 2; Convention Center; Allows for buildings"
-
+      assert md =~ "| {icon:patent/infra_open_2} II | 400 | Urbanization | Megapolis level 2; Convention Center; Allows for buildings"
       assert md |> String.split("\n") |> Enum.count(&String.starts_with?(&1, "| {icon:patent/infra_open_")) == 5
       # The top level's path runs through the lower levels, in bold, and the patents between them.
-      assert md =~
-               ~r/## Unlocking.*1\. \{icon:patent\/citadel\}.*\*\*Urbanization II\*\*\n4\. \{icon:patent\/open_ideo\}.*\*\*Urbanization V\*\*\z/s
-
+      assert md =~ ~r/## Unlocking.*1\. \{icon:patent\/citadel\}.*\*\*Urbanization II\*\*\n4\. \{icon:patent\/open_ideo\}.*\*\*Urbanization V\*\*\z/s
       refute md =~ "## Unlocks"
 
       {:ok, facts} = Catalog.block(ctx, "facts", "patent", "infra_open")
@@ -621,12 +585,8 @@ defmodule RC.HelpTest do
       {:ok, html} = Catalog.block(ctx, "card", "patent", "infra_orbital")
       assert html =~ ~s(<figure class="help-bcard help-rcard" data-patent="infra_orbital">)
       # Pips count positions, so the first level this speed has shows by default; ids are the level anchors.
-      assert html =~
-               ~s(<input type="radio" name="help-bcard-patent-infra_orbital" value="1" id="level-2" checked><span>II</span>)
-
-      assert html =~
-               ~s(<input type="radio" name="help-bcard-patent-infra_orbital" value="4" id="level-5"><span>V</span>)
-
+      assert html =~ ~s(<input type="radio" name="help-bcard-patent-infra_orbital" value="1" id="level-2" checked><span>II</span>)
+      assert html =~ ~s(<input type="radio" name="help-bcard-patent-infra_orbital" value="4" id="level-5"><span>V</span>)
       assert length(Regex.scan(~r/ checked>/, html)) == 1
       assert length(Regex.scan(~r/class="help-bcard-panel" data-level="\d"/, html)) == 4
       assert length(Regex.scan(~r/class="help-bcard-cost" data-level="\d"/, html)) == 4
@@ -647,10 +607,7 @@ defmodule RC.HelpTest do
       fast = %{ctx | speed: :fast}
       {:ok, facts} = Catalog.block(fast, "facts", "patent", "merge_fighter")
       assert facts =~ "<dd>I, III</dd>"
-
-      assert Catalog.body(fast, %Page{slug: "patent/infra_orbital", kind: :catalog, body: "x"}) ==
-               "{absent:patent infra_orbital}"
-
+      assert Catalog.body(fast, %Page{slug: "patent/infra_orbital", kind: :catalog, body: "x"}) == "{absent:patent infra_orbital}"
       {:ok, absent} = Catalog.block(fast, "absent", "patent", "infra_orbital")
       assert absent =~ ~s(<a href="/help/patent/infra_orbital" class="help-speed-switch" data-speed="slow">Legacy</a>)
 
@@ -682,19 +639,8 @@ defmodule RC.HelpTest do
       md = Catalog.body(ctx, %Page{slug: "lex/credit_pop", kind: :catalog, body: ""})
       assert md =~ ~r/\*\*Benefits\*\*.*\*\*Drawbacks\*\*\s+- -25 % Defense/s
       # Lower upkeep is a benefit, higher upkeep a drawback.
-      assert ResearchCatalog.drawback?(%Core.Bonus{
-               from: :army_maintenance,
-               to: :army_maintenance,
-               type: :mul,
-               value: 0.05
-             })
-
-      refute ResearchCatalog.drawback?(%Core.Bonus{
-               from: :army_maintenance,
-               to: :army_maintenance,
-               type: :mul,
-               value: -0.1
-             })
+      assert ResearchCatalog.drawback?(%Core.Bonus{from: :army_maintenance, to: :army_maintenance, type: :mul, value: 0.05})
+      refute ResearchCatalog.drawback?(%Core.Bonus{from: :army_maintenance, to: :army_maintenance, type: :mul, value: -0.1})
     end
 
     test "facts give the base price and how it grows", %{ctx: ctx} do
@@ -709,10 +655,7 @@ defmodule RC.HelpTest do
       md = Catalog.body(%{ctx | speed: :fast}, %Page{slug: "patent/open_intel", kind: :catalog, body: "x"})
       assert md == "{absent:patent open_intel}"
       {:ok, html} = Catalog.block(%{ctx | speed: :fast}, "absent", "patent", "open_intel")
-
-      assert html =~
-               ~s(data-speed="slow">Legacy</a> or <a href="/help/patent/open_intel" class="help-speed-switch" data-speed="medium">Tactic</a>)
-
+      assert html =~ ~s(data-speed="slow">Legacy</a> or <a href="/help/patent/open_intel" class="help-speed-switch" data-speed="medium">Tactic</a>)
       {:ok, html} = Catalog.block(ctx, "absent", "patent", "merge_fighter_corvette")
       assert html =~ ~s(data-speed="fast">Flash</a>.)
       refute html =~ "Tactic"
@@ -821,9 +764,7 @@ defmodule RC.HelpTest do
       {page, _issues} = Compiler.compile_page(%Page{slug: "a", title: "A", body: body}, ctx)
       html = page.html[:slow]
 
-      assert html =~
-               ~s(<details class="help-advanced"><summary>Advanced mechanics</summary><div class="help-advanced-body">)
-
+      assert html =~ ~s(<details class="help-advanced"><summary>Advanced mechanics</summary><div class="help-advanced-body">)
       assert html =~ ~s(<h2 id="how-it-rolls">How it rolls</h2>)
       refute html =~ "{advanced}"
       assert page.text =~ "Deep detail."
@@ -838,9 +779,7 @@ defmodule RC.HelpTest do
 
     test "a page can record that it is long on purpose, with a reason" do
       body = String.duplicate("Word word word word word. ", 40)
-
-      assert [] =
-               Compiler.lint_prose(%Page{slug: "x", body: body, length: "long", length_reason: "Many separate rules."})
+      assert [] = Compiler.lint_prose(%Page{slug: "x", body: body, length: "long", length_reason: "Many separate rules."})
 
       assert [%{msg: msg}] = Compiler.lint_prose(%Page{slug: "x", body: body, length: "long"})
       assert msg =~ "needs a `length_reason:`"
@@ -886,10 +825,7 @@ defmodule RC.HelpTest do
         "width" => 400,
         "height" => 200,
         "alt" => "Box",
-        "marks" => %{
-          "a" => %{"x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.4},
-          "b" => %{"x" => 0, "y" => 0, "w" => 1, "h" => 1}
-        }
+        "marks" => %{"a" => %{"x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.4}, "b" => %{"x" => 0, "y" => 0, "w" => 1, "h" => 1}}
       }
 
       ctx = %{ctx | shots: %{"box" => shot}}

@@ -626,19 +626,9 @@ defmodule Portal.DevFixtureController do
          patents = research_to_buy(Data.Game.Patent, instance_id, @research_patents, player.patents),
          lexes = research_to_buy(Data.Game.Doctrine, instance_id, @research_lexes, player.doctrines),
          mult = Instance.Mutators.cost_multiplier(instance_id, :patent),
-         technology =
-           research_price(Data.Game.Patent, instance_id, patents, length(player.patents), c.patent_level_price_increase) *
-             mult,
-         ideology =
-           research_price(
-             Data.Game.Doctrine,
-             instance_id,
-             lexes,
-             length(player.doctrines),
-             c.doctrine_level_price_increase
-           ),
-         slot =
-           min(round(:math.pow(2, player.max_policies - 1)) * c.initial_policy_slot_cost, c.policy_slot_maximum_cost),
+         technology = research_price(Data.Game.Patent, instance_id, patents, length(player.patents), c.patent_level_price_increase) * mult,
+         ideology = research_price(Data.Game.Doctrine, instance_id, lexes, length(player.doctrines), c.doctrine_level_price_increase),
+         slot = min(round(:math.pow(2, player.max_policies - 1)) * c.initial_policy_slot_cost, c.policy_slot_maximum_cost),
          grant = %{credit: 0, technology: ceil(technology) + 1, ideology: ceil(ideology + slot) + 1},
          :ok <- call.({:cheat, :grant_resources, grant}),
          :ok <- each_ok(patents, &call.({:purchase_patent, &1})),
@@ -646,10 +636,7 @@ defmodule Portal.DevFixtureController do
          :ok <- call.(:purchase_policy_slot),
          :ok <- call.(:cheat_clear_policies_cooldown),
          {:ok, player} <- call.(:get_state) do
-      Logger.info(
-        "[dev-fixture] research patents=#{inspect(patents)} lexes=#{inspect(lexes)} slots=#{player.max_policies}"
-      )
-
+      Logger.info("[dev-fixture] research patents=#{inspect(patents)} lexes=#{inspect(lexes)} slots=#{player.max_policies}")
       {:ok, %{patents: player.patents, lexes: player.doctrines, active: player.policies, slots: player.max_policies}}
     else
       {:error, _} = error -> error
