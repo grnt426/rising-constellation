@@ -1,8 +1,9 @@
 # Agent training
 
-Reference for the two agent-training features built in October 2026: the
-passive seat at a Delta Polytech and the university course that earns neural
-rewires, each of which moves one skill point. The proposal and its expected impact are in
+Reference for the agent-training features built in October 2026: the
+passive seat at a Delta Polytech, a Citadel or a Holodome, the university course that
+earns neural rewires, each of which moves one skill point, and what the
+buildings of a system give the agents in training there. The proposal and its expected impact are in
 `docs/agent-training-impact.md`; this document says what was built, which of
 the proposal's open questions were settled and how, and where the code is.
 
@@ -20,16 +21,16 @@ A student counts as a deployed agent in every way that matters to its owner.
 It holds an agent slot of its type, draws wages, and can be removed or seduced
 where it sits.
 
-| | Delta Polytech | University |
+| | Delta Polytech, Citadel and Holodome | University |
 | --- | --- | --- |
-| Building | Delta Polytech (`university_open`) | Monolith for Siderians, Orb-INTEL for Erased, Aerospace Military Academy for Navarchs |
+| Building | Delta Polytech (`university_open`), Citadel (`ideo_open`), Holodome (`ideo_dome`): three schools, each with its own seats | Monolith for Siderians, Orb-INTEL for Erased, Aerospace Military Academy for Navarchs |
 | Seats | One per building, whatever its level | One per building level |
-| Who | Agents of the system's owner, any type, from level 1 | Agents of the building's type, from level 5, the owner's included. The faction shares the seats: no limit per player |
-| Experience | The governor's passive rate | Nothing while settling in, then twice the governor's rate |
-| Neural rewires | None | One per day of course, up to five held |
-| Fee | None | Per tick and per agent level: 5 ideology (Siderian), 5 technology (Navarch), 50 credits (Erased) |
+| Who | Agents of the system's owner, any type, from level 1 | Agents of the building's type, from level 5, the owner's included. The faction shares the seats: one seat per player and per building, the owner of the system included |
+| Experience | The governor's passive rate, plus what the system's buildings add | Nothing while settling in, then twice the governor's rate, plus what the system's buildings add |
+| Neural rewires | None | One per day of course, less what the system's buildings take off, up to five held |
+| Fee | None | Per tick, once per level of the agent and once per level of the university: 3 ideology (Siderian), 3 technology (Navarch), 30 credits (Erased), less 4% per level of each Holodome of the system |
 | Ends | When recalled | At five rewires held, or when the fee cannot be paid. Either way the agent goes straight back to the deck |
-| Queue | One agent behind the student | One agent behind each student |
+| Queue | One agent behind the student | One agent behind each student. A player seated in the building queues behind its own student only |
 | Defence | Protection and Determination halved | Protection and Determination halved while in class |
 
 At Legacy speed the governor's rate is 1 experience per hour, settling in
@@ -60,6 +61,10 @@ card's button asks twice.
 
 The seat of a university student is drawn inside a ring cut into five
 segments, one per rewire, and a segment lights up when its rewire is earned.
+The segment of the rewire being earned pulses slowly and is drawn over as
+its day of course passes, so the hours left can be read off the ring; the
+seat's tooltip gives them ("2 of 5 neural rewires, next in 3 H 12 M"). A
+viewer who is not shown the rewires earned sees neither.
 A student is seen like a governor: its name, type and portrait from
 visibility 2, its progress (`reallocations`) at visibility 5, whatever the
 viewer's faction.
@@ -68,6 +73,116 @@ The fee is an income line, like wages, and follows the agent's level as it
 rises. When the stock of the resource it is paid in is empty and still
 falling, every student paying in that resource is sent home: the course ends
 there and the agent goes back to the deck with the rewires earned so far.
+
+### What the system's buildings give
+
+Decided with the players on 2026-10-13: the training buildings were a little
+weak, and a system built for the sole purpose of training agents should be
+worth building.
+
+| Building | Per level, per building |
+| --- | --- |
+| Delta Polytech | +3% experience for every student of the system |
+| Citadel | -1.5% of the time a rewire takes, and one training seat like the Polytech's |
+| Holodome | -4% of the fee of the system's university courses, and one training seat too |
+
+Three buildings, a seat each and one effect each (the game's rule of three).
+The second pass of 2026-10-13 gave the Holodome its own effect in place of
+two thirds of the two others, and put the fee back up (30 credits, 3
+technology or ideology, from 10 and 1): Holodomes are how a player brings
+it down, in the middle and the late game. The rate was 2% for a few hours
+and went to 4% the same day: two Holodomes of level 5 then took 20% off,
+too little to be worth building or to close the mid-game gap. At 4% a low
+Holodome already helps early agents, and two at level 5 take 40% off.
+
+- Every student of the system is helped, whatever its school: the agents in
+  the Polytech, Citadel and Holodome seats and the students of its
+  universities.
+  Governors and agents on board are not.
+- The percentages add up over every building standing in the system, and a
+  damaged building gives nothing. A rewire never takes less than a quarter
+  of its time, nor a course less than a quarter of its fee
+  (`@min_time_factor` and `@min_cost_factor` in `StellarSystem.School`);
+  nothing reaches the first today, and the second takes four Holodomes of
+  level 5 (one per sterile body).
+- The three are ordinary system bonuses: targets `sys_training_xp`,
+  `sys_reallocation_time` and `sys_training_cost` (`bonus-pipeline-out.ex`),
+  written on each level of the three buildings in
+  `building-{slow,medium,fast}.ex` (Flash has no Holodome), summed by
+  `compute_bonus` into the system's `training_xp`, `reallocation_time` and
+  `training_cost` values. Building cards and the manual list them like
+  any bonus, as percentages. The dominion AI leaves them out of what a
+  building is worth to it (`SystemAI.Weights.gains/1`): a dominion has no
+  school.
+- The fee counts the level of the university: 30 credits (3 technology, 3
+  ideology) per tick for each level of the agent and each level of the
+  building, times the `cost_factor` the Holodomes leave. With several buildings of the same university in a system (only
+  Academies today) the highest level counts for every student
+  (`School.school_level/3`), since seats are per school.
+
+**How a student learns of it.** A student ticks by itself, hours apart, so
+its system hands it the four numbers and they ride in its `training` map
+(`xp_bonus`, `time_factor`, `cost_factor`, `school_level`; `Training.conditions/1` reads a
+map that carries none as no bonus):
+
+- At enrolment the system stamps them on its copy of the student
+  (`StellarSystem.enroll_student/2`) and the player agent starts the
+  character agent with that copy's `training`.
+- After every `compute_bonus` and every `sync_schools`, `sync_training/1`
+  casts `{:training_conditions, conditions}` to each student whose copy
+  differs (`School.outdated/1`). The character agent ticks first, so the
+  time already spent is played under the old conditions, then takes the new
+  ones, re-anchors `training.at`, re-arms its tick and sends its usual
+  update to its owner and its system. The system's copy then matches.
+- A rewire under way keeps its share done: `Training.set_conditions/2`
+  scales `elapsed` with the time a rewire takes.
+- Students seated before this shipped run without bonus, and pay on the
+  level of the agent alone, until the next recompute in their system.
+
+The client reads the same four numbers (`conditions` in
+`front/src/game/training.js`) for the rate on the card, the fee, and the
+segment being earned. The tooltip of each school ends with what its system
+gives ("In this system: +21% training experience, -10.5% rewire time"), and
+the system's details page has an Agent training section with the three
+percentages, each with the breakdown by building every stat of that page
+has (`Details.vue`; `ResourceDetail` takes a `unit` for the percent sign).
+
+### One seat per player and per building
+
+A university building with five levels has five seats, and they are for five
+players: a player holds one seat per building, whatever its level, and the
+owner of the system is held to it like anyone else (2026-10-13). The point is
+that a few high buildings serve many players, and that no rich player fills
+every seat.
+
+- Seats are counted per school and not per building, so the limit is the
+  number of host buildings standing in the system
+  (`School.player_seats/3`). The Aerospace Military Academy is Limited (one
+  per body), so a system can hold several and a player one seat in each. In
+  the content files the Monolith and the Orb-INTEL are Unique (one per
+  system).
+- A seat is a student in class or a seat held for an agent the queue has
+  called (`School.seats_held/5`). A refusal is `:one_agent_per_building`.
+- The queue is how a player lines up its next agent: behind its own
+  student, whose seat it takes over. That is open whether the school is
+  full or not, since none of the free seats is for that player. A level 1
+  building is therefore its player's for as long as it keeps the line fed;
+  from level 2 the other seats are for the others.
+- Behind another player's student the agent would end up in a second seat,
+  so a player holding its seats is refused there, and so is a player who
+  already waits for every seat it may hold.
+- `settle/2` calls no agent whose owner holds every seat it may. An agent
+  behind its owner's student is passed over when another seat comes free,
+  and called when that student leaves.
+- A Polytech has no such limit: it seats one agent per building and its
+  owner alone.
+- Nobody is turned out for it. A player seated twice before the limit
+  existed keeps both seats, and its agents in line wait until it is back
+  under the limit.
+- The client reads `per_player` in the system's `schools` summary: with the
+  player's seat taken, the free seats of that school are not clickable and
+  their tooltip says why, and the place in the queue is offered behind the
+  player's own student only.
 
 ### Sieges
 
@@ -120,8 +235,17 @@ during a siege.
 ### Spending rewires
 
 Rewires are spent from the deck. One rewire moves one skill point: the owner
-takes it from one skill and gives it to another. Two limits apply to a skill
-that gains points, the same two a level-up respects:
+takes it from one skill and gives it to another. Two rewires add a point to
+a skill outright (2026-10-13), so that an agent with no point to spare still
+gets something from a course, at half the rate: five rewires move five
+points or add two. The two can be mixed in one change. A point a skill gains
+is billed as a move whenever another skill gave one up, and every point
+taken has to be placed (`Training.reallocation_cost/2`; the card's + and -
+follow the same count through `reallocationCost` in `training.js`). An agent
+that adds points ends up with more skill points than its level gave it.
+
+Two limits apply to a skill that gains points, the same two a level-up
+respects:
 
 - no skill passes 12;
 - no skill passes the agent's main skill, as the main skill ends up.
@@ -151,12 +275,16 @@ Agents queued behind a student who is turned out lose their place with it.
 | Re-enrolment and limits on moves | Re-enrolment is open, any number of times, once the last course's rewires are spent (decided by the owner, 2026-10-06). Moves respect the cap of 12 and the main-skill rule. |
 | What happens at five rewires | The agent is recalled to the deck at once (2026-10-07). The first build left it waiting in the system. |
 | Recall during a siege | Refused for a seated student; a queued agent can always leave (2026-10-07). |
-| One agent per player per building | Dropped (2026-10-07). University seats are shared by the faction with no limit per player. |
+| One agent per player per building | One seat per player and per university building, the owner of the system included; the next agent queues behind the player's own student (2026-10-13). It was dropped on 2026-10-07, and one player could then fill every seat. See "One seat per player and per building". |
 | Who sees a student's progress | Any faction with visibility 5, as for a governor (2026-10-07). The first build kept it to the owner's faction. |
 | Selling an agent that holds rewires | Refused (2026-10-07). The first build let the buyer inherit them. |
 | A queue | One agent behind each seated student (2026-10-07). See "The queue". |
 | Ejection | The owner of the system can turn out students and queued agents (2026-10-07). |
-| Fee fixed at entry or following the level | Following the level. |
+| Fee fixed at entry or following the level | Following the level of the agent and, since 2026-10-13, the level of the university (highest building of it in the system). The rates went from 5/5/50 per agent level to 1/1/10 per level of each, then to 3/3/30 the same day, with the Holodome to bring them down. |
+| Do the Citadel and the Holodome seat anyone | Yes (2026-10-13): one seat per building for its owner's agents, as a Polytech does. The first build of that day gave the Holodome its two bonuses and no seat. |
+| What the Holodome gives | 4% off the course fee per level (2026-10-13, second pass; 2% at first). It first had two thirds of the Polytech's and the Citadel's bonuses. |
+| Can a rewire do more than move a point | Yes (2026-10-13): two add a point outright. |
+| Who the experience bonus helps | Every student of the system, universities included (2026-10-13). |
 | Do buildings in a dominion give seats | No. Schools work in a player's own systems only. |
 | Which building hosts Navarchs | The Aerospace Military Academy. |
 | How an ally's agent enters | From the ally's deck, straight into the seat, like any deployment. The system grants the seat. |
@@ -183,7 +311,7 @@ All in `Data.Game.Constant`, per speed (`lib/data/game/content/constant-*.ex`).
 | `university_settle_time` (ut) | 80 | 13 | 3 |
 | `university_reallocation_interval` (ut) | 480 | 80 | 20 |
 | `university_max_reallocations` | 5 | 5 | 5 |
-| `university_fee_ideology` / `_technology` / `_credit` | 5 / 5 / 50 | same | same |
+| `university_fee_ideology` / `_technology` / `_credit` (per level of the agent and per level of the university) | 3 / 3 / 30 | same | same |
 | `university_min_level` | 5 | 5 | 5 |
 | `training_defense_factor` | 0.5 | 0.5 | 0.5 |
 
@@ -267,7 +395,9 @@ Client:
 - `front/src/game/training.js`: the client's reading of a `training` map.
 - `SchoolBox.vue`: the Schools row at the head of the bodies list in the
   system view. A university student that is settling in sits in one ring
-  that fills; the five segments take its place when the course starts. A school is its building's icon, with the name and the rules
+  that fills; the five segments take its place when the course starts, the
+  one being earned pulsing and filling (`earning` in `training.js`, the
+  same reading of `training.elapsed` and `training.at` as `settling`). A school is its building's icon, with the name and the rules
   in its tooltip, followed by its seats. Free seats open the deck; seated
   agents open their card and can be targeted by a selected Erased or
   Siderian. Hovering a seated agent shows the queue above it: the agent
@@ -309,13 +439,16 @@ Client:
 
 ## Tests
 
-- `test/game/instance/character/training_test.exs`: the rules.
+- `test/game/instance/character/training_test.exs`: the rules, the Citadel
+  seat and the conditions of a system.
 - `test/game/instance/stellar_system/school_test.exs`: seats, enrolment,
-  the queue and eviction.
+  the limit per player, the queue and eviction.
 - `test/game/instance/character/student_test.exs`: the student tick at
   Legacy values, defence, recall, reallocation.
-- `test/game/instance/player/agent_training_test.exs`: eight full-instance
-  runs through the player agent (Polytech, demolition with a queue, siege,
+- `test/game/instance/player/agent_training_test.exs`: ten full-instance
+  runs through the player agent (a student told of a Polytech and a Citadel
+  built and of a Polytech damaged, the Citadel seat, Polytech, demolition
+  with a queue, siege,
   the queue seating its agent, leaving and ejection, the wait a queue
   reports, a paid course to five rewires with reallocation and the sale
   guard, unpaid tuition).

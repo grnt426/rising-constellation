@@ -6,4 +6,4 @@ sources:
   - lib/game/instance/character/training.ex
   - lib/game/instance/stellar_system/school.ex
 ---
-Besides its technology, it gives its owner one training seat for an agent, whatever its level. See [[polytech-training]].
+Besides its technology, it gives its owner one training seat for an agent, whatever its level. Each of its levels also adds to the experience of every agent in training in its system. See [[polytech-training]].

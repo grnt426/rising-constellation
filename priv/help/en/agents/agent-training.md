@@ -24,7 +24,7 @@ A school is a building that trains an agent while it stays out of the field. You
 
 ## Two kinds of school
 
-A [[building/university_open]] gives its owner one seat. The agent in it gains experience without any order. See [[polytech-training]].
+A [[building/university_open]], a [[building/ideo_open]] or a [[building/ideo_dome]] gives its owner one seat. The agent in it gains experience without any order. See [[polytech-training]].
 
 A university trains one type of agent, for a fee. Siderians study at a [[building/monument_dome]], Erased at an [[building/counterintelligence_open]] and Navarchs at an [[building/military_school_dome]]. A course gives experience faster, and it gives neural rewires. See [[university-courses]].
 
