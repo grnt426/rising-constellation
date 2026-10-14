@@ -268,11 +268,110 @@ defmodule Player.AgentTrainingTest do
           constant.university_settle_time +
             constant.university_max_reallocations * constant.university_reallocation_interval
 
-        # a faction-mate's Erased (the player's own second one would need a second slot)
-        mate = %{live(iid, erased.id) | id: 999_999, level: constant.university_min_level}
+        # the building seats one agent per player: a second Erased of the
+        # same player is refused a seat (it would need a second slot to be
+        # hired, so it is made up here)
+        second = %{live(iid, erased.id) | id: 999_999, level: constant.university_min_level}
 
-        assert {:ok, wait} = Game.call(iid, :stellar_system, home, {:join_school_queue, mate, :university, erased.id})
+        assert {:error, :one_agent_per_building} ==
+                 Game.call(iid, :stellar_system, home, {:enroll_student, second})
+
+        # and lines up behind the player's own student
+        assert {:ok, wait} =
+                 Game.call(iid, :stellar_system, home, {:join_school_queue, second, :university, erased.id})
+
         assert wait > 0 and wait <= course
+      end)
+    end
+  end
+
+  describe "the buildings of a system" do
+    test "set the conditions of its courses: a student is told when they change", %{conn: conn, user1: account} do
+      with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
+        constant = Data.Querier.one(Data.Game.Constant, iid, :main)
+        erased = hire(iid, pid, :spy, level: 5)
+        put_building(iid, home, :counterintelligence_open, 1)
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})
+
+        # seated under the conditions of the day: nothing helps yet, and the
+        # Orb-INTEL is of level 1
+        conditions = fn -> Instance.Character.Training.conditions(live(iid, erased.id).training) end
+        assert conditions.() == %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0, school_level: 1}
+
+        # a Delta Polytech adds 3% of experience per level, to every student of the system
+        {body_uid, polytech_tile} = put_building(iid, home, :university_open, 1)
+        wait_until("the student knows of the Polytech", fn -> conditions.().xp_bonus == 3.0 end)
+
+        # a Citadel takes 1.5% per level off the time a rewire takes
+        put_building(iid, home, :ideo_open, 1)
+        wait_until("the student knows of the Citadel", fn -> conditions.().time_factor == 0.985 end)
+
+        # its owner's copy and its system's follow: the fee and the seat's ring are read there
+        wait_until("the copies follow", fn ->
+          on_roster(player_state(iid, pid), erased.id).training.time_factor == 0.985 and
+            Instance.StellarSystem.School.outdated(system_state(iid, home)) == []
+        end)
+
+        system = system_state(iid, home)
+        assert system.training_xp.value == 3.0
+        assert system.reallocation_time.value == -1.5
+
+        fee = constant.university_fee_credit * (erased.level + 1)
+
+        assert Enum.any?(Player.extract_bonus(player_state(iid, pid), [:player]), fn entry ->
+                 entry.reason == {:character_tuition, erased.name} and entry.bonus.value == -fee
+               end)
+
+        # a damaged Polytech gives nothing
+        assert {:ok, _system} =
+                 Game.call(
+                   iid,
+                   :stellar_system,
+                   home,
+                   {:dev_put_building, body_uid, polytech_tile, :university_open, 1, :damaged}
+                 )
+
+        wait_until("the student knows the Polytech is damaged", fn -> conditions.().xp_bonus == 0.0 end)
+        assert conditions.().time_factor == 0.985
+      end)
+    end
+
+    test "a Citadel seats one agent of its owner, like a Polytech", %{conn: conn, user1: account} do
+      with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
+        erased = hire(iid, pid, :spy)
+        navarch = hire(iid, pid, :admiral)
+
+        assert {:error, :no_school} == Game.call(iid, :player, pid, {:enroll_character, erased.id, :citadel, home})
+
+        put_building(iid, home, :ideo_open, 1)
+        put_building(iid, home, :university_open, 1)
+
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :citadel, home})
+
+        assert %{status: :student, training: %{school: :citadel, phase: :active}} =
+                 on_roster(player_state(iid, pid), erased.id)
+
+        # a seat of its own: the Polytech's is still free
+        summary = Instance.StellarSystem.School.summary(system_state(iid, home))
+        assert summary.citadel == %{slots: 1, used: 1, per_player: nil}
+        assert summary.polytech == %{slots: 1, used: 0, per_player: nil}
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, navarch.id, :polytech, home})
+
+        # it earns experience, raised by the Polytech of the system, and pays nothing
+        assert Instance.Character.Training.conditions(live(iid, erased.id).training).xp_bonus == 3.0
+
+        refute player_state(iid, pid)
+               |> Player.extract_bonus([:player])
+               |> Enum.any?(&match?({:character_tuition, _}, &1.reason))
+
+        speed_up(iid)
+
+        wait_until("the student has earned experience", fn ->
+          live(iid, erased.id).experience.value > erased.experience.value
+        end)
+
+        assert %Player{} = Game.call(iid, :player, pid, {:deactivate_character, erased.id})
+        assert erased.id in deck_ids(player_state(iid, pid))
       end)
     end
   end
@@ -325,14 +424,15 @@ defmodule Player.AgentTrainingTest do
         player = player_state(iid, pid)
         assert %{status: :student, training: %{school: :university}} = on_roster(player, erased.id)
         constant = Data.Querier.one(Data.Game.Constant, iid, :main)
-        fee = constant.university_fee_credit * erased.level
+        # once per level of the agent and once per level of the Orb-INTEL
+        fee = constant.university_fee_credit * (erased.level + 1)
 
         assert Enum.any?(Player.extract_bonus(player, [:player]), fn entry ->
                  entry.reason == {:character_tuition, erased.name} and entry.bonus.value == -fee
                end)
 
         # a seat per level: the Orb-INTEL is full
-        assert Instance.StellarSystem.School.summary(system_state(iid, home)).spy == %{slots: 1, used: 1}
+        assert Instance.StellarSystem.School.summary(system_state(iid, home)).spy == %{slots: 1, used: 1, per_player: 1}
 
         # the reallocations can only be spent from the deck
         assert {:error, :character_not_in_deck} ==
@@ -357,7 +457,7 @@ defmodule Player.AgentTrainingTest do
         # out of class: the seat is free, the fee is gone, the agent is gone
         refute on_roster(player_state(iid, pid), erased.id)
         assert system_state(iid, home).students == []
-        assert Instance.StellarSystem.School.summary(system_state(iid, home)).spy == %{slots: 1, used: 0}
+        assert Instance.StellarSystem.School.summary(system_state(iid, home)).spy == %{slots: 1, used: 0, per_player: 1}
         wait_until("the student's agent is gone", fn -> agent_gone?(iid, erased.id) end)
 
         refute Enum.any?(
@@ -393,11 +493,22 @@ defmodule Player.AgentTrainingTest do
         assert moved.skills == skills
         assert Character.reallocations(moved) == constant.university_max_reallocations - 1
 
+        # a point taken has to be placed
         assert {:error, :skill_points_mismatch} ==
-                 Game.call(iid, :player, pid, {:reallocate_skills, erased.id, List.update_at(skills, 0, &(&1 + 1))})
+                 Game.call(iid, :player, pid, {:reallocate_skills, erased.id, List.update_at(skills, to, &(&1 - 1))})
+
+        # two more add a point outright, where a moved point could go
+        {_from, raise} = movable(iid, moved)
+        raised_skills = List.update_at(skills, raise, &(&1 + 1))
+
+        assert :ok == Game.call(iid, :player, pid, {:reallocate_skills, erased.id, raised_skills})
+        raised = in_deck(player_state(iid, pid), erased.id)
+        assert raised.skills == raised_skills
+        assert Enum.sum(raised.skills) == Enum.sum(recalled.skills) + 1
+        assert Character.reallocations(raised) == constant.university_max_reallocations - 3
 
         # one left is still one too many
-        spend(iid, pid, erased.id, constant.university_max_reallocations - 2)
+        spend(iid, pid, erased.id, constant.university_max_reallocations - 4)
 
         assert {:error, :reallocations_unspent} ==
                  Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})

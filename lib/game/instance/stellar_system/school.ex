@@ -4,14 +4,21 @@ defmodule Instance.StellarSystem.School do
   students its buildings can take, who may enrol or wait for a seat, and
   who has to leave when a building or the system itself is lost.
 
-  A system has up to four schools: its Polytech (every agent type shares
-  it) and one university per agent type. Seats come from the buildings
-  standing in the system right now, and the whole faction shares them:
+  A system has up to six schools: its Polytech, its Citadel and its
+  Holodome (every agent type shares each of them) and one university per
+  agent type. Seats come from the buildings standing in the system right
+  now, and the whole faction shares them:
 
-    * Polytech — one seat per Delta Polytech, whatever its level, for the
-      system's owner alone;
+    * Polytech, Citadel and Holodome — one seat per Delta Polytech, one per
+      Citadel and one per Holodome, whatever their level, for the system's
+      owner alone;
     * university — one seat per level of each host building, for agents of
-      `university_min_level` or more, the owner's own included.
+      `university_min_level` or more, the owner's own included. A player
+      holds one seat per building, whatever its level (`player_seats/3`):
+      the seats of a high building are for many players, the owner of the
+      system like any other. The limit is asked of whoever comes in:
+      `settle/2` turns nobody out for it, so a player seated twice before it
+      existed keeps both seats.
 
   Students are `Instance.StellarSystem.Character` entries carrying their
   `training` map.
@@ -32,6 +39,23 @@ defmodule Instance.StellarSystem.School do
   while the system is under siege; the seat is held until it is lifted. An
   agent waiting behind a student whose seat is lost with it (building
   damaged or demolished, system changed hands) loses its place.
+
+  ## Conditions
+
+  The system's buildings also set the conditions of every course in it
+  (`conditions/3`, and `Instance.Character.Training`, "Conditions"): the
+  experience its Delta Polytechs add (`system.training_xp`), the rewire
+  time its Citadels take off (`system.reallocation_time`) and the share of
+  the fee its Holodomes take off (`system.training_cost`), all three summed
+  over every building of the system by the bonus pipeline, and the level of
+  a university, which is part of its fee. `outdated/1` names the students whose course still runs
+  under other conditions, for the system to tell them.
+
+  The queue is how a player lines up a second agent for a university
+  building it already sits in: behind its own student, whose seat it takes
+  over. Behind another player's student it would end up with a second seat,
+  so that place is refused, and `settle/2` calls no agent whose owner holds
+  every seat it may.
   """
 
   alias Instance.Character.Training
@@ -46,20 +70,39 @@ defmodule Instance.StellarSystem.School do
     |> Enum.reduce(0, fn tile, acc -> acc + Training.seats(school, tile.building_level) end)
   end
 
-  @doc "Students in class in `school`. The Polytech is one school for all types."
-  def enrolled(students, :polytech, _type) do
-    Enum.filter(students, fn s -> s.training.school == :polytech and Training.enrolled?(s.training) end)
+  @doc """
+  Seats one player may hold in `school`: one per building at a university,
+  and no limit (nil) at a Polytech, which seats one agent per building and
+  its owner alone.
+  """
+  def player_seats(system, :university, type), do: system |> host_tiles(:university, type) |> length()
+  def player_seats(_system, _school, _type), do: nil
+
+  @doc """
+  Seats `player_id` holds in `school`: its students in class and the seats
+  held for its agents the queue has called, the agent `except_id` left out.
+  """
+  def seats_held(system, school, type, player_id, except_id \\ nil) do
+    mine = fn list -> Enum.count(list, fn a -> a.owner.id == player_id and a.id != except_id end) end
+    called = system |> queue() |> queued(school, type) |> Enum.filter(fn e -> e.called end)
+
+    mine.(enrolled(students(system), school, type)) + mine.(called)
   end
 
+  @doc "Students in class in `school`. A Polytech, a Citadel or a Holodome is one school for all types."
   def enrolled(students, :university, type) do
     Enum.filter(students, fn s ->
       s.training.school == :university and s.type == type and Training.enrolled?(s.training)
     end)
   end
 
+  def enrolled(students, school, _type) do
+    Enum.filter(students, fn s -> s.training.school == school and Training.enrolled?(s.training) end)
+  end
+
   @doc "Queue entries of `school`, in order of arrival."
-  def queued(queue, :polytech, _type), do: Enum.filter(queue, fn e -> e.school == :polytech end)
   def queued(queue, :university, type), do: Enum.filter(queue, fn e -> e.school == :university and e.type == type end)
+  def queued(queue, school, _type), do: Enum.filter(queue, fn e -> e.school == school end)
 
   @doc "Seats neither taken nor held for a queued agent."
   def free_seats(system, school, type) do
@@ -80,6 +123,7 @@ defmodule Instance.StellarSystem.School do
     with :ok <- check_access(system, character, school, constant) do
       cond do
         Enum.any?(students(system), fn s -> s.id == character.id end) -> {:error, :already_enrolled}
+        seats_taken?(system, character, school) -> {:error, :one_agent_per_building}
         called? -> :ok
         free_seats(system, school, type) <= 0 -> {:error, :school_full}
         true -> :ok
@@ -92,26 +136,36 @@ defmodule Instance.StellarSystem.School do
   `behind_id` of `school`, or behind the first student nobody waits for when
   `behind_id` is nil. Returns `{:ok, entry, ahead}` (the queue entry and the
   student it waits for) or `{:error, reason}`.
+
+  A player holding every seat it may in a university waits behind its own
+  student and nobody else's, whether the school is full or not: none of the
+  free seats is for a second agent of that player.
   """
   def check_queue(system, character, school, behind_id, constant) do
     type = character.type
     queue = queue(system)
     seated = enrolled(students(system), school, type)
     taken = MapSet.new(queue, fn e -> e.behind end)
+    own? = fn agent -> agent.owner.id == character.owner.id end
+    seats_taken? = seats_taken?(system, character, school)
 
     ahead =
-      if is_nil(behind_id),
-        do: Enum.find(seated, fn s -> not MapSet.member?(taken, s.id) end),
-        else: Enum.find(seated, fn s -> s.id == behind_id end)
+      cond do
+        behind_id != nil -> Enum.find(seated, fn s -> s.id == behind_id end)
+        seats_taken? -> Enum.find(seated, fn s -> own?.(s) and not MapSet.member?(taken, s.id) end)
+        true -> Enum.find(seated, fn s -> not MapSet.member?(taken, s.id) end)
+      end
 
     with :ok <- check_access(system, character, school, constant) do
       cond do
         Enum.any?(students(system), fn s -> s.id == character.id end) -> {:error, :already_enrolled}
         Enum.any?(queue, fn e -> e.id == character.id end) -> {:error, :character_queued}
-        free_seats(system, school, type) > 0 -> {:error, :school_has_free_seat}
+        not seats_taken? and free_seats(system, school, type) > 0 -> {:error, :school_has_free_seat}
         is_nil(ahead) and is_nil(behind_id) -> {:error, :queue_taken}
         is_nil(ahead) -> {:error, :student_not_found}
         MapSet.member?(taken, ahead.id) -> {:error, :queue_taken}
+        own?.(ahead) -> {:ok, entry(character, school, ahead.id), ahead}
+        seats_wanted?(system, character, school) -> {:error, :one_agent_per_building}
         true -> {:ok, entry(character, school, ahead.id), ahead}
       end
     end
@@ -134,7 +188,7 @@ defmodule Instance.StellarSystem.School do
       capacity(system, school, character.type) == 0 ->
         {:error, :no_school}
 
-      school == :polytech and owner.id != character.owner.id ->
+      Training.passive?(school) and owner.id != character.owner.id ->
         {:error, :school_for_owner_only}
 
       # a university is for seasoned agents, its owner's included
@@ -143,6 +197,38 @@ defmodule Instance.StellarSystem.School do
 
       true ->
         :ok
+    end
+  end
+
+  # Whether the owner of `character` already holds every seat it may in
+  # `school`. The seat held for the agent itself, once the queue has called
+  # it, is not held against it.
+  defp seats_taken?(system, character, school) do
+    case player_seats(system, school, character.type) do
+      nil -> false
+      limit -> seats_held(system, school, character.type, character.owner.id, character.id) >= limit
+    end
+  end
+
+  # Whether the owner of `character` holds or waits for every seat it may in
+  # `school`: its seats, and its agents in line behind other players'
+  # students, each of which is after a seat of its own. An agent behind its
+  # owner's student only takes that seat over.
+  defp seats_wanted?(system, character, school) do
+    type = character.type
+    player_id = character.owner.id
+    own_students = system |> students() |> enrolled(school, type) |> Enum.filter(fn s -> s.owner.id == player_id end)
+    own_ids = MapSet.new(own_students, fn s -> s.id end)
+
+    waiting =
+      system
+      |> queue()
+      |> queued(school, type)
+      |> Enum.count(fn e -> e.owner.id == player_id and not e.called and not MapSet.member?(own_ids, e.behind) end)
+
+    case player_seats(system, school, type) do
+      nil -> false
+      limit -> seats_held(system, school, type, player_id) + waiting >= limit
     end
   end
 
@@ -200,17 +286,22 @@ defmodule Instance.StellarSystem.School do
       queue
       |> Enum.group_by(fn e -> school_key(e.school, e.type) end)
       |> Enum.reduce({queue, [], []}, fn {{school, type}, group}, {queue, lost, called} ->
-        room = capacity(system, school, type) - length(enrolled(kept, school, type))
+        seated = enrolled(kept, school, type)
+        room = capacity(system, school, type) - length(seated)
         {held, waiting} = Enum.split_with(group, fn e -> e.called end)
 
         # seats held that the school no longer has
         gone = Enum.drop(held, max(room, 0))
         free = room - length(held) + length(gone)
+        taken = Enum.frequencies_by(seated ++ (held -- gone), fn a -> a.owner.id end)
 
         # nobody walks into a siege: the seat waits for it to be lifted
         next =
           if system.siege == nil and free > 0,
-            do: waiting |> Enum.sort_by(fn e -> if e.behind == leaver_id, do: 0, else: 1 end) |> Enum.take(free),
+            do:
+              waiting
+              |> Enum.sort_by(fn e -> if e.behind == leaver_id, do: 0, else: 1 end)
+              |> call(free, player_seats(system, school, type), taken),
             else: []
 
         gone_ids = MapSet.new(gone, fn e -> e.id end)
@@ -227,28 +318,111 @@ defmodule Instance.StellarSystem.School do
     %{students: kept, evicted: evicted, queue: queue, cleared: cleared ++ lost, called: called}
   end
 
-  # a school takes its owner's faction, and a Polytech its owner alone
+  # The first `free` agents of `waiting` whose owner still has a seat to
+  # take, `taken` being the seats each player holds. An agent behind its
+  # owner's student is passed over until that student leaves.
+  defp call(waiting, free, limit, taken) do
+    {picked, _taken} =
+      Enum.reduce(waiting, {[], taken}, fn e, {picked, taken} ->
+        held = Map.get(taken, e.owner.id, 0)
+
+        if length(picked) < free and (is_nil(limit) or held < limit),
+          do: {[e | picked], Map.put(taken, e.owner.id, held + 1)},
+          else: {picked, taken}
+      end)
+
+    Enum.reverse(picked)
+  end
+
+  # a school takes its owner's faction, and a Polytech, a Citadel or a Holodome its owner alone
   defp welcome?(nil, _school, _agent), do: false
 
   defp welcome?(owner, school, agent),
-    do: agent.owner.faction_id == owner.faction_id and (school != :polytech or agent.owner.id == owner.id)
+    do: agent.owner.faction_id == owner.faction_id and (not Training.passive?(school) or agent.owner.id == owner.id)
 
-  defp school_key(:polytech, _type), do: {:polytech, nil}
-  defp school_key(school, type), do: {school, type}
+  defp school_key(:university, type), do: {:university, type}
+  defp school_key(school, _type), do: {school, nil}
 
-  @doc "Seats and seats taken per school, for the system view."
+  @doc """
+  Seats, seats taken and the seats one player may hold (nil: no limit) per
+  school (`:polytech`, `:citadel`, `:holodome`, and a university under its
+  agent type), for the system view.
+  """
   def summary(system) do
     students = students(system)
 
     universities =
       Map.new(Training.types(), fn type ->
-        {type, %{slots: capacity(system, :university, type), used: length(enrolled(students, :university, type))}}
+        {type,
+         %{
+           slots: capacity(system, :university, type),
+           used: length(enrolled(students, :university, type)),
+           per_player: player_seats(system, :university, type)
+         }}
       end)
 
-    Map.put(universities, :polytech, %{
-      slots: capacity(system, :polytech, nil),
-      used: length(enrolled(students, :polytech, nil))
-    })
+    Enum.reduce(Training.passive_schools(), universities, fn school, acc ->
+      Map.put(acc, school, %{
+        slots: capacity(system, school, nil),
+        used: length(enrolled(students, school, nil)),
+        per_player: nil
+      })
+    end)
+  end
+
+  # a rewire never takes less than this share of its time, and a course
+  # never costs less than this share of its fee, whatever is built
+  @min_time_factor 0.25
+  @min_cost_factor 0.25
+
+  @doc """
+  The conditions a course of `school` runs under in this system right now,
+  for agents of `type`: the map `Training.set_conditions/2` takes.
+
+  `training_xp`, `reallocation_time` and `training_cost` are percentages
+  summed by the bonus pipeline over the system's buildings (+3 per level of
+  a Delta Polytech, -1.5 per level of a Citadel, -4 per level of a
+  Holodome). They postdate the first snapshots: Map.get only.
+  """
+  def conditions(system, school, type) do
+    %{
+      xp_bonus: Float.round(max(bonus(system, :training_xp), 0.0), 4),
+      time_factor: factor(bonus(system, :reallocation_time), @min_time_factor),
+      cost_factor: factor(bonus(system, :training_cost), @min_cost_factor),
+      school_level: school_level(system, school, type)
+    }
+  end
+
+  # a percentage taken off (never added), as the multiplier it leaves
+  defp factor(percent, floor), do: Float.round(max(1 + min(percent, 0.0) / 100, floor), 4)
+
+  @doc "The highest level among the buildings of a university, nil for any other school or with none standing."
+  def school_level(system, :university, type) do
+    case host_tiles(system, :university, type) do
+      [] -> nil
+      tiles -> tiles |> Enum.map(fn tile -> tile.building_level end) |> Enum.max()
+    end
+  end
+
+  def school_level(_system, _school, _type), do: nil
+
+  @doc """
+  Students in class whose course runs under other conditions than the
+  system now gives: `[{student, conditions}]`.
+  """
+  def outdated(system) do
+    system
+    |> students()
+    |> Enum.filter(fn s -> Training.enrolled?(s.training) end)
+    |> Enum.map(fn s -> {s, conditions(system, s.training.school, s.type)} end)
+    |> Enum.reject(fn {s, conditions} -> Training.conditions(s.training) == conditions end)
+  end
+
+  defp bonus(system, key) do
+    case Map.get(system, key) do
+      %{value: value} when is_number(value) -> value * 1.0
+      _ -> 0.0
+    end
   end
 
   defp host_tiles(system, school, type) do

@@ -1,10 +1,12 @@
 defmodule Instance.Character.Training do
   @moduledoc """
-  Agent training (docs/agent-training.md): the rules of the two schools a
+  Agent training (docs/agent-training.md): the rules of the schools a
   `:student` character can be deployed to, with no process or instance
   access so they can be tested alone.
 
-    * `:polytech` — a Delta Polytech (`:university_open`). Any agent of the
+    * `:polytech`, `:citadel` and `:holodome` — a Delta Polytech
+      (`:university_open`), a Citadel (`:ideo_open`) and a Holodome
+      (`:ideo_dome`), the three seats `passive?/1` names. Any agent of the
       building's owner; passive experience at the governor rate for as long
       as it stays.
     * `:university` — the building of the agent's own type (Monolith for
@@ -22,7 +24,25 @@ defmodule Instance.Character.Training do
         phase: :settling | :active | :graduated,
         elapsed: ut spent in the current phase (since the last reallocation earned while :active),
         ended: nil | :completed | :unpaid,
-        at: the action clock (`Instance.Time.Time.now/1`, ms) when `elapsed` was last measured, or nil}
+        at: the action clock (`Instance.Time.Time.now/1`, ms) when `elapsed` was last measured, or nil,
+        xp_bonus, time_factor, cost_factor, school_level: the conditions of the system it sits in (see below)}
+
+  ## Conditions
+
+  The buildings of the system the student sits in change its course
+  (`Instance.StellarSystem.School.conditions/3`): Delta Polytechs add to
+  the experience every student earns, Citadels shorten the time a rewire
+  takes, Holodomes cut the fee of a course, and the level of the university
+  sets part of that fee. The student ticks by itself, so its system hands
+  it those four numbers and they ride in its `training`:
+
+    * `xp_bonus` — percent added to the school's experience rate;
+    * `time_factor` — multiplier on `university_reallocation_interval`;
+    * `cost_factor` — multiplier on the fee;
+    * `school_level` — the highest level among the buildings of its
+      university, nil elsewhere.
+
+  They postdate the first students: read them with `conditions/1`.
 
   `elapsed` only moves when the student ticks, which is at its next event:
   hours apart. `at` is what lets a client holding a copy tell how far along
@@ -31,43 +51,84 @@ defmodule Instance.Character.Training do
   `anchored_at/1`.
   """
 
-  @polytech_host :university_open
+  # one seat per building for its owner's agents, and the governor's rate
+  @passive_hosts %{polytech: :university_open, citadel: :ideo_open, holodome: :ideo_dome}
   @university_hosts %{speaker: :monument_dome, spy: :counterintelligence_open, admiral: :military_school_dome}
+
+  @default_conditions %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0, school_level: nil}
 
   # absorbs float drift between a scheduled tick and the time it measures
   @epsilon 1.0e-6
 
-  def schools, do: [:polytech, :university]
+  def schools, do: passive_schools() ++ [:university]
+  def passive_schools, do: [:polytech, :citadel, :holodome]
   def types, do: Map.keys(@university_hosts)
 
+  @doc "A Delta Polytech, a Citadel or a Holodome: one seat per building, every agent type, its owner alone."
+  def passive?(school), do: Map.has_key?(@passive_hosts, school)
+
   @doc "The building key that hosts agents of `type` for `school`."
-  def host_building(:polytech, _type), do: @polytech_host
   def host_building(:university, type), do: Map.get(@university_hosts, type)
-  def host_building(_school, _type), do: nil
+  def host_building(school, _type), do: Map.get(@passive_hosts, school)
 
   @doc """
-  The school `building_key` hosts: `{:polytech, nil}`, `{:university, type}`,
-  or nil for every other building.
+  The school `building_key` hosts: `{:polytech, nil}`, `{:citadel, nil}`,
+  `{:holodome, nil}`, `{:university, type}`, or nil for every other building.
   """
-  def school_of(@polytech_host), do: {:polytech, nil}
-
   def school_of(building_key) do
-    case Enum.find(@university_hosts, fn {_type, key} -> key == building_key end) do
-      {type, _key} -> {:university, type}
-      nil -> nil
+    passive = Enum.find(@passive_hosts, fn {_school, key} -> key == building_key end)
+    university = Enum.find(@university_hosts, fn {_type, key} -> key == building_key end)
+
+    case {passive, university} do
+      {{school, _key}, _} -> {school, nil}
+      {nil, {type, _key}} -> {:university, type}
+      {nil, nil} -> nil
     end
   end
 
-  @doc "Seats a host building gives at `level`: one for a Polytech, one per level for a university."
-  def seats(:polytech, _level), do: 1
+  @doc "Seats a host building gives at `level`: one for a Polytech, a Citadel or a Holodome, one per level for a university."
   def seats(:university, level), do: level
-
-  def new(:polytech, _constant), do: %{school: :polytech, phase: :active, elapsed: 0.0, ended: nil, at: nil}
+  def seats(_school, _level), do: 1
 
   def new(:university, constant) do
     phase = if constant.university_settle_time > 0, do: :settling, else: :active
-    %{school: :university, phase: phase, elapsed: 0.0, ended: nil, at: nil}
+    Map.merge(@default_conditions, %{school: :university, phase: phase, elapsed: 0.0, ended: nil, at: nil})
   end
+
+  def new(school, _constant),
+    do: Map.merge(@default_conditions, %{school: school, phase: :active, elapsed: 0.0, ended: nil, at: nil})
+
+  @doc "The conditions `training` runs under, the defaults for a map that carries none."
+  def conditions(training) when is_map(training) do
+    Map.new(@default_conditions, fn {key, default} ->
+      {key, if(is_nil(Map.get(training, key)), do: default, else: Map.get(training, key))}
+    end)
+  end
+
+  def conditions(_training), do: @default_conditions
+
+  @doc """
+  Puts `training` under new `conditions` (a map with `xp_bonus`,
+  `time_factor`, `cost_factor` and `school_level`). A rewire being earned keeps the share
+  of it already done: `elapsed` is scaled with the time a rewire now takes.
+  """
+  def set_conditions(training, conditions) when is_map(training) do
+    before = conditions(training)
+    later = Map.merge(before, Map.take(conditions, Map.keys(@default_conditions)))
+
+    training =
+      if training.school == :university and training.phase == :active and before.time_factor > 0,
+        do: %{training | elapsed: training.elapsed * later.time_factor / before.time_factor},
+        else: training
+
+    Map.merge(training, later)
+  end
+
+  def set_conditions(training, _conditions), do: training
+
+  @doc "Ut a rewire takes under the conditions of `training`."
+  def reallocation_interval(training, constant),
+    do: constant.university_reallocation_interval * conditions(training).time_factor
 
   @doc "The action clock reading `elapsed` was measured at, nil when unknown."
   def anchored_at(training) when is_map(training), do: Map.get(training, :at)
@@ -84,21 +145,33 @@ defmodule Instance.Character.Training do
   @doc "Protection and Determination are cut for as long as the agent is in class."
   def penalized?(training), do: enrolled?(training)
 
-  @doc "Multiplier on the governor's passive experience rate."
-  def xp_factor(%{school: :polytech, phase: :active}, constant), do: constant.polytech_xp_factor
-  def xp_factor(%{school: :university, phase: :active}, constant), do: constant.university_xp_factor
+  @doc """
+  Multiplier on the governor's passive experience rate: the school's own,
+  raised by the `xp_bonus` of the system.
+  """
+  def xp_factor(%{phase: :active} = training, constant) do
+    base = if training.school == :university, do: constant.university_xp_factor, else: constant.polytech_xp_factor
+    base * (1 + conditions(training).xp_bonus / 100)
+  end
+
   def xp_factor(_training, _constant), do: 0.0
 
   @doc """
   The fee an agent of `type` and `level` pays per ut: `{resource, amount}`,
-  or nil when it pays nothing (a Polytech, or a course that has ended).
+  or nil when it pays nothing (a Polytech, a Citadel, a Holodome, or a
+  course that has ended). One rate per resource, paid once per level of the
+  agent and once per level of its university, less what the Holodomes of
+  the system take off (`cost_factor`).
   """
   def fee(type, level, %{school: :university} = training, constant) do
+    %{school_level: school_level, cost_factor: cost_factor} = conditions(training)
+    levels = (level + (school_level || 0)) * cost_factor
+
     if enrolled?(training) do
       case type do
-        :speaker -> {:ideology, constant.university_fee_ideology * level}
-        :admiral -> {:technology, constant.university_fee_technology * level}
-        :spy -> {:credit, constant.university_fee_credit * level}
+        :speaker -> {:ideology, constant.university_fee_ideology * levels}
+        :admiral -> {:technology, constant.university_fee_technology * levels}
+        :spy -> {:credit, constant.university_fee_credit * levels}
         _ -> nil
       end
     end
@@ -117,11 +190,11 @@ defmodule Instance.Character.Training do
   `events` the list of `:settled | :reallocation | :graduated` that happened, in
   order.
   """
-  def advance(%{school: :polytech} = training, reallocations, elapsed, _constant),
-    do: {training, reallocations, elapsed, []}
-
   def advance(%{phase: :graduated} = training, reallocations, _elapsed, _constant),
     do: {training, reallocations, 0.0, []}
+
+  def advance(%{school: school} = training, reallocations, elapsed, _constant) when school != :university,
+    do: {training, reallocations, elapsed, []}
 
   def advance(%{phase: :settling} = training, reallocations, elapsed, constant) do
     remaining = constant.university_settle_time - training.elapsed
@@ -137,7 +210,7 @@ defmodule Instance.Character.Training do
   end
 
   def advance(%{phase: :active} = training, reallocations, elapsed, constant) do
-    remaining = constant.university_reallocation_interval - training.elapsed
+    remaining = reallocation_interval(training, constant) - training.elapsed
 
     cond do
       # already full (reallocations banked from an earlier course and none spent)
@@ -163,30 +236,29 @@ defmodule Instance.Character.Training do
     do: max(constant.university_settle_time - training.elapsed, 0.0)
 
   def next_event(%{school: :university, phase: :active} = training, constant),
-    do: max(constant.university_reallocation_interval - training.elapsed, 0.0)
+    do: max(reallocation_interval(training, constant) - training.elapsed, 0.0)
 
   def next_event(_training, _constant), do: :never
 
   @doc """
   Ut before a student holding `reallocations` leaves its seat by itself: the
-  rest of its course, or nil at a Polytech, which nobody ever has to leave.
+  rest of its course under its current conditions, or nil at a Polytech, a
+  Citadel or a Holodome, which nobody ever has to leave.
   It is the longest an agent queued behind it can wait.
   """
   def time_left(%{school: :university, phase: phase} = training, reallocations, constant)
       when phase in [:settling, :active] do
     missing = max(constant.university_max_reallocations - (reallocations || 0), 0)
+    interval = reallocation_interval(training, constant)
 
     case phase do
       :settling ->
-        max(constant.university_settle_time - training.elapsed, 0.0) +
-          missing * constant.university_reallocation_interval
+        max(constant.university_settle_time - training.elapsed, 0.0) + missing * interval
 
       :active ->
         if missing == 0,
           do: 0.0,
-          else:
-            max(constant.university_reallocation_interval - training.elapsed, 0.0) +
-              (missing - 1) * constant.university_reallocation_interval
+          else: max(interval - training.elapsed, 0.0) + (missing - 1) * interval
     end
   end
 
@@ -197,17 +269,33 @@ defmodule Instance.Character.Training do
   Checks a reallocation of `old` skills into `new` for an agent whose main
   skill sits at `main_index`, holding `reallocations`.
 
-  One reallocation moves one point. A skill that gains points may not pass
-  `max_skill`, nor the main skill as it ends up — the same two limits a
-  level-up respects. Returns `{:ok, points_moved}` or `{:error, reason}`.
+  One reallocation moves one point from a skill to another, and two add a
+  point to a skill outright: a point a skill gains costs one when another
+  skill gave it up, two otherwise (`reallocation_cost/2`). Every point taken
+  has to be placed. A skill that gains points may not pass `max_skill`, nor
+  the main skill as it ends up — the same two limits a level-up respects.
+  Returns `{:ok, reallocations_spent}` or `{:error, reason}`.
   """
   def check_reallocation(old, new, main_index, reallocations, max_skill) do
     cond do
       not is_list(new) or length(new) != length(old) -> {:error, :invalid_skills}
       not Enum.all?(new, &(is_integer(&1) and &1 >= 0)) -> {:error, :invalid_skills}
-      Enum.sum(new) != Enum.sum(old) -> {:error, :skill_points_mismatch}
+      Enum.sum(new) < Enum.sum(old) -> {:error, :skill_points_mismatch}
       true -> check_moves(old, new, main_index, reallocations, max_skill)
     end
+  end
+
+  @doc """
+  Reallocations it takes to turn `old` skills into `new`: one per point
+  moved, two per point added. Points gained are paired with the points
+  taken first, so a move is never billed as an addition.
+  """
+  def reallocation_cost(old, new) do
+    changes = Enum.zip_with(old, new, fn before, later -> later - before end)
+    gained = changes |> Enum.filter(&(&1 > 0)) |> Enum.sum()
+    taken = changes |> Enum.filter(&(&1 < 0)) |> Enum.sum() |> abs()
+
+    gained + max(gained - taken, 0)
   end
 
   defp check_moves(old, new, main_index, reallocations, max_skill) do
@@ -219,13 +307,13 @@ defmodule Instance.Character.Training do
       |> Enum.with_index()
       |> Enum.filter(fn {{before, later}, _index} -> later > before end)
 
-    moved = Enum.reduce(raised, 0, fn {{before, later}, _index}, acc -> acc + later - before end)
+    cost = reallocation_cost(old, new)
 
     cond do
-      moved == 0 ->
+      raised == [] ->
         {:error, :nothing_to_reallocate}
 
-      moved > reallocations ->
+      cost > reallocations ->
         {:error, :not_enough_reallocations}
 
       Enum.any?(raised, fn {{_before, later}, _index} -> later > max_skill end) ->
@@ -235,7 +323,7 @@ defmodule Instance.Character.Training do
         {:error, :skill_over_main}
 
       true ->
-        {:ok, moved}
+        {:ok, cost}
     end
   end
 end

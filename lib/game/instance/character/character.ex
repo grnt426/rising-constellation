@@ -371,6 +371,23 @@ defmodule Instance.Character.Character do
 
   def anchor_training(%Character.Character{} = state, _clock), do: {state, false}
 
+  @doc """
+  Puts a student's course under the conditions its system now gives it
+  (`Training.set_conditions/2`). Returns `{:ok, state}`, or `:unchanged`
+  when it already runs under them or the agent is no longer in class.
+  """
+  def set_training_conditions(%Character.Character{status: :student} = state, conditions) do
+    training = Map.get(state, :training)
+
+    cond do
+      not Training.enrolled?(training) -> :unchanged
+      Training.conditions(training) == Training.conditions(Training.set_conditions(training, conditions)) -> :unchanged
+      true -> {:ok, Map.put(state, :training, Training.set_conditions(training, conditions))}
+    end
+  end
+
+  def set_training_conditions(%Character.Character{}, _conditions), do: :unchanged
+
   @doc "Ends a student's university course early; its owner's player agent then sends it home."
   def end_course(%Character.Character{status: :student} = state, reason) do
     training = Map.get(state, :training)
@@ -383,18 +400,19 @@ defmodule Instance.Character.Character do
   def end_course(%Character.Character{}, _reason), do: {:error, :not_on_a_course}
 
   @doc """
-  Moves skill points: `skills` is the whole new list. Each point moved
-  spends one reallocation (see Training.check_reallocation/5).
+  Moves or adds skill points: `skills` is the whole new list. Each point
+  moved spends one reallocation, each point added two (see
+  Training.check_reallocation/5).
   """
   def reallocate_skills(%Character.Character{} = state, skills) do
     type_data = Data.Querier.one(Data.Game.Character, state.instance_id, state.type)
     main_index = Enum.find_index(type_data.specializations, fn s -> s.key == state.specialization end)
     held = reallocations(state)
 
-    with {:ok, moved} <- Training.check_reallocation(state.skills, skills, main_index, held, @max_level) do
+    with {:ok, spent} <- Training.check_reallocation(state.skills, skills, main_index, held, @max_level) do
       state =
         %{state | skills: skills}
-        |> Map.put(:reallocations, held - moved)
+        |> Map.put(:reallocations, held - spent)
         |> compute_bonus()
 
       {:ok, state}

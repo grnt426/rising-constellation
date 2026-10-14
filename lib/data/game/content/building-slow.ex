@@ -843,7 +843,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_technology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.15}
+              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.15},
+              %Core.Bonus{from: :direct, to: :sys_training_xp, type: :add, value: 3.0}
             ],
             credit: 1500,
             hide_patent?: false,
@@ -854,7 +855,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_technology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.26}
+              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.26},
+              %Core.Bonus{from: :direct, to: :sys_training_xp, type: :add, value: 6.0}
             ],
             credit: 3520,
             hide_patent?: false,
@@ -865,7 +867,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_technology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.38}
+              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.38},
+              %Core.Bonus{from: :direct, to: :sys_training_xp, type: :add, value: 9.0}
             ],
             credit: 5720,
             hide_patent?: false,
@@ -876,7 +879,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_technology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.49}
+              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.49},
+              %Core.Bonus{from: :direct, to: :sys_training_xp, type: :add, value: 12.0}
             ],
             credit: 8250,
             hide_patent?: false,
@@ -887,7 +891,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_technology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.6}
+              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.6},
+              %Core.Bonus{from: :direct, to: :sys_training_xp, type: :add, value: 15.0}
             ],
             credit: 11000,
             hide_patent?: false,
@@ -1066,7 +1071,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_ideology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.15}
+              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.15},
+              %Core.Bonus{from: :direct, to: :sys_reallocation_time, type: :add, value: -1.5}
             ],
             credit: 1500,
             hide_patent?: false,
@@ -1077,7 +1083,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_ideology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.26}
+              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.26},
+              %Core.Bonus{from: :direct, to: :sys_reallocation_time, type: :add, value: -3.0}
             ],
             credit: 3520,
             hide_patent?: false,
@@ -1088,7 +1095,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_ideology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.38}
+              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.38},
+              %Core.Bonus{from: :direct, to: :sys_reallocation_time, type: :add, value: -4.5}
             ],
             credit: 5720,
             hide_patent?: false,
@@ -1099,7 +1107,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_ideology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.49}
+              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.49},
+              %Core.Bonus{from: :direct, to: :sys_reallocation_time, type: :add, value: -6.0}
             ],
             credit: 8250,
             hide_patent?: false,
@@ -1110,7 +1119,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_ideology, type: :add, value: 3.0},
-              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.6}
+              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.6},
+              %Core.Bonus{from: :direct, to: :sys_reallocation_time, type: :add, value: -7.5}
             ],
             credit: 11000,
             hide_patent?: false,
@@ -1133,7 +1143,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.3},
-              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 0.4}
+              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 0.4},
+              %Core.Bonus{from: :direct, to: :sys_training_cost, type: :add, value: -4.0}
             ],
             credit: 3000,
             hide_patent?: false,
@@ -1144,7 +1155,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.45},
-              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 0.8}
+              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 0.8},
+              %Core.Bonus{from: :direct, to: :sys_training_cost, type: :add, value: -8.0}
             ],
             credit: 7040,
             hide_patent?: false,
@@ -1155,7 +1167,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.68},
-              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 1.2}
+              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 1.2},
+              %Core.Bonus{from: :direct, to: :sys_training_cost, type: :add, value: -12.0}
             ],
             credit: 11440,
             hide_patent?: false,
@@ -1166,7 +1179,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.98},
-              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 1.6}
+              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 1.6},
+              %Core.Bonus{from: :direct, to: :sys_training_cost, type: :add, value: -16.0}
             ],
             credit: 16500,
             hide_patent?: false,
@@ -1177,7 +1191,8 @@ defmodule Data.Game.Building.Content.Slow do
           %{
             bonus: [
               %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 1.5},
-              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 2.0}
+              %Core.Bonus{from: :body_pop, to: :sys_credit, type: :add, value: 2.0},
+              %Core.Bonus{from: :direct, to: :sys_training_cost, type: :add, value: -20.0}
             ],
             credit: 22000,
             hide_patent?: false,

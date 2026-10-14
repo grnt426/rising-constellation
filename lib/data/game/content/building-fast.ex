@@ -216,7 +216,8 @@ defmodule Data.Game.Building.Content.Fast do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_technology, type: :add, value: 4.0},
-              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.6}
+              %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.6},
+              %Core.Bonus{from: :direct, to: :sys_training_xp, type: :add, value: 3.0}
             ],
             credit: 3360,
             hide_patent?: false,
@@ -279,7 +280,8 @@ defmodule Data.Game.Building.Content.Fast do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_ideology, type: :add, value: 4.0},
-              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.6}
+              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.6},
+              %Core.Bonus{from: :direct, to: :sys_reallocation_time, type: :add, value: -1.5}
             ],
             credit: 3360,
             hide_patent?: false,

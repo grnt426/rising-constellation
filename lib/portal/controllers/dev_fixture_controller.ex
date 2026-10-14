@@ -57,11 +57,12 @@ defmodule Portal.DevFixtureController do
   holds the body uid, the tile of each building, the free tiles, the
   bought patents and the queue.
 
-  `{"schools": true}` inside `empire` puts a finished Delta Polytech and an
-  Orb-INTEL (level 2, or 1 at Flash speed, whose buildings have one level)
-  on two free tiles of home's planet (the same dev-only call), for the
-  agent-training flows (docs/agent-training.md): one seat for any agent of
-  the player, one per level for Erased. The player's own agents are given
+  `{"schools": true}` inside `empire` puts a finished Delta Polytech, an
+  Orb-INTEL and a Citadel (both level 2, or 1 at Flash speed, whose
+  buildings have one level) on three free tiles of home's planet (the same
+  dev-only call), for the agent-training flows (docs/agent-training.md):
+  one seat for any agent of the player in the Polytech and one in the
+  Citadel, one per level for Erased. The player's own agents are given
   the experience that takes them to the level a university asks
   (`university_min_level`), the way a Training Center gives it. `empire.schools`
   holds the body uid and the tile and level of each building.
@@ -625,9 +626,19 @@ defmodule Portal.DevFixtureController do
          patents = research_to_buy(Data.Game.Patent, instance_id, @research_patents, player.patents),
          lexes = research_to_buy(Data.Game.Doctrine, instance_id, @research_lexes, player.doctrines),
          mult = Instance.Mutators.cost_multiplier(instance_id, :patent),
-         technology = research_price(Data.Game.Patent, instance_id, patents, length(player.patents), c.patent_level_price_increase) * mult,
-         ideology = research_price(Data.Game.Doctrine, instance_id, lexes, length(player.doctrines), c.doctrine_level_price_increase),
-         slot = min(round(:math.pow(2, player.max_policies - 1)) * c.initial_policy_slot_cost, c.policy_slot_maximum_cost),
+         technology =
+           research_price(Data.Game.Patent, instance_id, patents, length(player.patents), c.patent_level_price_increase) *
+             mult,
+         ideology =
+           research_price(
+             Data.Game.Doctrine,
+             instance_id,
+             lexes,
+             length(player.doctrines),
+             c.doctrine_level_price_increase
+           ),
+         slot =
+           min(round(:math.pow(2, player.max_policies - 1)) * c.initial_policy_slot_cost, c.policy_slot_maximum_cost),
          grant = %{credit: 0, technology: ceil(technology) + 1, ideology: ceil(ideology + slot) + 1},
          :ok <- call.({:cheat, :grant_resources, grant}),
          :ok <- each_ok(patents, &call.({:purchase_patent, &1})),
@@ -635,7 +646,10 @@ defmodule Portal.DevFixtureController do
          :ok <- call.(:purchase_policy_slot),
          :ok <- call.(:cheat_clear_policies_cooldown),
          {:ok, player} <- call.(:get_state) do
-      Logger.info("[dev-fixture] research patents=#{inspect(patents)} lexes=#{inspect(lexes)} slots=#{player.max_policies}")
+      Logger.info(
+        "[dev-fixture] research patents=#{inspect(patents)} lexes=#{inspect(lexes)} slots=#{player.max_policies}"
+      )
+
       {:ok, %{patents: player.patents, lexes: player.doctrines, active: player.policies, slots: player.max_policies}}
     else
       {:error, _} = error -> error
@@ -805,12 +819,14 @@ defmodule Portal.DevFixtureController do
   # ---------------------------------------------------------------- schools
 
   # The `schools` sub-option's cast (docs/agent-training.md): a finished
-  # Delta Polytech (one seat for any agent of the owner) and an Orb-INTEL
-  # (a seat per level for Erased) on home's inhabited planet. Both are
-  # open-biome buildings, so they fit the starter layout's habitable
-  # planet at every speed. The Orb-INTEL is level 2 where the content has
-  # one: Flash buildings have a single level.
-  @schools [university_open: 1, counterintelligence_open: 2]
+  # Delta Polytech and a Citadel (one seat each for any agent of the
+  # owner) and an Orb-INTEL (a seat per level for Erased) on home's
+  # inhabited planet. All three are open-biome buildings, so they fit the
+  # starter layout's habitable planet at every speed. The Orb-INTEL and
+  # the Citadel are level 2 where the content has one: Flash buildings
+  # have a single level. The Polytech and the Citadel also give the
+  # system's students experience and shorter rewires.
+  @schools [university_open: 1, counterintelligence_open: 2, ideo_open: 2]
 
   defp maybe_place_schools(_instance_id, _home_id, false), do: {:ok, nil}
 

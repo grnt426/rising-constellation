@@ -127,11 +127,21 @@ defmodule SystemAI.Weights do
 
   def saturating(_x, _even), do: 1.0
 
+  # What a building gives the agents in training in its system
+  # (docs/agent-training.md) is nothing to a system with no school: it is
+  # left out of the building's gains, which weigh as they did without it.
+  @training_targets [:sys_training_xp, :sys_reallocation_time, :sys_training_cost]
+
   # Each of the building's level-1 gains, as what it reads from and what it feeds.
   defp gains(%{levels: levels}) do
     case Enum.find(levels, &(&1.level == 1)) do
-      nil -> []
-      level -> for bonus <- level.bonus, is_number(bonus.value) and bonus.value > 0, do: {bonus.from, bonus.to}
+      nil ->
+        []
+
+      level ->
+        for bonus <- level.bonus,
+            is_number(bonus.value) and bonus.value > 0 and bonus.to not in @training_targets,
+            do: {bonus.from, bonus.to}
     end
   end
 

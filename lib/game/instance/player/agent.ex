@@ -829,6 +829,14 @@ defmodule Instance.Player.Agent do
          {:ok, data, character} <- Player.enroll_character(state.data, character_id, school, system_id, opts),
          character = Character.update_strike(character, data.is_bankrupt),
          {:ok, system} <- Game.call(state.instance_id, :stellar_system, system_id, {:enroll_student, character}) do
+      # the system seated its copy under the conditions its buildings give
+      # the course (StellarSystem.enroll_student/2): the agent starts with them
+      character =
+        case Enum.find(Instance.StellarSystem.School.students(system), fn s -> s.id == character.id end) do
+          %{training: training} when is_map(training) -> Map.put(character, :training, training)
+          _ -> character
+        end
+
       {:ok, supervisor_pid} = Instance.Supervisor.get_pid(state.instance_id)
       channel = "instance:player:#{state.instance_id}:#{data.id}"
       character_gen_state = Core.GenState.new(:character, state.instance_id, character.id, character, channel)

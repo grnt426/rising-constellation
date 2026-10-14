@@ -121,7 +121,10 @@ defmodule RC.Help.Catalog do
 
           {kind, key} ->
             group = if kind == :lex, do: "doctrine", else: "patent"
-            name = fn key -> singular((locale && get_in(locale, [:data, group, to_string(key), "name"])) || to_string(key)) end
+
+            name = fn key ->
+              singular((locale && get_in(locale, [:data, group, to_string(key), "name"])) || to_string(key))
+            end
 
             case kind == :patent && ResearchCatalog.family_levels(key) do
               [{_level, first} | _] = levels -> fill_family_meta(page, levels, first, name)
@@ -237,7 +240,9 @@ defmodule RC.Help.Catalog do
   @doc "HTML of a `{card:building <key>}` or `{facts:building <key>}` block: `{:ok, html}` or `{:error, message}`."
   def block(ctx, "card", "building", key), do: with_building(ctx, key, &card_html(ctx, &1))
   def block(ctx, "facts", "building", key), do: with_building(ctx, key, &facts_html(ctx, &1))
-  def block(ctx, "absent", type, key) when type in ~w(building patent lex), do: absent_html(ctx, String.to_existing_atom(type), key)
+
+  def block(ctx, "absent", type, key) when type in ~w(building patent lex),
+    do: absent_html(ctx, String.to_existing_atom(type), key)
 
   def block(ctx, kind, type, key) when kind in ~w(card facts) and type in ~w(patent lex),
     do: RC.Help.ResearchCatalog.block(ctx, kind, type, key)
@@ -270,7 +275,10 @@ defmodule RC.Help.Catalog do
   end
 
   defp race_line(ctx, :patent, keys, o, %{patent: key}), do: if(key in keys, do: race_text(ctx, :daily_race_patent, o))
-  defp race_line(ctx, :building, keys, o, %{wonder: key}), do: if(key in keys, do: race_text(ctx, :daily_race_building, o))
+
+  defp race_line(ctx, :building, keys, o, %{wonder: key}),
+    do: if(key in keys, do: race_text(ctx, :daily_race_building, o))
+
   defp race_line(_ctx, _kind, _keys, _o, _race), do: nil
 
   defp race_text(ctx, string, o) do
@@ -286,12 +294,15 @@ defmodule RC.Help.Catalog do
 
   @doc "The speeds whose content has this building, patent or lex, Legacy first."
   def speeds_with(:building, key), do: Enum.filter(@speed_order, &find_building(&1, key))
+
   def speeds_with(:patent, key) do
     Enum.filter(@speed_order, fn s ->
       ResearchCatalog.family(s, key) != [] or Enum.any?(Data.patents(s), &(to_string(&1.key) == key))
     end)
   end
-  def speeds_with(:lex, key), do: Enum.filter(@speed_order, fn s -> Enum.any?(Data.doctrines(s), &(to_string(&1.key) == key)) end)
+
+  def speeds_with(:lex, key),
+    do: Enum.filter(@speed_order, fn s -> Enum.any?(Data.doctrines(s), &(to_string(&1.key) == key)) end)
 
   # "The game mode you're viewing, Flash, doesn't have this patent. Switch to
   # Legacy or Tactic." Each speed is a `help-speed-switch` link: the public
@@ -354,7 +365,10 @@ defmodule RC.Help.Catalog do
 
     workforce =
       if b.workforce > 0,
-        do: "#{b.workforce} " <> icon_html(ctx, "resource/population") <> " " <> link_html(ctx, "workforce", ui(ctx, "card.building.mobilized") || ""),
+        do:
+          "#{b.workforce} " <>
+            icon_html(ctx, "resource/population") <>
+            " " <> link_html(ctx, "workforce", ui(ctx, "card.building.mobilized") || ""),
         else: "0"
 
     # A siege picks a building whose content `outputs` carry `:defense` twice as
@@ -415,7 +429,8 @@ defmodule RC.Help.Catalog do
     group = "help-bcard-#{key}"
     levels = b.levels
 
-    level_badges = Enum.map_join(levels, &~s(<span class="help-bcard-level" data-level="#{&1.level}">#{&1.level}</span>))
+    level_badges =
+      Enum.map_join(levels, &~s(<span class="help-bcard-level" data-level="#{&1.level}">#{&1.level}</span>))
 
     workforce =
       if b.workforce > 0 do
@@ -484,13 +499,18 @@ defmodule RC.Help.Catalog do
       {school, type} ->
         {label, page, icon} =
           case school do
-            :polytech ->
-              {ui(ctx, "card.building.training_seats") || "Training seats", "polytech-training", ""}
-
             :university ->
               agents = ctx |> data_name(["character", to_string(type), "name"]) |> plural()
-              label = (ui(ctx, "card.building.course_seats") || "Course seats, {agents}") |> String.replace("{agents}", agents)
+
+              label =
+                (ui(ctx, "card.building.course_seats") || "Course seats, {agents}")
+                |> String.replace("{agents}", agents)
+
               {label, "university-courses", icon_html(ctx, "agent/#{type}", agents)}
+
+            # a Delta Polytech or a Citadel
+            _passive ->
+              {ui(ctx, "card.building.training_seats") || "Training seats", "polytech-training", ""}
           end
 
         seats = Instance.Character.Training.seats(school, level)
@@ -525,6 +545,10 @@ defmodule RC.Help.Catalog do
         b.from == :direct and b.to == :dominion_rate ->
           pct(b.value)
 
+        # agent training: the value is a percentage already
+        b.from == :direct and b.to in [:sys_training_xp, :sys_reallocation_time, :sys_training_cost] ->
+          signed(b.value) <> "%"
+
         b.from == :direct ->
           amount
 
@@ -553,7 +577,13 @@ defmodule RC.Help.Catalog do
   defp levels_md(ctx, b) do
     rows =
       for l <- b.levels do
-        [num(l.level), grouped(ctx, l.credit), grouped(ctx, l.production), requires_md(ctx, b, l), Enum.map_join(l.bonus, "; ", &bonus(ctx, &1))]
+        [
+          num(l.level),
+          grouped(ctx, l.credit),
+          grouped(ctx, l.production),
+          requires_md(ctx, b, l),
+          Enum.map_join(l.bonus, "; ", &bonus(ctx, &1))
+        ]
       end
 
     headers = [

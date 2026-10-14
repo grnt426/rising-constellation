@@ -14,16 +14,28 @@ defmodule Instance.Character.TrainingTest do
     university_settle_time: 80,
     university_reallocation_interval: 480,
     university_max_reallocations: 5,
-    university_fee_credit: 50,
-    university_fee_technology: 5,
-    university_fee_ideology: 5
+    university_fee_credit: 30,
+    university_fee_technology: 3,
+    university_fee_ideology: 3
   }
 
   describe "host buildings" do
-    test "every agent type shares the Polytech and has its own university" do
+    test "every agent type shares the Polytech, the Citadel and the Holodome, and has its own university" do
       for type <- [:admiral, :spy, :speaker] do
         assert Training.host_building(:polytech, type) == :university_open
+        assert Training.host_building(:citadel, type) == :ideo_open
+        assert Training.host_building(:holodome, type) == :ideo_dome
       end
+
+      assert Training.school_of(:university_open) == {:polytech, nil}
+      assert Training.school_of(:ideo_open) == {:citadel, nil}
+      assert Training.school_of(:monument_dome) == {:university, :speaker}
+      assert Training.school_of(:ideo_dome) == {:holodome, nil}
+      assert Training.school_of(:infra_open) == nil
+
+      assert Enum.all?([:polytech, :citadel, :holodome], &Training.passive?/1)
+      refute Training.passive?(:university)
+      assert Training.schools() == [:polytech, :citadel, :holodome, :university]
 
       assert Training.host_building(:university, :speaker) == :monument_dome
       assert Training.host_building(:university, :spy) == :counterintelligence_open
@@ -41,6 +53,91 @@ defmodule Instance.Character.TrainingTest do
       assert Training.enrolled?(training)
 
       assert {^training, 0, 5_000, []} = Training.advance(training, 0, 5_000, @c)
+    end
+  end
+
+  describe "a Citadel or a Holodome" do
+    test "is a Polytech in all but its building: one seat, the governor's rate, no fee, no end" do
+      for school <- [:citadel, :holodome] do
+        training = Training.new(school, @c)
+
+        assert training.school == school
+        assert Training.seats(school, 5) == 1
+        assert Training.xp_factor(training, @c) == 1.0
+        assert Training.fee(:speaker, 10, training, @c) == nil
+        assert Training.next_event(training, @c) == :never
+        assert Training.time_left(training, 0, @c) == nil
+
+        assert {^training, 0, 5_000, []} = Training.advance(training, 0, 5_000, @c)
+      end
+    end
+  end
+
+  describe "the conditions of the system" do
+    test "are none for a new course, and for a map from before they existed" do
+      assert Training.conditions(Training.new(:university, @c)) == %{
+               xp_bonus: 0.0,
+               time_factor: 1.0,
+               cost_factor: 1.0,
+               school_level: nil
+             }
+
+      old = %{school: :university, phase: :active, elapsed: 100.0, ended: nil}
+      assert Training.conditions(old) == %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0, school_level: nil}
+      assert Training.xp_factor(old, @c) == 2.0
+      assert Training.reallocation_interval(old, @c) == 480
+      assert Training.fee(:spy, 10, old, @c) == {:credit, 300}
+    end
+
+    test "add their percent to the experience of every school" do
+      conditions = %{xp_bonus: 15.0, time_factor: 1.0, school_level: nil}
+
+      for school <- [:polytech, :citadel, :holodome] do
+        assert_in_delta Training.xp_factor(Training.set_conditions(Training.new(school, @c), conditions), @c),
+                        1.15,
+                        1.0e-9
+      end
+
+      {active, 0, _, _} = Training.advance(Training.new(:university, @c), 0, 100, @c)
+      assert_in_delta Training.xp_factor(Training.set_conditions(active, conditions), @c), 2.3, 1.0e-9
+
+      # still nothing while settling in
+      assert Training.xp_factor(Training.set_conditions(Training.new(:university, @c), conditions), @c) == 0.0
+    end
+
+    test "shorten the time a rewire takes" do
+      # a Citadel of level 5: -7.5%
+      training =
+        Training.set_conditions(Training.new(:university, @c), %{xp_bonus: 0.0, time_factor: 0.925, school_level: 1})
+
+      assert Training.reallocation_interval(training, @c) == 444.0
+      assert Training.time_left(training, 0, @c) == 80 + 5 * 444.0
+
+      assert {%{phase: :active, elapsed: 0.0}, 1, _xp_time, [:settled, :reallocation]} =
+               Training.advance(training, 0, 80 + 444, @c)
+
+      assert {%{phase: :graduated}, 5, _xp_time, events} = Training.advance(training, 0, 80 + 5 * 444, @c)
+      assert List.last(events) == :graduated
+
+      # settling in takes as long as ever
+      assert Training.next_event(training, @c) == 80
+    end
+
+    test "keep the share of a rewire already earned when the pace changes" do
+      # half of a day of course done
+      {half, 0, _, _} = Training.advance(Training.new(:university, @c), 0, 80 + 240, @c)
+      assert half.elapsed == 240.0
+
+      faster = Training.set_conditions(half, %{xp_bonus: 0.0, time_factor: 0.5, school_level: 1})
+      assert faster.elapsed == 120.0
+      assert Training.next_event(faster, @c) == 120.0
+
+      # and back
+      assert Training.set_conditions(faster, %{xp_bonus: 0.0, time_factor: 1.0, school_level: 1}).elapsed == 240.0
+
+      # a student that is settling in has no rewire under way
+      settling = Training.new(:university, @c)
+      assert Training.set_conditions(settling, %{xp_bonus: 0.0, time_factor: 0.5, school_level: 1}).elapsed == 0.0
     end
   end
 
@@ -107,14 +204,34 @@ defmodule Instance.Character.TrainingTest do
       assert xp_time == 960.0
     end
 
-    test "charges per level in the resource of the agent's type, while it is in class" do
-      training = Training.new(:university, @c)
+    test "charges per level of the agent and per level of its university, in the resource of the agent's type" do
+      training =
+        Training.set_conditions(Training.new(:university, @c), %{xp_bonus: 0.0, time_factor: 1.0, school_level: 5})
 
-      assert Training.fee(:speaker, 10, training, @c) == {:ideology, 50}
-      assert Training.fee(:admiral, 10, training, @c) == {:technology, 50}
-      assert Training.fee(:spy, 10, training, @c) == {:credit, 500}
+      # 3 * level of agent + 3 * level of uni; 30 of each in credits
+      assert Training.fee(:speaker, 10, training, @c) == {:ideology, 45}
+      assert Training.fee(:admiral, 10, training, @c) == {:technology, 45}
+      assert Training.fee(:spy, 10, training, @c) == {:credit, 450}
+
+      first = Training.set_conditions(training, %{xp_bonus: 0.0, time_factor: 1.0, school_level: 1})
+      assert Training.fee(:spy, 5, first, @c) == {:credit, 180}
 
       assert Training.fee(:spy, 10, Training.finish(training, :unpaid), @c) == nil
+    end
+
+    test "charges less in a system whose Holodomes cut the fee" do
+      # a Holodome of level 5: -20%
+      training =
+        Training.set_conditions(Training.new(:university, @c), %{cost_factor: 0.8, school_level: 5})
+
+      assert {:ideology, fee} = Training.fee(:speaker, 10, training, @c)
+      assert_in_delta fee, 36.0, 1.0e-9
+      assert {:credit, fee} = Training.fee(:spy, 10, training, @c)
+      assert_in_delta fee, 360.0, 1.0e-9
+
+      # nothing else changes with it
+      assert Training.xp_factor(%{training | phase: :active}, @c) == 2.0
+      assert Training.reallocation_interval(training, @c) == 480
     end
 
     test "stops where it stands when the owner cannot pay" do
@@ -159,6 +276,35 @@ defmodule Instance.Character.TrainingTest do
       assert Training.check_reallocation(@skills, [5, 3, 0, 1, 1, 1], 0, 5, 12) == {:ok, 2}
     end
 
+    test "adds a point outright for two reallocations" do
+      assert Training.check_reallocation(@skills, [6, 3, 1, 0, 2, 0], 0, 5, 12) == {:ok, 2}
+      assert Training.check_reallocation(@skills, [7, 3, 1, 0, 2, 0], 0, 5, 12) == {:ok, 4}
+      assert Training.check_reallocation(@skills, [5, 3, 1, 1, 2, 1], 0, 5, 12) == {:ok, 4}
+
+      # five buy two points, never three
+      assert Training.check_reallocation(@skills, [8, 3, 1, 0, 2, 0], 0, 5, 12) == {:error, :not_enough_reallocations}
+      assert Training.check_reallocation(@skills, [6, 3, 1, 0, 2, 0], 0, 1, 12) == {:error, :not_enough_reallocations}
+    end
+
+    test "bills a point gained as a move whenever another skill gave one up" do
+      # one moved (1) and one added (2)
+      assert Training.check_reallocation(@skills, [7, 2, 1, 0, 2, 0], 0, 5, 12) == {:ok, 3}
+      # two moved, one added
+      assert Training.check_reallocation(@skills, [8, 2, 1, 0, 1, 0], 0, 5, 12) == {:ok, 4}
+      assert Training.reallocation_cost(@skills, [8, 2, 1, 0, 1, 0]) == 4
+      assert Training.reallocation_cost(@skills, @skills) == 0
+    end
+
+    test "holds an added point to the limits of a moved one" do
+      assert Training.check_reallocation(@skills, [5, 6, 1, 0, 2, 0], 0, 6, 12) == {:error, :skill_over_main}
+
+      assert Training.check_reallocation([12, 5, 0, 0, 0, 0], [13, 5, 0, 0, 0, 0], 0, 5, 12) ==
+               {:error, :skill_over_maximum}
+
+      # the main skill itself can be raised, and the others then follow it
+      assert Training.check_reallocation(@skills, [6, 3, 1, 0, 2, 0], 0, 2, 12) == {:ok, 2}
+    end
+
     test "needs a reallocation for every point" do
       assert Training.check_reallocation(@skills, [8, 0, 1, 0, 2, 0], 0, 2, 12) ==
                {:error, :not_enough_reallocations}
@@ -166,8 +312,9 @@ defmodule Instance.Character.TrainingTest do
       assert Training.check_reallocation(@skills, @skills, 0, 5, 12) == {:error, :nothing_to_reallocate}
     end
 
-    test "keeps the total and refuses anything but six whole, positive values" do
-      assert Training.check_reallocation(@skills, [6, 3, 1, 0, 2, 0], 0, 5, 12) == {:error, :skill_points_mismatch}
+    test "places every point taken and refuses anything but six whole, positive values" do
+      assert Training.check_reallocation(@skills, [5, 2, 1, 0, 2, 0], 0, 5, 12) == {:error, :skill_points_mismatch}
+      assert Training.check_reallocation(@skills, [6, 1, 1, 0, 2, 0], 0, 5, 12) == {:error, :skill_points_mismatch}
       assert Training.check_reallocation(@skills, [5, 3, 1, 0, 2], 0, 5, 12) == {:error, :invalid_skills}
       assert Training.check_reallocation(@skills, [7, 3, 1, 0, 2, -2], 0, 5, 12) == {:error, :invalid_skills}
       assert Training.check_reallocation(@skills, [5.5, 2.5, 1, 0, 2, 0], 0, 5, 12) == {:error, :invalid_skills}
