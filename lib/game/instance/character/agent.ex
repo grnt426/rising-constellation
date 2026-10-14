@@ -495,6 +495,17 @@ defmodule Instance.Character.Agent do
     {:noreply, %{state | data: data}}
   end
 
+  # Daily "Headhunter": the day's counter-intelligence sweep holds an exposed
+  # Erased's cover down (Daily.Director). Its owner and the system it stands
+  # in only hear about it when that takes it out of cover.
+  @decorate tick()
+  def on_cast({:daily_expose, cover}, state) do
+    {data, became_discovered?} = Character.expose(state.data, cover)
+    if became_discovered?, do: send_update(MapSet.new([:player_update, :system_update]), data)
+
+    {:noreply, %{state | data: data}}
+  end
+
   # Government-driven charge abort (gateway link torn down by capture).
   # Only a running charge aborts; a jump lands and fatigue is local.
   @decorate tick()

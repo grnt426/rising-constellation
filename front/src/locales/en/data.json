@@ -1724,7 +1724,7 @@
         "name": "Golden Flow"
       },
       "headhunter": {
-        "description": "An enemy court sprawls across the marches. Assassinate as many of its agents as you can by the deadline; ties break on your best Erased's level.",
+        "description": "An enemy court sends an Erased into your system every 15 seconds. Every 25 Intelligence exposes more of them, the low-level ones first. Remove as many as you can by the deadline, and guard your own Erased; ties break on your best Erased's level.",
         "name": "Headhunter"
       },
       "hegemon": {
@@ -1736,7 +1736,7 @@
         "name": "Land Rush"
       },
       "monumental": {
-        "description": "A race: raise the Monument in your realm. Score is the time left when it's built; ties break on how far along your economy is.",
+        "description": "A race: raise the Monolith on your system's barren world. Its patents are already yours. Score is the time left when it's built; ties break on how far along your economy is.",
         "name": "Monumental"
       },
       "rising_creed": {

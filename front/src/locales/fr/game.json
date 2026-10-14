@@ -489,7 +489,7 @@
     "faction_building": {
       "kind": "Bâtiment de faction",
       "upkeep": "Entretien",
-      "upkeep_hint": "Payé par le trésor de la faction tant que le bâtiment est debout. Si le trésor ne peut pas couvrir l'entretien de toutes les stations, tous les bâtiments de la faction sont mis hors tension jusqu'à ce qu'il le puisse.",
+      "upkeep_hint": "Facturé au trésor de la faction à chaque rentrée d'impôts, tant que le bâtiment est debout. Si le trésor ne peut pas payer toute la facture de toutes les stations, il paie ce qu'il a et tous les bâtiments de la faction sont mis hors tension jusqu'à ce qu'une facture soit payée en entier.",
       "labor": "production",
       "labor_hint": "La production du système hôte l'absorbe sur une file à part. La file de construction du propriétaire n'est pas ralentie.",
       "labor_time": "Environ {time} à la production actuelle de ce système.",
@@ -515,7 +515,7 @@
       "link_cost": "Coût de liaison",
       "link_cost_hint": "Facturé au trésor tant que la liaison se forme. Si le trésor est à sec, la liaison attend.",
       "charge_upkeep": "Surcoût de charge",
-      "charge_upkeep_hint": "S'ajoute à l'entretien pendant qu'un agent charge le portail.",
+      "charge_upkeep_hint": "S'ajoute à l'entretien pendant qu'un agent charge le portail. Si les stations sont mises hors tension pendant la charge, l'agent abandonne la charge et le portail est de nouveau libre.",
       "unlink_cost": "Rupture",
       "unlink_cost_hint": "Payé une fois pour rompre la liaison, ce qui prend {time}. Un portail lié ne peut pas être démoli.",
       "training_interval": "Séance toutes les",

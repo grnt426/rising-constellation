@@ -823,11 +823,11 @@ defmodule Instance.Faction.Agent do
     update_station_registry(state, fn government ->
       Government.station_registry_complete(government, system_id, building)
     end, fn settled_state, government ->
-      # A completion while the faction's stations are unpowered must not
-      # slip through powered — push the current power state down.
-      if not Map.get(government, :station_powered, true) do
-        Game.cast(settled_state.instance_id, :stellar_system, system_id, {:station_set_power, false})
-      end
+      # Push the current power state down, both ways: a completion while
+      # the faction's stations are unpowered must not slip through
+      # powered, and a station that went dark before its last building
+      # was demolished must not keep the new one dark while it is billed.
+      push_station_power(settled_state, government, system_id)
 
       write_log_entry(settled_state, "station_completed", nil, nil, %{
         system_id: system_id,
@@ -866,6 +866,11 @@ defmodule Instance.Faction.Agent do
         state = settle_government_events(state, break_events)
         state = persist_government(state)
 
+        # The system resets its power flag on fresh control, and the
+        # upkeep tick only reports flips: a building won back while the
+        # treasury is dry would otherwise run unpaid.
+        if status == :built, do: push_station_power(state, government, system_id)
+
         write_log_entry(state, "station_status_changed", nil, nil, %{
           system_id: system_id,
           building_id: building_id,
@@ -875,6 +880,11 @@ defmodule Instance.Faction.Agent do
         FactionChannel.broadcast_change(state.channel, %{faction_faction: state.data})
         {:noreply, state}
     end
+  end
+
+  defp push_station_power(state, government, system_id) do
+    powered = Map.get(government, :station_powered, true)
+    Game.cast(state.instance_id, :stellar_system, system_id, {:station_set_power, powered})
   end
 
   # A construction lost to conquest/abandon: nothing to update in the
@@ -1610,6 +1620,15 @@ defmodule Instance.Faction.Agent do
 
     write_log_entry(state, "gateway_link_broken", nil, nil, link_log_payload(event.link))
     government_player_event(state, "gateway_link_broken", %{})
+  end
+
+  # The treasury ran dry mid-charge: the engine already freed the pair,
+  # so refresh the endpoint stamps (their `busy` flag) and stand the
+  # traveler down where it is.
+  defp settle_government_event(state, %{type: :gateway_charge_aborted} = event) do
+    stamp_gateway_link(state, event.link)
+    Game.cast(state.instance_id, :character, event.character_id, {:gateway_abort})
+    write_log_entry(state, "gateway_transit_interrupted", nil, nil, %{character_id: event.character_id})
   end
 
   # Heartbeat from the government tick: re-push effects to members and

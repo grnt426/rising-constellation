@@ -103,7 +103,7 @@ defmodule Daily.Boot do
       "game_type" => "private",
       "public" => false,
       "start_setting" => "auto",
-      "factions" => [%{"key" => definition.faction, "capacity" => 1}]
+      "factions" => [%{"key" => definition.faction, "capacity" => 1} | puppet_faction_attrs(definition)]
     }
 
     {:ok, %{instance: instance}} =
@@ -111,8 +111,14 @@ defmodule Daily.Boot do
 
     {:ok, _} = RC.Instances.publish_instance(instance, profile.account_id)
 
-    [faction] = instance.factions
+    faction = Enum.find(instance.factions, &(&1.faction_ref == definition.faction))
     {:ok, %{registration: registration}} = RC.Registrations.register_profile(faction, profile)
+
+    # Puppet-faction days: the enemy faction needs a player of its own for the
+    # engine to build (and for its agents to belong to).
+    for puppet <- instance.factions, puppet.id != faction.id do
+      {:ok, _} = RC.Registrations.register_profile(puppet, ensure_puppet_profile())
+    end
 
     loaded = RC.Instances.get_instance_with_registration(instance.id)
 
@@ -229,6 +235,9 @@ defmodule Daily.Boot do
             _ ->
               :noop
           end
+
+          # Days with scripted opposition (Headhunter) start it with the clock.
+          Daily.Director.start(instance_id)
 
           Logger.info("[daily] started instance #{instance_id} on client connect")
       end
@@ -492,11 +501,13 @@ defmodule Daily.Boot do
 
   defp best_agent_level(_), do: 0
 
-  # Resolve the single live player agent for a daily instance via its faction's
-  # registration (one faction, one profile by construction).
+  # Resolve the human's live player agent for a daily instance via its
+  # faction's registration (one human faction, one profile by construction; a
+  # puppet-faction day's second faction is the enemy's and is skipped).
   defp fetch_player(instance_id) do
     with instance when not is_nil(instance) <- RC.Instances.get_instance_with_registration(instance_id),
-         [faction | _] <- instance.factions,
+         puppet_ref = get_in(instance.game_data || %{}, ["daily", "puppet_faction"]),
+         [faction | _] <- Enum.reject(instance.factions, &(&1.faction_ref == puppet_ref)),
          [registration | _] <- faction.registrations,
          %Profile{id: profile_id} <- registration.profile,
          {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
@@ -530,6 +541,14 @@ defmodule Daily.Boot do
       end
 
     %{id: instance_id, factions: [player_faction | puppet_factions], game_data: game_data}
+  end
+
+  # The enemy faction's seat on a puppet-faction day (none otherwise).
+  defp puppet_faction_attrs(definition) do
+    case get_in(definition.game_data, ["daily", "puppet_faction"]) do
+      nil -> []
+      puppet_ref -> [%{"key" => puppet_ref, "capacity" => 1}]
+    end
   end
 
   # Idempotent: one shared demo account+profile, reused across boots.

@@ -1724,7 +1724,7 @@
         "name": "Flux doré"
       },
       "headhunter": {
-        "description": "Une cour ennemie s'étend sur les marches. Assassinez autant de ses agents que possible avant l'échéance ; les égalités se départagent au niveau de votre meilleur Effacé.",
+        "description": "Une cour ennemie envoie un Effacé dans votre système toutes les 15 secondes. Chaque tranche de 25 de Renseignement en démasque davantage, les moins expérimentés d'abord. Supprimez-en autant que possible avant l'échéance, et protégez vos propres Effacés ; les égalités se départagent au niveau de votre meilleur Effacé.",
         "name": "Chasseur de têtes"
       },
       "hegemon": {
@@ -1736,7 +1736,7 @@
         "name": "Ruée vers les terres"
       },
       "monumental": {
-        "description": "Une course : érigez le Monument dans votre royaume. Le score est le temps restant à sa construction ; les égalités se départagent à l'avancement de votre économie.",
+        "description": "Une course : érigez le Monolithe sur la planète stérile de votre système. Ses brevets vous sont déjà acquis. Le score est le temps restant à sa construction ; les égalités se départagent à l'avancement de votre économie.",
         "name": "Monumental"
       },
       "rising_creed": {

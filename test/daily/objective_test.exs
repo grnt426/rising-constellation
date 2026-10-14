@@ -14,6 +14,7 @@ defmodule Daily.ObjectiveTest do
     assert o.mode == :max_stat
     assert o.stat_field == :agents_assassinated
     assert o.puppet.systems >= 1
+    assert o.director == :headhunter
     assert Objective.score(:headhunter, %{agents_assassinated: 3}) == 3
   end
 
@@ -180,11 +181,31 @@ defmodule Daily.ObjectiveTest do
     test "completes when the target wonder is latched onto the player" do
       objective = Objective.get(:monumental)
 
-      assert Objective.race_completed?(objective, %{wonders_built: [:monument_open]})
-      # a different wonder doesn't count
-      refute Objective.race_completed?(objective, %{wonders_built: [:monument_dome]})
+      assert Objective.race_completed?(objective, %{wonders_built: [:monument_dome]})
+      # the Floating Gardens are a different building and don't count
+      refute Objective.race_completed?(objective, %{wonders_built: [:monument_open]})
       refute Objective.race_completed?(objective, %{wonders_built: []})
       refute Objective.race_completed?(objective, %{})
+    end
+
+    test "the day guarantees a barren world and grants the Monolith's patent" do
+      objective = Objective.get(:monumental)
+
+      assert Objective.required_bodies(objective) == [:sterile_planet]
+      assert Objective.required_bodies(:monumental) == [:sterile_planet]
+      assert Objective.required_bodies("monumental") == [:sterile_planet]
+      assert Objective.granted_patents("monumental") == [:dome_ideo]
+
+      # the Monolith's own patent is the one granted
+      monolith = Enum.find(Data.Game.Building.Content.Slow.data(), &(&1.key == :monument_dome))
+      assert hd(monolith.levels).patent in Objective.granted_patents(objective)
+
+      # other days need and grant nothing
+      assert Objective.required_bodies(:golden_flow) == []
+      assert Objective.granted_patents(:golden_flow) == []
+      assert Objective.required_bodies(nil) == []
+      assert Objective.granted_patents(nil) == []
+      assert Objective.required_bodies("no_such_day") == []
     end
 
     test "DNF progress is total system production (build throughput)" do

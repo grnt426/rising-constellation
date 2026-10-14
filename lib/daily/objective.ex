@@ -156,6 +156,11 @@ defmodule Daily.Objective do
       description:
         "A race: field a single fleet with 50 conquest power. Score is the time left when it musters; ties break on your best fleet's progress."
     },
+    # A wonder race names the building to raise. `requires` lists what the
+    # generated system must hold for the goal to be possible at all (see
+    # required_bodies/1 — the generator adds what the rolls left out), and
+    # `grants` the research the player starts with (granted_patents/1; each
+    # patent comes with its ancestors).
     %{
       key: :monumental,
       name: "Monumental",
@@ -163,13 +168,18 @@ defmodule Daily.Objective do
       aggregation: :race,
       mode: :race,
       stat_field: nil,
-      # The Monument (monument_open) — buildable on the daily's guaranteed
-      # habitable planet, so the race is always completable. Completion is
-      # latched onto the player by the wonder-built signal (see
+      # The Monolith (monument_dome): a barren-world building, so the day
+      # guarantees a barren world. Its patent line costs about 165,000
+      # technology, more than a whole run earns, so the line is granted and
+      # the race is the build itself. The Floating Gardens (monument_open)
+      # are a different building and do not count. Completion is latched onto
+      # the player by the wonder-built signal (see
       # StellarSystem.Agent.cast_hook).
-      race: %{wonder: :monument_open},
+      race: %{wonder: :monument_dome},
+      requires: %{bodies: [:sterile_planet]},
+      grants: %{patents: [:dome_ideo]},
       description:
-        "A race: raise the Monument in your realm. Score is the time left when it's built; ties break on how far along your economy is."
+        "A race: raise the Monolith on your system's barren world. Its patents are already yours. Score is the time left when it's built; ties break on how far along your economy is."
     },
     %{
       key: :fleet_in_being_armada,
@@ -229,8 +239,9 @@ defmodule Daily.Objective do
     },
     # A "puppet-faction day": the objective carries a `:puppet` spec, so the
     # generator adds a second enemy faction (its own sector of `systems`
-    # systems) and the boot seeds enemy agents/contacts (Daily.Seed) for the
-    # player to act against.
+    # systems). `director` names the rules the Daily.Director runs against
+    # the live instance — for Headhunter, Daily.Headhunter: an enemy Erased
+    # into the player's system every 15 seconds, exposed by Intelligence.
     %{
       key: :headhunter,
       name: "Headhunter",
@@ -242,9 +253,10 @@ defmodule Daily.Objective do
       # Erased you fielded.
       stat_field: :agents_assassinated,
       tiebreak_field: :best_agent_level,
-      puppet: %{systems: 4},
+      puppet: %{systems: 1},
+      director: :headhunter,
       description:
-        "An enemy court sprawls across the marches. Assassinate as many of its agents as you can by the deadline; ties break on your best Erased's level."
+        "An enemy court sends an Erased into your system every 15 seconds. Every 25 Intelligence exposes more of them, the low-level ones first. Remove as many as you can by the deadline, and guard your own Erased; ties break on your best Erased's level."
     },
     # A "package day": the objective carries its own fixed setup
     # (package_mutators) and the generator pins those INSTEAD of rolling the
@@ -276,6 +288,24 @@ defmodule Daily.Objective do
   def get(key) when is_atom(key), do: Enum.find(@catalog, &(&1.key == key))
   def get(key) when is_binary(key), do: Enum.find(@catalog, &(Atom.to_string(&1.key) == key))
   def get(_), do: nil
+
+  @doc """
+  Body types every system of the day must hold for the objective to be
+  possible (`requires: %{bodies: [...]}`), as a list of `Data.Game.StellarBody`
+  keys. Accepts a catalog entry or an objective key; anything else needs
+  nothing.
+  """
+  def required_bodies(%{requires: %{bodies: bodies}}) when is_list(bodies), do: bodies
+  def required_bodies(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: required_bodies(get(key))
+  def required_bodies(_), do: []
+
+  @doc """
+  Patents the player starts the day with (`grants: %{patents: [...]}`). The
+  caller adds each one's ancestors (see `Instance.Player.Player.new/4`).
+  """
+  def granted_patents(%{grants: %{patents: patents}}) when is_list(patents), do: patents
+  def granted_patents(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: granted_patents(get(key))
+  def granted_patents(_), do: []
 
   @doc """
   Score + tiebreak for a player against an objective, as

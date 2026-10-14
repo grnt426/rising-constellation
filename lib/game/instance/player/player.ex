@@ -149,7 +149,7 @@ defmodule Instance.Player.Player do
         credit: Core.DynamicValue.new(starting_credit),
         technology: Core.DynamicValue.new(round(c.player_starting_technology * tech_mult)),
         ideology: Core.DynamicValue.new(round(c.player_starting_ideology * ideo_mult)),
-        patents: [],
+        patents: granted_patents(instance_id),
         doctrines: [],
         policies: [],
         character_deck: [],
@@ -175,6 +175,26 @@ defmodule Instance.Player.Player do
       |> hire_character({0, 0, 0}, character)
 
     state
+  end
+
+  # A daily objective can hand the player a research line up front
+  # (Monumental: the Monolith's patents, which cost more technology than a
+  # run earns). Each granted patent comes with its ancestors, oldest first.
+  # Empty outside such a day.
+  defp granted_patents(instance_id) do
+    instance_id
+    |> Instance.Mutators.daily_objective()
+    |> Daily.Objective.granted_patents()
+    |> Enum.flat_map(&patent_line(instance_id, &1))
+    |> Enum.uniq()
+  end
+
+  defp patent_line(instance_id, key) do
+    case Data.Querier.one(Data.Game.Patent, instance_id, key) do
+      nil -> []
+      %{ancestor: nil} -> [key]
+      %{ancestor: ancestor} -> patent_line(instance_id, ancestor) ++ [key]
+    end
   end
 
   def compute_next_tick_interval(%Player.Player{} = state) do
@@ -1280,7 +1300,7 @@ defmodule Instance.Player.Player do
       end)
 
     Core.Bonus.apply_bonuses(state, :player, bonuses)
-    |> put_tax_remit_rates()
+    |> levy_faction_tax()
   end
 
   @doc """
@@ -1293,26 +1313,37 @@ defmodule Instance.Player.Player do
     |> compute_bonus()
   end
 
-  # The tax entered the pipeline as a ×(1 - rate/100) on net income, so
-  # the faction's withheld share per tick-unit is net × rate / (100 - rate).
-  # Only positive income is taxed; a struggling member remits nothing.
-  defp put_tax_remit_rates(state) do
+  # The faction income tax is levied last, on what each income comes to
+  # once everything else is in (wages, fleet upkeep and tuition included):
+  # `rate`% of a positive net income, nothing from a member running a
+  # deficit, and never a negative amount. Levied this way a tax cannot
+  # push a member into the red, and what leaves the income is exactly
+  # what the agent remits to the treasury (:tax_remit_rates, per
+  # tick-unit). (As a pipeline multiplier it was taken on the income
+  # before wages, so a member in deficit still paid it, and the treasury
+  # was sent less than the member lost.) Recorded as a {:government,
+  # :tax} part so the income tooltip shows it.
+  defp levy_faction_tax(state) do
     rates = Map.get(Map.get(state, :government_effects) || %{}, :tax_rates, %{})
 
-    remit =
-      Enum.reduce([:credit, :technology, :ideology], %{}, fn key, acc ->
-        rate = Map.get(rates, key, 0)
-        net = Map.get(state, key).change
+    Enum.reduce([:credit, :technology, :ideology], Map.put(state, :tax_remit_rates, %{}), fn key, state ->
+      rate = Map.get(rates, key, 0)
+      income = Map.get(state, key)
 
-        withheld =
-          if is_number(rate) and rate > 0 and rate < 100 and net > 0,
-            do: net * rate / (100 - rate),
-            else: 0
+      withheld =
+        if is_number(rate) and rate > 0 and income.change > 0,
+          do: income.change * min(rate, 100) / 100,
+          else: 0
 
-        Map.put(acc, key, withheld)
-      end)
+      income =
+        if withheld > 0,
+          do: Util.Type.replace_value(income, -withheld, {:government, :tax}),
+          else: income
 
-    Map.put(state, :tax_remit_rates, remit)
+      state
+      |> Map.replace!(key, income)
+      |> Map.update!(:tax_remit_rates, &Map.put(&1, key, withheld))
+    end)
   end
 
   def extract_bonus(%Player.Player{} = state, target) do
@@ -1410,28 +1441,8 @@ defmodule Instance.Player.Player do
           else: acc
       end)
 
-    # faction income tax: a multiplicative reduction on each resource,
-    # entered through the pipeline so it shows up in income tooltips
-    # with an honest {:government, :tax} reason. The withheld share is
-    # remitted to the faction treasury (see tax_remit_rates).
-    tax_bonuses =
-      if Enum.member?(target, :player) do
-        [credit: :player_credit, technology: :player_technology, ideology: :player_ideology]
-        |> Enum.flat_map(fn {resource, to} ->
-          rate = Map.get(Map.get(government_effects, :tax_rates, %{}), resource, 0)
-
-          if is_number(rate) and rate > 0,
-            do: [
-              %{
-                reason: {:government, :tax},
-                bonus: %Core.Bonus{from: to, to: to, type: :mul, value: -rate / 100}
-              }
-            ],
-            else: []
-        end)
-      else
-        []
-      end
+    # (the faction income tax is not a pipeline entry: it is levied on
+    # the finished income, see levy_faction_tax/1)
 
     # Cardan tithe settlements: pledgers pay their snapshot pledge as a
     # flat ideology-income debit; the members who were ACTIVE at
@@ -1577,7 +1588,6 @@ defmodule Instance.Player.Player do
       fleet_maintenance,
       faction_bonuses,
       government_bonuses,
-      tax_bonuses,
       tithe_bonuses,
       tyranny_bonuses,
       mutator_bonuses,

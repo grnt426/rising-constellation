@@ -10,10 +10,9 @@ defmodule Instance.StellarSystem.StellarSystem do
   @ai_next_action_unit_days 50
   @max_remove_contact 25_000
   @limited_penalty_fields [:sys_production]
-  # Wonder buildings whose completion the daily "Monumental" race watches for.
-  # `monument_open` is the guaranteed-buildable target (open biome, so it works
-  # on the daily's guaranteed habitable planet); the dome wonders are tracked
-  # too for any future wonder race that guarantees a sterile planet.
+  # Wonder buildings whose completion a daily wonder race can watch for. The
+  # "Monumental" race is keyed to `monument_dome` (the Monolith), and its day
+  # guarantees the barren world it stands on (ensure_required_bodies/3).
   @wonder_keys [:monument_open, :monument_dome, :high_factory_dome]
   @standard_penalty_fields [
     :sys_production,
@@ -123,10 +122,11 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> Enum.map(fn i -> StellarSystem.StellarBody.new(i, name, instance_id, :primary) end)
 
     # A daily's lone system must be colonizable, so guarantee a habitable
-    # planet — convert the largest body if the rolls produced none.
+    # planet — convert the largest body if the rolls produced none. Then add
+    # whatever the day's objective cannot be done without.
     bodies =
       if Instance.Mutators.daily?(instance_id),
-        do: ensure_habitable_planet(bodies),
+        do: bodies |> ensure_habitable_planet() |> ensure_required_bodies(instance_id, name),
         else: bodies
 
     # Stage 6 #1.5 — per-sector neutral distribution. `opts` comes from
@@ -864,8 +864,8 @@ defmodule Instance.StellarSystem.StellarSystem do
 
         {station, changed} = StellarSystem.Station.sync_statuses(station, state.status, state.owner)
 
-        # Fresh control resets the power flag; the owning government's
-        # next upkeep tick re-asserts it if the treasury is dry.
+        # Fresh control resets the power flag; the owning government
+        # answers the status cast below with its real power state.
         station = %{station | powered: true}
 
         Enum.each(changed, fn building ->
@@ -1724,6 +1724,21 @@ defmodule Instance.StellarSystem.StellarSystem do
         if body.uid == target.uid, do: %{body | type: :habitable_planet}, else: body
       end)
     end
+  end
+
+  # A daily objective can need a kind of body the rolls did not produce
+  # (Monumental: a barren world to raise the Monolith on). Each missing kind
+  # is added as one more planet of the system. This draws from the seeded
+  # generator, so the system stays the same for every player of the day.
+  defp ensure_required_bodies(bodies, instance_id, system_name) do
+    instance_id
+    |> Instance.Mutators.daily_objective()
+    |> Daily.Objective.required_bodies()
+    |> Enum.reduce(bodies, fn kind, bodies ->
+      if Enum.any?(bodies, &(&1.type == kind)),
+        do: bodies,
+        else: bodies ++ [StellarSystem.StellarBody.new_of_kind(length(bodies) + 1, system_name, instance_id, kind)]
+    end)
   end
 
   # WARN:

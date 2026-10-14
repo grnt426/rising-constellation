@@ -938,6 +938,26 @@ defmodule Instance.Character.Character do
     {state, became_discovered?}
   end
 
+  @doc """
+  Brings an Erased's cover down to `cover` when it stands higher: the daily
+  "Headhunter" sweep exposing it (`Daily.Director`). Nothing happens to an
+  agent that is not an Erased in the field, nor to one in the middle of an
+  action, whose queue belongs to the orchestrator until the action is done
+  (the Director asks again at its next pass).
+
+  Returns `{state, became_discovered?}` like `lose_cover/2`.
+  """
+  def expose(%Character.Character{type: :spy, status: :on_board, spy: %Character.Spy{}} = state, cover)
+      when is_number(cover) do
+    amount = state.spy.cover.value - cover
+
+    if amount > 0 and ActionQueue.empty?(state.actions),
+      do: lose_cover(state, amount),
+      else: {state, false}
+  end
+
+  def expose(%Character.Character{} = state, _cover), do: {state, false}
+
   # Speaker action handling
 
   def set_cooldown(%Character.Character{type: :speaker} = state, duration) do
