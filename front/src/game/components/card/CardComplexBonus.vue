@@ -139,7 +139,15 @@ export default {
         'army_maintenance',
       ].includes(bonus.to);
     },
+    // Agent training (docs/agent-training.md): what a building adds to the
+    // experience of the system's students, or takes off the time a rewire
+    // takes or the fee of a course, is a percentage.
+    isPercentBonus(bonus) {
+      return ['sys_training_xp', 'sys_reallocation_time', 'sys_training_cost'].includes(bonus.to);
+    },
     fmtDirect(bonus) {
+      if (this.isPercentBonus(bonus)) return `${format.mixed(bonus.value, 1, true)}%`;
+
       return this.isIncomeBonus(bonus)
         ? format.income(bonus.value, 1, true)
         : format.mixed(bonus.value, 1, true);

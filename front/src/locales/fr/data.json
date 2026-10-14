@@ -192,11 +192,20 @@
       "sys_radar": {
         "name": "Niveau D.S.S.L."
       },
+      "sys_reallocation_time": {
+        "name": "Durée d'un recâblage neuronal"
+      },
       "sys_remove_contact": {
         "name": "Cybersécurité"
       },
       "sys_technology": {
         "name": "Technologie"
+      },
+      "sys_training_cost": {
+        "name": "Coût de formation"
+      },
+      "sys_training_xp": {
+        "name": "Expérience en formation"
       }
     },
     "building": {

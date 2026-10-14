@@ -144,7 +144,7 @@
 import CardMixin from '@/game/mixins/CardMixin';
 import HelpButton from '@/game/components/generic/HelpButton.vue';
 import CardComplexBonus from '@/game/components/card/CardComplexBonus.vue';
-import { SCHOOL_BUILDINGS } from '@/game/training';
+import { PASSIVE_SCHOOLS, SCHOOL_BUILDINGS } from '@/game/training';
 
 export default {
   name: 'building-card',
@@ -195,11 +195,13 @@ export default {
     displayLevel() { return this.previewLevel === null ? this.level : this.previewLevel; },
     isPreviewing() { return this.previewLevel !== null && this.previewLevel !== this.level; },
     levelData() { return this.buildingData.levels[this.displayLevel - 1]; },
-    // A Delta Polytech seats one agent whatever its level; a university
-    // seats one agent of its type per level.
+    // A Delta Polytech, a Citadel or a Holodome seats one agent whatever its
+    // level; a university seats one agent of its type per level.
     trainingSeats() {
-      if (this.buildingKey === SCHOOL_BUILDINGS.polytech) {
-        return { label: this.$t('card.building.training_seats'), seats: 1, hint: this.$t('galaxy.school.polytech_hint') };
+      const passive = PASSIVE_SCHOOLS.find((school) => SCHOOL_BUILDINGS[school] === this.buildingKey);
+
+      if (passive) {
+        return { label: this.$t('card.building.training_seats'), seats: 1, hint: this.$t(`galaxy.school.${passive}_hint`) };
       }
 
       const type = ['admiral', 'spy', 'speaker'].find((t) => SCHOOL_BUILDINGS[t] === this.buildingKey);

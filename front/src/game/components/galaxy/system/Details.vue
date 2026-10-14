@@ -245,10 +245,53 @@
         </v-popover>
       </div>
     </div>
+
+    <!-- Agent training (docs/agent-training.md): what the buildings of the
+         system give every agent in training in it, as percentages. -->
+    <div class="system-content-group">
+      <div class="system-content-group-header">
+        <div class="main">
+          {{ $t('galaxy.system.details.training') }}
+        </div>
+      </div>
+
+      <div
+        v-for="stat in trainingStats"
+        :key="stat.key"
+        :data-training-stat="stat.key"
+        class="system-content-group-item">
+        <div class="details-label">
+          <help-button page="training-bonuses" :hint="$t(`resource-description.${stat.key}`)" fallback />
+          {{ $t(`galaxy.system.details.${stat.key}`) }}
+        </div>
+
+        <div v-if="!system[stat.key]">
+          <div class="yield-box">
+            ░░░ <svgicon :name="`resource/${stat.key}`" />
+          </div>
+        </div>
+        <v-popover
+          v-else
+          :trigger="popoverTrigger"
+          class="details-value">
+          <div class="yield-box">
+            {{ stat.text }}
+            <svgicon :name="`resource/${stat.key}`" />
+          </div>
+          <resource-detail
+            slot="popover"
+            :title="$t(`galaxy.system.details.${stat.key}`)"
+            :value="stat.value"
+            :details="system[stat.key].details"
+            unit="%" />
+        </v-popover>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+import format from '@/utils/format';
 import PopoverTriggerMixin from '@/game/mixins/PopoverTriggerMixin';
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
 import HelpButton from '@/game/components/generic/HelpButton.vue';
@@ -261,6 +304,24 @@ export default {
     system: Object,
     isOwnSystem: Boolean,
     color: String,
+  },
+  computed: {
+    // The experience the system's buildings add to its students, and what
+    // they take off the time of a neural rewire and off the fee of a
+    // course, as StellarSystem.School reads them: a bonus only, and neither
+    // a rewire nor a fee under a quarter of what it is.
+    trainingStats() {
+      const read = (key) => (this.system[key] && typeof this.system[key].value === 'number' ? this.system[key].value : 0);
+
+      return [
+        { key: 'training_xp', value: Math.max(read('training_xp'), 0) },
+        { key: 'reallocation_time', value: Math.max(Math.min(read('reallocation_time'), 0), -75) },
+        { key: 'training_cost', value: Math.max(Math.min(read('training_cost'), 0), -75) },
+      ].map((stat) => ({
+        ...stat,
+        text: stat.value === 0 ? '0%' : `${format.mixed(Math.round(stat.value * 10) / 10, 1, true)}%`,
+      }));
+    },
   },
   components: {
     HelpButton,

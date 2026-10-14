@@ -98,6 +98,19 @@
         transition: stroke linear 300ms;
 
         &.is-earned { stroke: $white; }
+
+        // The rewire being earned: its arc pulses slowly, and is drawn
+        // over in white as its day of course passes.
+        &.is-earning { animation: seat-ring-earning 2.4s ease-in-out infinite; }
+
+        &.earning-fill {
+          stroke: $white;
+          transition: stroke-dasharray linear 1s;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        path.is-earning { animation: none; }
       }
 
       // Settling in: a dotted circle, drawn over as the time passes. The
@@ -205,6 +218,11 @@
       z-index: 3;
     }
   }
+}
+
+@keyframes seat-ring-earning {
+  0%, 100% { stroke: rgba(255, 255, 255, .15); }
+  50% { stroke: rgba(255, 255, 255, .55); }
 }
 
 // Phones: a block of the scrolling summary page. No hover there: the queue

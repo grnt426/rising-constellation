@@ -152,6 +152,12 @@ export default {
       type: Number,
       default: 1,
     },
+    // Printed after the main value and each breakdown row ("%" for the
+    // agent-training percentages), and signs them.
+    unit: {
+      type: String,
+      default: '',
+    },
     description: {
       type: String,
       default: undefined,
@@ -177,6 +183,8 @@ export default {
     // income filter when this tooltip is income-flagged, plain float
     // otherwise.
     fmtValue(value) {
+      if (this.unit) return `${format.mixed(value, this.precision, true)}${this.unit}`;
+
       return this.income
         ? format.income(value, this.precision)
         : format.float(value, this.precision);
