@@ -922,7 +922,6 @@
       }
     },
     "school": {
-      "citadel_hint": "One seat per Citadel, for its owner's agents. An agent seated here earns experience like a governor. Its Protection and Determination are halved. It cannot be recalled during a siege. One agent may wait in the queue behind it. Each level of a Citadel also shortens the neural rewires earned in this system.",
       "enroll_polytech": "Send an agent to train here",
       "action_settling": "Settling in",
       "enroll_university": "Send a {agent} of level {level} or more on a course",
@@ -930,11 +929,10 @@
       "fee_ideology": "ideology",
       "fee_technology": "technology",
       "free_seat": "Free seat",
-      "holodome_hint": "One seat per Holodome, for its owner's agents. An agent seated here earns experience like a governor. Its Protection and Determination are halved. It cannot be recalled during a siege. One agent may wait in the queue behind it. Each level of a Holodome also lowers the fee of the university courses of this system.",
       "no_enroll_siege": "No enrolment during a siege",
-      "one_per_player": "You already have an agent here: one seat per player and per building. Your next agent can wait in the queue behind it",
+      "one_per_player": "You already have an agent here, studying or waiting. One per player and per building",
       "owner_only": "Only the owner of the system can use this seat",
-      "polytech_hint": "One seat per Delta Polytech, for its owner's agents. An agent seated here earns experience like a governor. Its Protection and Determination are halved. It cannot be recalled during a siege. One agent may wait in the queue behind it. Each level of a Delta Polytech also raises the experience of every agent in training in this system.",
+      "polytech_hint": "One seat per Delta Polytech, for its owner's agents. An agent seated here earns experience like a governor, with no fee. Its Protection and Determination are halved. It cannot be recalled during a siege. There is no queue. Each level of a Delta Polytech also shortens the neural rewires earned in this system.",
       "queue_eject": "Click to send it out of the queue",
       "queue_join": "Queue an agent behind {name}: it takes the seat as soon as it is free",
       "queue_leave": "Click to take it out of the queue",
@@ -953,7 +951,7 @@
       "system_time": "{percent}% rewire time",
       "system_xp": "{percent}% training experience",
       "title": "Schools",
-      "university_hint": "One seat per level, shared by the faction, for {agents} of level {level} or more. One seat per player and per building. After settling in, a student earns twice a governor's experience and one neural rewire per day. At five it comes home. Costs {fee} {resource} per tick for each level of the agent and each level of the building. Protection and Determination are halved. No recall during a siege. One agent may wait in the queue behind each student, and a player's next agent waits behind their own."
+      "university_hint": "Places shared by the faction, for {agents} of level {level} or more: one at levels 1 and 2, two at 3 and 4, three at 5. One agent per player and per building, studying or waiting. After settling in, a student earns twice a governor's experience and one neural rewire per day. At five it comes home. Costs {fee} {resource} per tick for each level of the agent and each level of the building, on top of its salary. Protection and Determination fall to 40% at level 1, up to 80% at level 5. No recall during a siege. One agent may wait in the queue behind each student."
     }
   },
   "help": {
@@ -2436,11 +2434,11 @@
     "mobility": "Mobility represents how mobile your population is throughout the star system and increases the credits that your population earns you.",
     "production": "Production increases the construction rate of your buildings and ships.",
     "radar": "The S.L.S.D. increases the zone on the map in which neutral or enemy fleets are detected.",
-    "reallocation_time": "Taken off the time a neural rewire takes for the students of this system's universities. Citadels give it, level by level.",
+    "reallocation_time": "Taken off the time a neural rewire takes for the students of this system's universities. Delta Polytechs give it, level by level.",
     "remove_contact": "Cybersecurity inspects and removes enemy malware placed on this star system (malware provides additional visibility)",
     "technology": "Technology allows you to unlock patents and construct ships.",
-    "training_cost": "Taken off the fee of every university course of this system. Holodomes give it, level by level.",
-    "training_xp": "Added to the experience of every agent in training in this system: in a Delta Polytech, Citadel or Holodome seat, or on a university course. Delta Polytechs give it, level by level.",
+    "training_cost": "Taken off the fee of every university course of this system, never more than 80%. The salary is never discounted. Holodomes give it, level by level.",
+    "training_xp": "Added to the experience of every agent in training in this system: in a Delta Polytech seat or on a university course. Experiment Stations give it, level by level.",
     "workforce": "Each point of population is one unit of workforce. Buildings mobilize workforce; mobilizing more than the system has applies a penalty."
   },
   "resource-detail": {

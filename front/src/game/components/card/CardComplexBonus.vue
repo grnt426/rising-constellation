@@ -88,6 +88,7 @@
 
 <script>
 import format from '@/utils/format';
+import { bonusNumber } from '@/game/training';
 
 export default {
   name: 'card-complex-bonus',
@@ -146,7 +147,7 @@ export default {
       return ['sys_training_xp', 'sys_reallocation_time', 'sys_training_cost'].includes(bonus.to);
     },
     fmtDirect(bonus) {
-      if (this.isPercentBonus(bonus)) return `${format.mixed(bonus.value, 1, true)}%`;
+      if (this.isPercentBonus(bonus)) return `${bonusNumber(bonus.value)}%`;
 
       return this.isIncomeBonus(bonus)
         ? format.income(bonus.value, 1, true)

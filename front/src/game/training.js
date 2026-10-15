@@ -3,21 +3,46 @@
 // Instance.Character.Training, read-only here.
 
 import { liveElapsed, UNIT_MS } from '@/game/clock';
+import format from '@/utils/format';
 
-// The building that hosts each school. The Polytech, the Citadel and the
-// Holodome take every agent type; a university takes the agents of its own
-// type.
+// The building that hosts each school. The Polytech (basic training)
+// takes every agent type; a university (specialized training) takes the
+// agents of its own type.
 export const SCHOOL_BUILDINGS = {
   polytech: 'university_open',
-  citadel: 'ideo_open',
-  holodome: 'ideo_dome',
   admiral: 'military_school_dome',
   spy: 'counterintelligence_open',
   speaker: 'monument_dome',
 };
 
-// One seat per building for its owner's agents, and the governor's rate.
-export const PASSIVE_SCHOOLS = ['polytech', 'citadel', 'holodome'];
+// One seat per building for its owner's agents, the governor's rate, and
+// no queue.
+export const PASSIVE_SCHOOLS = ['polytech'];
+
+// Mirrors Training.seats/2: the places a university building gives at
+// `level`, one at levels 1 and 2, two at 3 and 4, three at 5.
+export function universitySeats(level) {
+  if (level >= 5) return 3;
+  if (level >= 3) return 2;
+  return 1;
+}
+
+// Mirrors Training.defense_factor/2: the share of its own Protection and
+// Determination a student in class keeps. At a university it follows the
+// building's level, 40% at level 1 to 80% at level 5; at a Polytech it is
+// `training_defense_factor`, a half.
+export function defenseFactor(training, constant) {
+  const level = training && training.school === 'university' ? training.school_level : null;
+  if (typeof level === 'number') return [0.4, 0.5, 0.6, 0.7, 0.8][Math.min(Math.max(level, 1), 5) - 1];
+  return constant.training_defense_factor;
+}
+
+// A training bonus as the cards print it, signed, with the decimals it has
+// (three at most): "+3.75", "−1.875", "0". The caller adds the "%".
+export function bonusNumber(value) {
+  if (!value) return '0';
+  return format.mixed(value, 3, true).replace(/([.,]\d*?)0+$/, '$1').replace(/[.,]$/, '');
+}
 
 export function isPassive(school) { return PASSIVE_SCHOOLS.includes(school); }
 

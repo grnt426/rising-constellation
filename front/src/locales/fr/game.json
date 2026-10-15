@@ -922,7 +922,6 @@
       }
     },
     "school": {
-      "citadel_hint": "Une place par Citadelle, pour les agents de son propriétaire. Un agent assis ici gagne de l'expérience comme un gouverneur. Sa Protection et sa Détermination sont divisées par deux. Il ne peut pas être rappelé pendant un siège. Un agent peut attendre dans la file derrière lui. Chaque niveau d'une Citadelle raccourcit aussi les recâblages neuronaux gagnés dans ce système.",
       "enroll_polytech": "Envoyer un agent se former ici",
       "action_settling": "Installation",
       "enroll_university": "Inscrire un {agent} de niveau {level} ou plus à un cursus",
@@ -930,11 +929,10 @@
       "fee_ideology": "idéologie",
       "fee_technology": "technologie",
       "free_seat": "Place libre",
-      "holodome_hint": "Une place par Holo-dôme, pour les agents de son propriétaire. Un agent assis ici gagne de l'expérience comme un gouverneur. Sa Protection et sa Détermination sont divisées par deux. Il ne peut pas être rappelé pendant un siège. Un agent peut attendre dans la file derrière lui. Chaque niveau d'un Holo-dôme réduit aussi les frais des cursus universitaires de ce système.",
       "no_enroll_siege": "Aucune inscription pendant un siège",
-      "one_per_player": "Vous avez déjà un agent ici : une place par joueur et par bâtiment. Votre prochain agent peut attendre dans la file derrière lui",
+      "one_per_player": "Vous avez déjà un agent ici, en cursus ou en attente. Un par joueur et par bâtiment",
       "owner_only": "Seul le propriétaire du système peut utiliser cette place",
-      "polytech_hint": "Une place par Delta Polytech, pour les agents de son propriétaire. Un agent assis ici gagne de l'expérience comme un gouverneur. Sa Protection et sa Détermination sont divisées par deux. Il ne peut pas être rappelé pendant un siège. Un agent peut attendre dans la file derrière lui. Chaque niveau d'un Delta Polytech augmente aussi l'expérience de tous les agents en formation dans ce système.",
+      "polytech_hint": "Une place par Delta Polytech, pour les agents de son propriétaire. Un agent assis ici gagne de l'expérience comme un gouverneur, sans frais. Sa Protection et sa Détermination sont divisées par deux. Il ne peut pas être rappelé pendant un siège. Il n'y a pas de file. Chaque niveau d'un Delta Polytech raccourcit aussi les recâblages neuronaux gagnés dans ce système.",
       "queue_eject": "Cliquez pour le sortir de la file",
       "queue_join": "Placer un agent dans la file derrière {name} : il prend la place dès qu'elle est libre",
       "queue_leave": "Cliquez pour le retirer de la file",
@@ -953,7 +951,7 @@
       "system_time": "{percent} % de durée de recâblage",
       "system_xp": "{percent} % d'expérience en formation",
       "title": "Écoles",
-      "university_hint": "Une place par niveau, partagée par la faction, pour les {agents} de niveau {level} ou plus. Une place par joueur et par bâtiment. Une fois installé, un étudiant gagne deux fois l'expérience d'un gouverneur et un recâblage neuronal par jour. Au cinquième, il rentre. Coûte {fee} {resource} par tick pour chaque niveau de l'agent et chaque niveau du bâtiment. Protection et Détermination divisées par deux. Pas de rappel pendant un siège. Un agent peut attendre dans la file derrière chaque étudiant, et le prochain agent d'un joueur attend derrière le sien."
+      "university_hint": "Places partagées par la faction, pour les {agents} de niveau {level} ou plus : une aux niveaux 1 et 2, deux aux niveaux 3 et 4, trois au niveau 5. Un agent par joueur et par bâtiment, en cursus ou en attente. Une fois installé, un étudiant gagne deux fois l'expérience d'un gouverneur et un recâblage neuronal par jour. Au cinquième, il rentre. Coûte {fee} {resource} par tick pour chaque niveau de l'agent et chaque niveau du bâtiment, en plus de son salaire. Protection et Détermination tombent à 40 % au niveau 1, jusqu'à 80 % au niveau 5. Pas de rappel pendant un siège. Un agent peut attendre dans la file derrière chaque étudiant."
     }
   },
   "help": {
@@ -2373,11 +2371,11 @@
     "mobility": "La mobilité représente la mobilité de votre population à travers le système stellaire, elle augmente les crédits que vous rapportent votre population.",
     "production": "La production augmente la vitesse de construction de vos bâtiments et de vos vaisseaux.",
     "radar": "Le D.S.S.L. agrandit la zone de détection des flottes neutres ou ennemies sur la carte.",
-    "reallocation_time": "Retiré de la durée d'un recâblage neuronal pour les étudiants des universités de ce système. Les Citadelles le donnent, niveau par niveau.",
+    "reallocation_time": "Retiré de la durée d'un recâblage neuronal pour les étudiants des universités de ce système. Les Delta Polytech le donnent, niveau par niveau.",
     "remove_contact": "La cybersécurité inspecte et supprime les malwares ennemis posés sur ce système (les malwares donnent de la visibilité supplémentaire)",
     "technology": "La technologie vous permet d'acheter des brevets et de construire des vaisseaux.",
-    "training_cost": "Retiré des frais de tous les cursus universitaires de ce système. Les Holo-dômes le donnent, niveau par niveau.",
-    "training_xp": "Ajouté à l'expérience de tous les agents en formation dans ce système : sur une place de Delta Polytech, de Citadelle ou d'Holo-dôme, ou en cursus à l'université. Les Delta Polytech le donnent, niveau par niveau.",
+    "training_cost": "Retiré des frais de tous les cursus universitaires de ce système, jamais plus de 80 %. Le salaire n'est jamais réduit. Les Holo-dômes le donnent, niveau par niveau.",
+    "training_xp": "Ajouté à l'expérience de tous les agents en formation dans ce système : sur une place de Delta Polytech ou en cursus à l'université. Les Stations expérimentales le donnent, niveau par niveau.",
     "workforce": "Chaque point de population est une unité de main-d'œuvre. Les bâtiments mobilisent la main-d'œuvre ; en mobiliser plus que le système n'en possède applique une pénalité."
   },
   "resource-detail": {

@@ -458,7 +458,8 @@ import viewport from '@/utils/viewport';
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
 import { formatCountdown } from '@/game/clock';
 import {
-  fee, inClass, reallocationCost, reallocationProblem, schoolBuilding, seatWait, settling, trainingStatus, xpFactor,
+  defenseFactor, fee, inClass, reallocationCost, reallocationProblem, schoolBuilding, seatWait, settling,
+  trainingStatus, xpFactor,
 } from '@/game/training';
 
 export default {
@@ -673,7 +674,7 @@ export default {
     // that filter prints for a visible stat.
     effective(value) {
       if (!this.isInClass || typeof value !== 'number') return value;
-      return Math.trunc(value * this.constant.training_defense_factor);
+      return Math.trunc(value * defenseFactor(this.character.training, this.constant));
     },
     // What the ribbon of a student leaves unsaid: settling in earns nothing
     // yet (and until when), and what the course costs.
@@ -715,7 +716,7 @@ export default {
       return this.$t('card.character.training_defense', {
         stat: label,
         base: this.$options.filters.integer(base),
-        percent: Math.round((1 - this.constant.training_defense_factor) * 100),
+        percent: Math.round((1 - defenseFactor(this.character.training, this.constant)) * 100),
       });
     },
     skillName(i) { return this.$t(`data.character.${this.character.type}.skills[${i}].name`); },

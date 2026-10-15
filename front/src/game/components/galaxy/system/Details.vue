@@ -291,7 +291,7 @@
 </template>
 
 <script>
-import format from '@/utils/format';
+import { bonusNumber } from '@/game/training';
 import PopoverTriggerMixin from '@/game/mixins/PopoverTriggerMixin';
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
 import HelpButton from '@/game/components/generic/HelpButton.vue';
@@ -308,19 +308,16 @@ export default {
   computed: {
     // The experience the system's buildings add to its students, and what
     // they take off the time of a neural rewire and off the fee of a
-    // course, as StellarSystem.School reads them: a bonus only, and neither
-    // a rewire nor a fee under a quarter of what it is.
+    // course, as StellarSystem.School reads them: a bonus only, and at most
+    // 80% off the fee.
     trainingStats() {
       const read = (key) => (this.system[key] && typeof this.system[key].value === 'number' ? this.system[key].value : 0);
 
       return [
         { key: 'training_xp', value: Math.max(read('training_xp'), 0) },
-        { key: 'reallocation_time', value: Math.max(Math.min(read('reallocation_time'), 0), -75) },
-        { key: 'training_cost', value: Math.max(Math.min(read('training_cost'), 0), -75) },
-      ].map((stat) => ({
-        ...stat,
-        text: stat.value === 0 ? '0%' : `${format.mixed(Math.round(stat.value * 10) / 10, 1, true)}%`,
-      }));
+        { key: 'reallocation_time', value: Math.min(read('reallocation_time'), 0) },
+        { key: 'training_cost', value: Math.max(Math.min(read('training_cost'), 0), -80) },
+      ].map((stat) => ({ ...stat, text: `${bonusNumber(stat.value)}%` }));
     },
   },
   components: {

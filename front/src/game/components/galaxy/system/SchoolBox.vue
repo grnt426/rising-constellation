@@ -1,15 +1,15 @@
 <template>
-  <!-- The system's schools (docs/agent-training.md): the Delta Polytech,
-       the Citadel, the Holodome and the university of each agent type, with
-       the agents seated in them. A school is its building's icon (the name and the rules are in
+  <!-- The system's schools (docs/agent-training.md): the Delta Polytech
+       and the university of each agent type, with the agents seated in
+       them. A school is its building's icon (the name and the rules are in
        its tooltip) followed by its seats. An empty seat sends a deck agent
        there; a seated agent opens its card, and can be targeted like a
-       governor. One deck agent may wait in the queue behind each seated
-       student: hovering the student shows it, or the place to take, above
-       the seat. Only the faction that owns the system is sent the queue.
-       A player holds one seat per university building: with it taken, the
-       other seats are not theirs to fill, and their next agent waits behind
-       their own student. -->
+       governor. At a university, one deck agent may wait in the queue behind
+       each seated student: hovering the student shows it, or the place to
+       take, above the seat. Only the faction that owns the system is sent
+       the queue. A player holds one place per university building, studying
+       or waiting: with it taken, the other seats and queue places are not
+       theirs. A Polytech has no queue. -->
   <div
     v-if="schools.length > 0"
     class="school-box system-content-group">
@@ -179,14 +179,13 @@
 
 <script>
 import actionValidation from '@/utils/actionValidation';
-import format from '@/utils/format';
 import viewport from '@/utils/viewport';
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
 import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 import SchoolQueueSlot from '@/game/components/galaxy/system/SchoolQueueSlot.vue';
 import { formatCountdown } from '@/game/clock';
 import {
-  PASSIVE_SCHOOLS, SCHOOL_BUILDINGS, earning, inClass, isPassive, settling, trainingStatus,
+  PASSIVE_SCHOOLS, SCHOOL_BUILDINGS, bonusNumber, earning, inClass, isPassive, settling, trainingStatus,
 } from '@/game/training';
 
 const TYPES = ['admiral', 'spy', 'speaker'];
@@ -250,7 +249,7 @@ export default {
     systemBonusLine() {
       const value = (key) => (this.system[key] && typeof this.system[key].value === 'number' ? this.system[key].value : 0);
       // signed like a building card's bonus
-      const signed = (number) => format.mixed(Math.round(number * 10) / 10, 1, true);
+      const signed = bonusNumber;
       const xp = Math.max(value('training_xp'), 0);
       const time = Math.min(value('reallocation_time'), 0);
       const cost = Math.min(value('training_cost'), 0);
@@ -292,11 +291,10 @@ export default {
           const slots = entry.seats ? entry.seats.slots : null;
           const used = entry.seats ? entry.seats.used : null;
           const access = this.hasAccess(entry);
-          const places = this.ownPlaces(entry);
           const limit = entry.seats ? entry.seats.per_player : null;
-          // one seat per player and per university building
-          const seatsTaken = typeof limit === 'number' && places.seats >= limit;
-          const canEnroll = access && !seatsTaken;
+          // one place per player and per university building, studying or waiting
+          const placesTaken = typeof limit === 'number' && this.ownPlaces(entry) >= limit;
+          const canEnroll = access && !placesTaken;
 
           const name = this.$t(`data.building.${entry.building}.name`);
           const seats = slots === null ? '' : ` ${used}/${slots}`;
@@ -308,13 +306,11 @@ export default {
             used,
             free: slots === null ? 0 : Math.max(slots - used, 0),
             access,
-            seatsTaken,
-            // the player holds or waits for every seat it may
-            seatsWanted: typeof limit === 'number' && places.seats + places.waiting >= limit,
+            placesTaken,
             canEnroll,
             label: `${name}${seats}. ${rules}`,
             hint: { content: `<strong>${name}</strong>${seats}<br>${rules}`, html: true },
-            enrollHint: this.enrollHint(entry, canEnroll, seatsTaken),
+            enrollHint: this.enrollHint(entry, canEnroll, placesTaken),
           };
         });
     },
@@ -342,19 +338,15 @@ export default {
       return `${left}. ${this.$t('galaxy.school.settling_hint')}`;
     },
     queuedBehind(student) { return this.queue.find((entry) => entry.behind === student.id) || null; },
-    // Mirrors School.check_queue/5. A place in the queue is for a school
-    // with no free seat, under the rules of a seat: no siege, and a
-    // Polytech is its owner's alone. A player holding its seat in a
-    // university lines up its next agent behind its own student, free
-    // seats or not, and behind nobody else's.
+    // Mirrors School.check_queue/5. A place in the queue is a university's,
+    // for a school with no free seat, under the rules of a seat (no siege,
+    // the right faction), and for a player with no agent studying or
+    // waiting there yet. A Polytech has no queue.
     canQueue(school, student) {
-      if (!school.access || school.slots === null || this.queuedBehind(student)) return false;
+      if (isPassive(school.school) || !school.access || school.slots === null) return false;
+      if (this.queuedBehind(student) || school.free > 0) return false;
 
-      const own = student.owner.id === this.player.id;
-      if (school.seatsTaken) return own;
-      if (school.free > 0) return false;
-
-      return own || !school.seatsWanted;
+      return !school.placesTaken;
     },
     // something to show above the seat: who waits, or the place to take
     hasQueuePlace(school, student) { return !!this.queuedBehind(student) || this.canQueue(school, student); },
@@ -419,24 +411,17 @@ export default {
     // what a school asks of anyone, seated or waiting
     hasAccess(entry) {
       if (!this.isFactionSystem || this.system.siege) return false;
-      // a Polytech, a Citadel or a Holodome is its owner's alone; a university also takes faction-mates
+      // a Polytech is its owner's alone; a university also takes faction-mates
       return entry.school === 'university' || this.isOwnSystem;
     },
-    // Mirrors School.seats_held/5 and its count of the queue: `seats` are
-    // the player's students in class and the seats held for its agents the
-    // queue has called, `waiting` its agents in line behind other players'
-    // students. An agent behind its owner's student only takes that seat
-    // over, and is not counted.
+    // Mirrors School.places_held/5: the player's students in class and its
+    // agents in line, called or not.
     ownPlaces(entry) {
       const mine = (agent) => agent.owner.id === this.player.id;
       const students = entry.students.filter((s) => mine(s) && inClass(s.training));
       const queued = this.queue.filter((e) => mine(e) && e.school === entry.school && e.type === entry.type);
-      const own = students.map((s) => s.id);
 
-      return {
-        seats: students.length + queued.filter((e) => e.called).length,
-        waiting: queued.filter((e) => !e.called && !own.includes(e.behind)).length,
-      };
+      return students.length + queued.length;
     },
     schoolHint(entry) {
       if (isPassive(entry.school)) return this.$t(`galaxy.school.${entry.school}_hint`);
@@ -448,11 +433,11 @@ export default {
         resource: this.$t(`galaxy.school.fee_${this.feeResource(entry.type)}`),
       });
     },
-    enrollHint(entry, canEnroll, seatsTaken) {
+    enrollHint(entry, canEnroll, placesTaken) {
       if (!canEnroll) {
         if (this.system.siege && this.isFactionSystem) return this.$t('galaxy.school.no_enroll_siege');
         if (isPassive(entry.school) && this.isFactionSystem) return this.$t('galaxy.school.owner_only');
-        if (seatsTaken && this.isFactionSystem) return this.$t('galaxy.school.one_per_player');
+        if (placesTaken && this.isFactionSystem) return this.$t('galaxy.school.one_per_player');
         return this.$t('galaxy.school.free_seat');
       }
 
