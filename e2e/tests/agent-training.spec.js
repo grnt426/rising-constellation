@@ -309,14 +309,24 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await toggle.click();
     await expect(lines).toHaveCount(listed);
 
-    // a click on its line opens its card, with settling in as its one action
+    // a click on its line opens its card, with the Training panel beside it:
+    // settling in first, then what the course gives, costs, and when
     await line.click();
     const card = page.locator('.opened-character .card-container');
     const actions = page.locator('.opened-character .training-queue');
+    const fact = (key) => actions.locator(`[data-training-fact="${key}"] dd`);
     await expect(card.locator('.card-ribbon').first()).toContainText('settling in', { ignoreCase: true });
     await expect(actions.locator('[data-training-row="settling"]')).toContainText('Settling in', { ignoreCase: true });
     await expect(actions.locator('[data-training-eta]')).toHaveText(/\d/);
     await expect(actions).toContainText('XP and neural rewires are earned after settling in', { ignoreCase: true });
+    await expect(fact('xp')).toContainText('a day, once settled in');
+    await expect(fact('level')).toHaveText(/\d+s$/);
+    await expect(fact('rewire')).toHaveText(/\d+s$/);
+    await expect(fact('extra-point')).toHaveText(/\d+s$/);
+    await expect(fact('course-end')).toHaveText(/\d+s$/);
+    await expect(fact('fee')).toContainText('credits per tick');
+    await expect(fact('defense')).toHaveText(`${Math.round([0.4, 0.5, 0.6, 0.7, 0.8][orbLevel - 1] * 100)}% of its own`);
+    await expect(fact('bonuses')).toHaveText(/[-−]0\.75% rewire time/);
 
     // the ribbon says why nothing is earned, and until when
     await card.locator('.card-ribbon').first().hover();
@@ -351,12 +361,19 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await cut.nth(1).hover();
     await expect(tooltip(`Determination, base ${defense.base.determination}: -${cutBy}% (training)`)).toBeVisible();
 
-    // Settled in. The card left open follows by itself: its one action is
-    // done and its ribbon says the course has started.
+    // Settled in. The card left open follows by itself: settling in is done,
+    // its ribbon says the course has started, and the panel stays with the
+    // rate it now earns at and the times of what comes next
     await page.mouse.move(700, 620);
     expect((await setSpeedCheat(page, 1)).ok).toBe(true);
-    await expect(actions).toHaveCount(0);
+    await expect(actions.locator('[data-training-row="settling"]')).toHaveCount(0);
     await expect(card.locator('.card-ribbon').first()).toContainText('on its course', { ignoreCase: true });
+    await expect(fact('xp')).not.toContainText('once settled in');
+    await expect(fact('rewire')).toHaveText(/\d+s$/);
+    await expect(actions.locator('[data-training-fact="rewire"] dt')).toContainText('1 of 5', { ignoreCase: true });
+    // two rewires add a skill point: the first is due at the second rewire
+    const due = (key) => actions.locator(`[data-training-fact="${key}"] dd`).evaluate((el) => el.textContent.trim());
+    expect(await due('extra-point')).not.toBe(await due('rewire'));
     await shot(page, '03h-on-its-course');
     await page.evaluate(() => document.querySelector('#app').__vue__.$store.dispatch('game/closeCharacter'));
     await expect(card).toHaveCount(0);

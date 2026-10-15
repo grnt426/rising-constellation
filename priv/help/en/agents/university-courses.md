@@ -31,7 +31,7 @@ A university takes agents of level {const:university_min_level} or higher. This 
 
 ## The course
 
-1. The student settles in for {duration:university_settle_time}. It pays the fee and gains nothing yet. A ring fills around its seat during that time, and its card gives the time left.
+1. The student settles in for {duration:university_settle_time}. It pays the fee and gains nothing yet. A ring fills around its seat during that time, and its card gives the time left. The Training panel beside its card gives the time to its next level, its next rewire and its next extra skill point.
 2. Then it gains experience {const:university_xp_factor} times as fast as a governor.
 3. Every {duration:university_reallocation_interval} on the course gives one neural rewire. A [[building/university_open]] in the system shortens that time, and a [[building/research_orbital]] adds to the experience. See [[training-bonuses]].
 4. The course ends when the agent holds {const:university_max_reallocations} rewires. The agent goes back to your deck at once.

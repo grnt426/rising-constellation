@@ -58,9 +58,36 @@
   }
 }
 
-// A student that is settling in: its one line of "actions" (TrainingQueue)
+// A student: the Training panel (TrainingQueue), its settling in drawn like
+// a line of "actions", then what its course gives and costs
 .opened-character-aside.is-training {
   padding: 0;
+
+  .training-facts {
+    margin: 6px 0 0;
+    padding: 0;
+  }
+
+  .training-fact {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    padding: 5px 10px;
+    border-top: solid 1px $grey-default;
+
+    dt {
+      opacity: .7;
+      cursor: help;
+    }
+
+    dd {
+      margin: 0;
+      text-align: right;
+      text-transform: none;
+      font-weight: bold;
+    }
+  }
 
   .training-queue-note {
     margin-top: 6px;

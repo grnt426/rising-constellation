@@ -67,10 +67,10 @@
           :character="character" />
       </div>
 
-      <!-- a student has no orders, but it waits on one thing: the end of
-           its settling in (docs/agent-training.md) -->
+      <!-- a student has no orders: beside its card, what its course gives
+           and costs, and when (docs/agent-training.md) -->
       <div
-        v-else-if="isSettling"
+        v-else-if="isTraining"
         class="opened-character-aside is-training">
         <training-queue
           :character="character"
@@ -87,6 +87,7 @@ import Army from '@/game/components/galaxy/selection/Army.vue';
 import Spy from '@/game/components/galaxy/selection/Spy.vue';
 import Speaker from '@/game/components/galaxy/selection/Speaker.vue';
 import TrainingQueue from '@/game/components/galaxy/selection/TrainingQueue.vue';
+import { inClass } from '@/game/training';
 import { canReportAgent, reportAgent } from '@/game/components/chat/reportSighting';
 
 export default {
@@ -103,9 +104,8 @@ export default {
     theme() {
       return this.character?.owner && this.$store.getters['game/themeByKey'](this.character.owner.faction);
     },
-    isSettling() {
-      return this.character.status === 'student'
-        && !!this.character.training && this.character.training.phase === 'settling';
+    isTraining() {
+      return this.character.status === 'student' && inClass(this.character.training);
     },
   },
   watch: {

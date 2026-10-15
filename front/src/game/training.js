@@ -55,23 +55,24 @@ export function schoolBuilding(character) {
 }
 
 // What the buildings of its system give a course (Training, "Conditions"):
-// a percent of experience, a multiplier on the time a rewire takes, one on
-// its fee, and the level of its university. A map from before they existed
-// carries none.
+// a percent of experience added, percents of the rewire time and of the fee
+// taken off (zero or less), and the level of its university. Percentages,
+// as the server sends floats rounded to three decimals. A map from before
+// they existed carries none.
 export function conditions(training) {
   const read = (key, fallback) => (training && typeof training[key] === 'number' ? training[key] : fallback);
 
   return {
     xpBonus: read('xp_bonus', 0),
-    timeFactor: read('time_factor', 1),
-    costFactor: read('cost_factor', 1),
+    timeBonus: read('time_bonus', 0),
+    costBonus: read('cost_bonus', 0),
     schoolLevel: read('school_level', 0),
   };
 }
 
 // Ticks a rewire takes under the conditions of `training`.
 export function reallocationInterval(training, constant) {
-  return constant.university_reallocation_interval * conditions(training).timeFactor;
+  return constant.university_reallocation_interval * (1 + (conditions(training).timeBonus / 100));
 }
 
 // Settling in or on its course: the agent holds a seat, pays its fee and
@@ -131,9 +132,74 @@ export function fee(character, constant) {
   if (!training || training.school !== 'university' || !inClass(training)) return null;
 
   const resource = FEE_RESOURCES[character.type];
-  const { schoolLevel, costFactor } = conditions(training);
-  const levels = (character.level + schoolLevel) * costFactor;
+  const { schoolLevel, costBonus } = conditions(training);
+  const levels = (character.level + schoolLevel) * (1 + (costBonus / 100));
   return { resource, amount: constant[`university_fee_${resource}`] * levels };
+}
+
+// Total experience at which an agent reaches `level`
+// (Character.get_next_level_experience/1).
+export function levelThreshold(level) {
+  return Math.round((10 * level) + ((level / 2) ** 2.5));
+}
+
+// What a student in class has ahead of it right now, for the Training panel
+// beside its card. Moments are wall-clock ms, null where none applies.
+//   settle      — as `settling`, while it settles in
+//   xpPerUt     — experience per tick once on its course (bonus included)
+//   level       — { next, until }: its next level, which adds a skill point
+//   rewire      — { next, max, until }: its next rewire
+//   extraPoint  — { rewires, until }: when it holds the next even number of
+//                 rewires, two of which add a skill point outright
+//   courseEnd   — when its last rewire sends it home
+// The copy it reads was measured at `training.at`: experience and elapsed
+// time are carried forward from there, as `settling` and `earning` do.
+export function outlook(character, constant, time, speedFactor, wallNow = Date.now()) {
+  const { training } = character;
+  if (!training || !inClass(training) || !speedFactor) return null;
+
+  const msPerUt = UNIT_MS / speedFactor;
+  const settle = settling(training, constant, time, speedFactor, wallNow);
+  const onCourse = training.phase === 'active' ? training : { ...training, phase: 'active' };
+  const experience = character.experience || {};
+  const change = typeof experience.change === 'number' ? experience.change : 0;
+  const xpPerUt = change * xpFactor(onCourse, constant);
+
+  // experience as it stands: nothing is earned while settling in
+  const since = settle ? 0 : liveElapsed(0, training.at, time, speedFactor, wallNow);
+  const xp = (typeof experience.value === 'number' ? experience.value : 0) + (xpPerUt * since);
+  const next = character.level + 1;
+  const missing = Math.max(levelThreshold(next) - xp, 0);
+  const level = {
+    next,
+    until: xpPerUt > 0 ? wallNow + (((settle ? settle.remaining : 0) + (missing / xpPerUt)) * msPerUt) : null,
+  };
+
+  let rewire = null;
+  let extraPoint = null;
+  let courseEnd = null;
+
+  if (training.school === 'university' && typeof character.reallocations === 'number') {
+    const max = constant.university_max_reallocations;
+    const held = character.reallocations;
+    const interval = reallocationInterval(training, constant) * msPerUt;
+    const current = settle ? null : earning(training, constant, time, speedFactor, wallNow);
+    const first = settle ? (settle.until !== null ? settle.until + interval : null) : current && current.until;
+
+    if (held < max && first !== null) {
+      // when the n-th rewire of the course is earned
+      const at = (n) => first + ((n - held - 1) * interval);
+      const even = held % 2 === 0 ? held + 2 : held + 1;
+
+      rewire = { next: held + 1, max, until: at(held + 1) };
+      courseEnd = at(max);
+      extraPoint = even <= max ? { rewires: even, until: at(even) } : null;
+    }
+  }
+
+  return {
+    settle, xpPerUt, level, rewire, extraPoint, courseEnd, msPerUt,
+  };
 }
 
 // One line saying where a student stands, for tooltips and cards.
