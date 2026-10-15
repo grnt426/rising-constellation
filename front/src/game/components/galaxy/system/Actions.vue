@@ -167,6 +167,7 @@
                 :theme="getTheme(entry.character.owner.faction)"
                 :system="system"
                 :flipped="unfurl.cells[mi].flip"
+                :previewRight="unfurl.cells[mi].previewRight"
                 @select="clickCharacter" />
             </div>
           </div>
@@ -441,8 +442,11 @@ export default {
       const info = document.querySelector('.system-info');
       if (info) {
         const p = info.getBoundingClientRect();
-        if (p.width > 0 && p.right > left && p.left < r.left) {
-          free.left = Math.max(free.left, p.right - left);
+        // its tab strip hangs 26px past its right edge
+        const right = Math.max(p.right, ...[...info.querySelectorAll('.system-content-menu')]
+          .map((menu) => menu.getBoundingClientRect().right));
+        if (p.width > 0 && right > left && p.left < r.left) {
+          free.left = Math.max(free.left, right - left);
         }
       }
       const selection = document.querySelector('.selection-view-container');
