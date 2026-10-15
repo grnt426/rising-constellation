@@ -308,16 +308,39 @@ defmodule RC.HelpTest do
       {:ok, polytech} = Catalog.block(ctx, "card", "building", "university_open")
       assert length(Regex.scan(~r/Training seats<\/span><span class="help-bcard-bonus-value"><strong>1<\/strong>/, polytech)) == 5
 
-      # a university seats one agent of its type per level
+      # a university seats one agent of its type at levels 1 and 2, two at 3 and 4, three at 5
       {:ok, monolith} = Catalog.block(ctx, "card", "building", "monument_dome")
 
-      for level <- 1..5 do
+      for {level, places} <- [{1, 1}, {2, 1}, {3, 2}, {4, 2}, {5, 3}] do
         assert monolith =~
-                 ~r/data-level="#{level}">.*?Course seats, Siderians<\/span><span class="help-bcard-bonus-value"><strong>#{level}<\/strong>/s
+                 ~r/data-level="#{level}">.*?Course seats, Siderians<\/span><span class="help-bcard-bonus-value"><strong>#{places}<\/strong>/s
       end
 
-      {:ok, other} = Catalog.block(ctx, "card", "building", "ideo_open")
-      refute other =~ "seats"
+      # what the support buildings give every course of their system, as a percentage
+      bonus = fn html, level, name, value ->
+        html =~ ~r/data-level="#{level}">.*?#{name}<\/span><span class="help-bcard-bonus-value"><strong>#{Regex.escape(value)}<\/strong>/s
+      end
+
+      assert bonus.(polytech, 2, "Neural Rewire Time", "-1.875%")
+      assert bonus.(polytech, 5, "Neural Rewire Time", "-7.5%")
+
+      {:ok, station} = Catalog.block(ctx, "card", "building", "research_orbital")
+      assert bonus.(station, 1, "Training Experience", "+1.5%")
+      assert bonus.(station, 5, "Training Experience", "+15%")
+      refute station =~ "seats"
+
+      {:ok, holodome} = Catalog.block(ctx, "card", "building", "ideo_dome")
+      assert bonus.(holodome, 4, "Training Cost", "-10.5%")
+      assert bonus.(holodome, 5, "Training Cost", "-15%")
+
+      # neither the Holodome nor the Citadel seats anyone
+      {:ok, citadel} = Catalog.block(ctx, "card", "building", "ideo_open")
+
+      for html <- [holodome, citadel] do
+        refute html =~ "seats"
+      end
+
+      refute citadel =~ "Neural Rewire Time"
     end
 
     test "facts show the limit badge and link the Buildings guide section once it exists", %{ctx: ctx} do

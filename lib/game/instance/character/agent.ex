@@ -339,6 +339,34 @@ defmodule Instance.Character.Agent do
     {:reply, data, %{state | data: data}}
   end
 
+  # The buildings of the system a student sits in changed (an Experiment
+  # Station, a Delta Polytech or a Holodome built, upgraded, damaged or
+  # lost, its university gone up a level): its course goes on under the new conditions
+  # (StellarSystem.sync_training/1). The tick just before this body has
+  # played the time spent under the old ones; `elapsed` is true as of now,
+  # so the anchor is taken again, and the tick is armed for the new pace.
+  # The owner follows (the fee and the rate are on its copy) and so does
+  # the system, whose roster then matches and stops telling.
+  @decorate tick()
+  def on_cast({:training_conditions, conditions}, state) do
+    case Character.set_training_conditions(state.data, conditions) do
+      {:ok, data} ->
+        clock = Instance.Time.Time.now(state.tick.cumulated_pauses || 0)
+        data = Map.put(data, :training, Instance.Character.Training.anchor(Map.get(data, :training), clock))
+
+        Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+        if data.system != nil do
+          Game.cast(state.instance_id, :stellar_system, data.system, {:update_character, data})
+        end
+
+        {:noreply, next_tick(%{state | data: data})}
+
+      :unchanged ->
+        {:noreply, state}
+    end
+  end
+
   # The owner can no longer pay for a university course (the player
   # agent's tuition check): the student stops there and waits to be
   # recalled. The system's roster follows, since the slot is free again —

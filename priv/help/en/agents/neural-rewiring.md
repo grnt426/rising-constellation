@@ -18,13 +18,17 @@ A neural rewire lets you move one skill point of an agent to another skill. Agen
 
 - You spend rewires while the agent is in your deck.
 - One rewire moves one point. You take it from one skill and give it to another.
+- Two rewires add one point to a skill, with nothing taken from another.
 - No skill can go above 12.
 - No skill can go above the agent's main skill.
 - You can take points from the main skill. The other skills must then fit under its new value.
 
 For example, with two rewires:
 
-    skills 5, 3, 1 → 7, 2, 0
+    two points moved: skills 5, 3, 1 → 7, 2, 0
+    one point added: skills 5, 3, 1 → 6, 3, 1
+
+Adding suits an agent with no points to spare. Five rewires add two points and move one.
 
 An agent with a rewire left takes no new duty. You cannot make it a governor, send it to the field or send it back to a school. You cannot sell it either. Spend every rewire first, or discard the ones you do not want.
 

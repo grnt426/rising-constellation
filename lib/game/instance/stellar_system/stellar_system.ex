@@ -65,6 +65,16 @@ defmodule Instance.StellarSystem.StellarSystem do
     field(:corvette_lvl, %Core.Value{}, default: Core.Value.new())
     field(:frigate_lvl, %Core.Value{}, default: Core.Value.new())
     field(:capital_lvl, %Core.Value{}, default: Core.Value.new())
+    # Agent training (docs/agent-training.md, StellarSystem.School,
+    # "Conditions"): the percent the system's buildings add to the
+    # experience its students earn, and the percents (negative) they take
+    # off the time a rewire takes and off the fee of a course. All three
+    # postdate the first snapshots: Map.get only;
+    # reset_system_value_fields/1 back-fills them before the bonus pipeline
+    # writes to them.
+    field(:training_xp, %Core.Value{}, default: Core.Value.new())
+    field(:reallocation_time, %Core.Value{}, default: Core.Value.new())
+    field(:training_cost, %Core.Value{}, default: Core.Value.new())
     field(:siege, %StellarSystem.Siege{} | nil)
     # Faction-government build slots (docs/faction-buildings.md). Lazily
     # created on the first government order; postdates the first system
@@ -920,6 +930,14 @@ defmodule Instance.StellarSystem.StellarSystem do
     constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
 
     with :ok <- StellarSystem.School.check_enrollment(state, character, constant) do
+      # The course starts under the conditions the system's buildings give
+      # it. The agent is not started yet: its owner's player agent reads
+      # them back from the roster (Player.Agent, enroll_character/5).
+      %{school: school} = character.training
+      conditions = StellarSystem.School.conditions(state, school, character.type)
+      training = Instance.Character.Training.set_conditions(character.training, conditions)
+      character = Map.put(character, :training, training)
+
       # an agent the queue called has arrived: its place in line is used up
       queue = Enum.reject(StellarSystem.School.queue(state), fn e -> e.id == character.id end)
 
@@ -1061,7 +1079,23 @@ defmodule Instance.StellarSystem.StellarSystem do
       state
       |> Map.put(:students, settled.students)
       |> Map.put(:school_queue, settled.queue)
+      |> sync_training()
     end
+  end
+
+  # Tells every student whose course still runs under other conditions than
+  # the system's buildings now give (StellarSystem.School.outdated/1: an
+  # Experiment Station, a Delta Polytech or a Holodome built, upgraded,
+  # damaged or lost, a university gone up a level) what they have become. A student ticks by
+  # itself and answers with its usual {:update_character, ...}, which brings
+  # the roster's copy up to date: until then it is told again at each pass,
+  # which changes nothing the second time.
+  defp sync_training(state) do
+    Enum.each(StellarSystem.School.outdated(state), fn {student, conditions} ->
+      Game.cast(state.instance_id, :character, student.id, {:training_conditions, conditions})
+    end)
+
+    state
   end
 
   def remove_character(state, _character, :governor) do
@@ -1611,7 +1645,8 @@ defmodule Instance.StellarSystem.StellarSystem do
         do: MapSet.put(change, :player_update),
         else: change
 
-    {change, notifs ++ ps_notifs, state}
+    # the courses of the system follow its buildings
+    {change, notifs ++ ps_notifs, sync_training(state)}
   end
 
   defp apply_penalties(state, _type, 0),
@@ -1834,6 +1869,13 @@ defmodule Instance.StellarSystem.StellarSystem do
   end
 
   defp reset_system_value_fields(state) do
+    # fields a snapshot taken before they existed does not carry
+    state =
+      state
+      |> Map.put_new(:training_xp, Core.Value.new())
+      |> Map.put_new(:reallocation_time, Core.Value.new())
+      |> Map.put_new(:training_cost, Core.Value.new())
+
     state =
       Enum.reduce(state, state, fn {key, value}, acc ->
         cond do

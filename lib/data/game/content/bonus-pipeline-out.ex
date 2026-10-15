@@ -212,6 +212,24 @@ defmodule Data.Game.BonusPipelineOut.Content do
         icon: "action/conversion_alt"
       },
       %Data.Game.BonusPipelineOut{
+        key: :sys_training_xp,
+        to: :stellar_system,
+        to_key: :training_xp,
+        icon: "resource/training_xp"
+      },
+      %Data.Game.BonusPipelineOut{
+        key: :sys_reallocation_time,
+        to: :stellar_system,
+        to_key: :reallocation_time,
+        icon: "resource/reallocation_time"
+      },
+      %Data.Game.BonusPipelineOut{
+        key: :sys_training_cost,
+        to: :stellar_system,
+        to_key: :training_cost,
+        icon: "resource/training_cost"
+      },
+      %Data.Game.BonusPipelineOut{
         key: :dominion_rate,
         to: :player,
         to_key: :dominion_rate,

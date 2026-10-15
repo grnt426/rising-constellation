@@ -484,13 +484,14 @@ defmodule RC.Help.Catalog do
       {school, type} ->
         {label, page, icon} =
           case school do
-            :polytech ->
-              {ui(ctx, "card.building.training_seats") || "Training seats", "polytech-training", ""}
-
             :university ->
               agents = ctx |> data_name(["character", to_string(type), "name"]) |> plural()
               label = (ui(ctx, "card.building.course_seats") || "Course seats, {agents}") |> String.replace("{agents}", agents)
               {label, "university-courses", icon_html(ctx, "agent/#{type}", agents)}
+
+            # a Delta Polytech
+            _passive ->
+              {ui(ctx, "card.building.training_seats") || "Training seats", "polytech-training", ""}
           end
 
         seats = Instance.Character.Training.seats(school, level)
@@ -498,6 +499,17 @@ defmodule RC.Help.Catalog do
         ~s(<div class="help-bcard-bonus"><span class="help-bcard-bonus-name">#{link_html(ctx, page, label)}</span>) <>
           ~s(<span class="help-bcard-bonus-value"><strong>#{seats}</strong>#{icon}</span></div>)
     end
+  end
+
+  # A training bonus as the in-game card prints it: "+3.75%", "-1.875%".
+  defp training_pct(v) do
+    digits =
+      (abs(v) * 1.0)
+      |> :erlang.float_to_binary(decimals: 3)
+      |> String.trim_trailing("0")
+      |> String.trim_trailing(".")
+
+    if(v < 0, do: "-", else: "+") <> digits <> "%"
   end
 
   # `"Navarch | Navarchs"` → `"Navarchs"`.
@@ -524,6 +536,10 @@ defmodule RC.Help.Catalog do
       cond do
         b.from == :direct and b.to == :dominion_rate ->
           pct(b.value)
+
+        # agent training: the value is a percentage already, with up to three decimals
+        b.from == :direct and b.to in [:sys_training_xp, :sys_reallocation_time, :sys_training_cost] ->
+          training_pct(b.value)
 
         b.from == :direct ->
           amount

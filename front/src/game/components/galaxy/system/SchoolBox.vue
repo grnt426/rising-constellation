@@ -4,9 +4,12 @@
        them. A school is its building's icon (the name and the rules are in
        its tooltip) followed by its seats. An empty seat sends a deck agent
        there; a seated agent opens its card, and can be targeted like a
-       governor. One deck agent may wait in the queue behind each seated
-       student: hovering the student shows it, or the place to take, above
-       the seat. Only the faction that owns the system is sent the queue. -->
+       governor. At a university, one deck agent may wait in the queue behind
+       each seated student: hovering the student shows it, or the place to
+       take, above the seat. Only the faction that owns the system is sent
+       the queue. A player holds one place per university building, studying
+       or waiting: with it taken, the other seats and queue places are not
+       theirs. A Polytech has no queue. -->
   <div
     v-if="schools.length > 0"
     class="school-box system-content-group">
@@ -61,12 +64,20 @@
                     transform="rotate(-90 22 22)"
                     :stroke-dasharray="settleDash(student)" />
                 </template>
+                <!-- the rewire being earned pulses, and fills as its day
+                     of course passes -->
                 <template v-else>
                   <path
                     v-for="(segment, i) in ringSegments"
                     :key="i"
                     :d="segment"
-                    :class="{ 'is-earned': i < earned(student) }" />
+                    :class="{ 'is-earned': i < earned(student), 'is-earning': i === earningIndex(student) }" />
+                  <path
+                    v-if="earningIndex(student) !== null"
+                    :key="`earning-${earningIndex(student)}`"
+                    class="earning-fill"
+                    :d="ringSegments[earningIndex(student)]"
+                    :stroke-dasharray="earningDash(student)" />
                 </template>
               </svg>
               <!-- the queue behind this student pops up above its icon;
@@ -103,7 +114,7 @@
               <!-- the popover is out of the tab order: the place in the
                    queue is also a button of its own for the keyboard -->
               <button
-                v-if="!isMobileView && canQueue(school) && !queuedBehind(student)"
+                v-if="!isMobileView && canQueue(school, student)"
                 type="button"
                 class="sr-only"
                 @click="enroll(school, student)">
@@ -174,12 +185,14 @@ import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 import SchoolQueueSlot from '@/game/components/galaxy/system/SchoolQueueSlot.vue';
 import { formatCountdown } from '@/game/clock';
 import {
-  SCHOOL_BUILDINGS, inClass, settling, trainingStatus,
+  PASSIVE_SCHOOLS, SCHOOL_BUILDINGS, bonusNumber, earning, inClass, isPassive, settling, trainingStatus,
 } from '@/game/training';
 
 const TYPES = ['admiral', 'spy', 'speaker'];
 // the ring around a university student, in the 44 x 44 box of its svg
 const RING_RADIUS = 19.5;
+// between two segments of that ring, in degrees
+const RING_GAP = 16;
 
 export default {
   name: 'school-box',
@@ -217,7 +230,7 @@ export default {
       const count = this.constant.university_max_reallocations || 0;
       const center = 22;
       const radius = RING_RADIUS;
-      const gap = 16; // degrees
+      const gap = RING_GAP;
       const point = (degrees) => {
         const angle = ((degrees - 90) * Math.PI) / 180;
         return `${(center + radius * Math.cos(angle)).toFixed(2)} ${(center + radius * Math.sin(angle)).toFixed(2)}`;
@@ -229,6 +242,25 @@ export default {
         return `M ${point(from)} A ${radius} ${radius} 0 0 1 ${point(to)}`;
       });
     },
+    // What the buildings of the system give every course in it (Delta
+    // Polytechs, Citadels and Holodomes): " In this system: +21% training
+    // experience, −10.5% rewire time, −16% course fee." Nothing to say where nothing is built, or to a
+    // faction that is not shown those values.
+    systemBonusLine() {
+      const value = (key) => (this.system[key] && typeof this.system[key].value === 'number' ? this.system[key].value : 0);
+      // signed like a building card's bonus
+      const signed = bonusNumber;
+      const xp = Math.max(value('training_xp'), 0);
+      const time = Math.min(value('reallocation_time'), 0);
+      const cost = Math.min(value('training_cost'), 0);
+      const parts = [];
+
+      if (xp !== 0) parts.push(this.$t('galaxy.school.system_xp', { percent: signed(xp) }));
+      if (time !== 0) parts.push(this.$t('galaxy.school.system_time', { percent: signed(time) }));
+      if (cost !== 0) parts.push(this.$t('galaxy.school.system_cost', { percent: signed(cost) }));
+
+      return parts.length > 0 ? ` ${this.$t('galaxy.school.system_bonus', { bonuses: parts.join(', ') })}` : '';
+    },
     // Seats are only sent to the faction that owns the system.
     isFactionSystem() {
       return this.system.status === 'inhabited_player'
@@ -237,14 +269,14 @@ export default {
     schools() {
       const seats = this.system.schools || null;
 
-      const list = [{
-        key: 'polytech',
-        school: 'polytech',
+      const list = PASSIVE_SCHOOLS.map((school) => ({
+        key: school,
+        school,
         type: null,
-        building: SCHOOL_BUILDINGS.polytech,
-        students: this.students.filter((s) => s.training && s.training.school === 'polytech'),
-        seats: seats && seats.polytech,
-      }].concat(TYPES.map((type) => ({
+        building: SCHOOL_BUILDINGS[school],
+        students: this.students.filter((s) => s.training && s.training.school === school),
+        seats: seats && seats[school],
+      })).concat(TYPES.map((type) => ({
         key: type,
         school: 'university',
         type,
@@ -258,21 +290,27 @@ export default {
         .map((entry) => {
           const slots = entry.seats ? entry.seats.slots : null;
           const used = entry.seats ? entry.seats.used : null;
-          const canEnroll = this.canEnroll(entry);
+          const access = this.hasAccess(entry);
+          const limit = entry.seats ? entry.seats.per_player : null;
+          // one place per player and per university building, studying or waiting
+          const placesTaken = typeof limit === 'number' && this.ownPlaces(entry) >= limit;
+          const canEnroll = access && !placesTaken;
 
           const name = this.$t(`data.building.${entry.building}.name`);
           const seats = slots === null ? '' : ` ${used}/${slots}`;
-          const rules = this.schoolHint(entry);
+          const rules = `${this.schoolHint(entry)}${this.systemBonusLine}`;
 
           return {
             ...entry,
             slots,
             used,
             free: slots === null ? 0 : Math.max(slots - used, 0),
+            access,
+            placesTaken,
             canEnroll,
             label: `${name}${seats}. ${rules}`,
             hint: { content: `<strong>${name}</strong>${seats}<br>${rules}`, html: true },
-            enrollHint: this.enrollHint(entry, canEnroll),
+            enrollHint: this.enrollHint(entry, canEnroll, placesTaken),
           };
         });
     },
@@ -300,11 +338,18 @@ export default {
       return `${left}. ${this.$t('galaxy.school.settling_hint')}`;
     },
     queuedBehind(student) { return this.queue.find((entry) => entry.behind === student.id) || null; },
-    // A place in the queue is for a school with no free seat, under the
-    // rules of a seat: no siege, and a Polytech is its owner's alone.
-    canQueue(school) { return school.canEnroll && school.free === 0 && school.slots !== null; },
+    // Mirrors School.check_queue/5. A place in the queue is a university's,
+    // for a school with no free seat, under the rules of a seat (no siege,
+    // the right faction), and for a player with no agent studying or
+    // waiting there yet. A Polytech has no queue.
+    canQueue(school, student) {
+      if (isPassive(school.school) || !school.access || school.slots === null) return false;
+      if (this.queuedBehind(student) || school.free > 0) return false;
+
+      return !school.placesTaken;
+    },
     // something to show above the seat: who waits, or the place to take
-    hasQueuePlace(school, student) { return !!this.queuedBehind(student) || this.canQueue(school); },
+    hasQueuePlace(school, student) { return !!this.queuedBehind(student) || this.canQueue(school, student); },
     // what a click on a queued agent does: its owner takes it out of the
     // queue, the owner of the system sends it out
     queuedAction(entry) {
@@ -328,24 +373,58 @@ export default {
     },
     // rewires earned so far; hidden from a faction without full visibility
     earned(student) { return student.reallocations || 0; },
+    // Where a student stands in the rewire it is earning right now, null
+    // for anyone not on a course, and for a viewer who is not shown what
+    // the student has earned (see training.js).
+    earningOf(student) {
+      if (typeof student.reallocations !== 'number') return null;
+      if (student.reallocations >= this.constant.university_max_reallocations) return null;
+
+      return earning(student.training, this.constant, this.$store.state.game.time, this.speedFactor, this.now);
+    },
+    // the segment of the ring being earned: the first one not lit
+    earningIndex(student) { return this.earningOf(student) ? this.earned(student) : null; },
+    earningDash(student) {
+      const count = this.constant.university_max_reallocations || 1;
+      const length = (((360 / count) - RING_GAP) * Math.PI * RING_RADIUS) / 180;
+      return `${(this.earningOf(student).progress * length).toFixed(2)} ${(length + 1).toFixed(2)}`;
+    },
+    // ", 2 of 5 neural rewires, next in 3 H 12 M"
     rewiresLine(student) {
       if (student.training.school !== 'university' || typeof student.reallocations !== 'number') return '';
 
-      return `, ${this.$t('galaxy.school.rewires_earned', {
+      const earned = this.$t('galaxy.school.rewires_earned', {
         count: student.reallocations,
         max: this.constant.university_max_reallocations,
-      })}`;
+      });
+
+      const next = this.earningOf(student);
+      const left = next && next.until !== null
+        ? `, ${this.$t('galaxy.school.rewire_next', { time: formatCountdown(next.until - Date.now()) })}`
+        : '';
+
+      return `, ${earned}${left}`;
     },
     // how far along: the time left to settle in, then the rewires earned
     progressLine(student) { return this.settlingLine(student) || this.rewiresLine(student); },
     themeOf(student) { return this.$store.getters['game/themeByKey'](student.owner.faction); },
-    canEnroll(entry) {
+    // what a school asks of anyone, seated or waiting
+    hasAccess(entry) {
       if (!this.isFactionSystem || this.system.siege) return false;
       // a Polytech is its owner's alone; a university also takes faction-mates
       return entry.school === 'university' || this.isOwnSystem;
     },
+    // Mirrors School.places_held/5: the player's students in class and its
+    // agents in line, called or not.
+    ownPlaces(entry) {
+      const mine = (agent) => agent.owner.id === this.player.id;
+      const students = entry.students.filter((s) => mine(s) && inClass(s.training));
+      const queued = this.queue.filter((e) => mine(e) && e.school === entry.school && e.type === entry.type);
+
+      return students.length + queued.length;
+    },
     schoolHint(entry) {
-      if (entry.school === 'polytech') return this.$t('galaxy.school.polytech_hint');
+      if (isPassive(entry.school)) return this.$t(`galaxy.school.${entry.school}_hint`);
 
       return this.$t('galaxy.school.university_hint', {
         agents: this.$tc(`data.character.${entry.type}.name`, 2),
@@ -354,14 +433,15 @@ export default {
         resource: this.$t(`galaxy.school.fee_${this.feeResource(entry.type)}`),
       });
     },
-    enrollHint(entry, canEnroll) {
+    enrollHint(entry, canEnroll, placesTaken) {
       if (!canEnroll) {
         if (this.system.siege && this.isFactionSystem) return this.$t('galaxy.school.no_enroll_siege');
-        if (entry.school === 'polytech' && this.isFactionSystem) return this.$t('galaxy.school.owner_only');
+        if (isPassive(entry.school) && this.isFactionSystem) return this.$t('galaxy.school.owner_only');
+        if (placesTaken && this.isFactionSystem) return this.$t('galaxy.school.one_per_player');
         return this.$t('galaxy.school.free_seat');
       }
 
-      if (entry.school === 'polytech') return this.$t('galaxy.school.enroll_polytech');
+      if (isPassive(entry.school)) return this.$t('galaxy.school.enroll_polytech');
 
       return this.$t('galaxy.school.enroll_university', {
         agent: this.$tc(`data.character.${entry.type}.name`, 1),
@@ -427,7 +507,7 @@ export default {
     },
     // `behind`: the student to wait for, when the seat is not free
     enroll(school, behind = null) {
-      if (!school.canEnroll) return;
+      if (behind ? !this.canQueue(school, behind) : !school.canEnroll) return;
 
       this.$root.$emit('openBottomMiniPanel', 'character-deck');
       this.$store.commit('game/prepareAssignment', {

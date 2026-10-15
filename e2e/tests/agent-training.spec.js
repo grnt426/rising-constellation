@@ -1,9 +1,13 @@
 // Agent training (docs/agent-training.md), through the real UI.
 //
-// The player's home system has a Delta Polytech and a level-2 Orb-INTEL
-// (the fixture's `schools` option). The player:
-//   - sees both schools in the system view, with their free seats, and
-//     the seats each building gives on its card;
+// The player's home system has a Delta Polytech and an Orb-INTEL (the
+// fixture's `schools` option; Flash buildings have one level). The player:
+//   - sees both schools in the system view, with their free seats and what
+//     the Polytech gives every course of the system (in each school's
+//     tooltip), and the seats and the training bonus each building gives
+//     on its card;
+//   - reads the system's three training percentages on its details page, in
+//     a section of their own, each with the buildings it comes from;
 //   - recalls its Erased and sends it to the Orb-INTEL from a free seat
 //     (deck panel, "Enrol"): the seat is taken, the fee is in the credit
 //     income, the agent is on the roster as a student;
@@ -12,19 +16,24 @@
 //     is in the agents list with its school's icon (and the list's training
 //     toggle shows only students, then leaves them out), and its opened
 //     card lists settling in as its one action with the moment it ends,
-//     and says what its halved Protection is halved from;
+//     and says what its cut Protection is cut from (a level-1 university
+//     leaves it 40%);
+//   - watches the rewire being earned: its segment of the ring pulses and
+//     is drawn over as its day of course passes, and the seat's tooltip
+//     says when the next one comes;
 //   - lets the course run (speed cheat) and watches the ring around the
 //     seated student, one segment per rewire: at the fifth the agent is
 //     back in the deck by itself and the seat is free;
 //   - moves skill points from the deck with the −/+ controls and confirms:
 //     the skills and the rewires follow;
+//   - adds a point to its main skill outright, for two rewires;
 //   - cannot give the agent any duty while a rewire is left; discards the
 //     rest from the card (the button asks twice) and then can;
 //   - seats the same Erased in the Polytech, where it earns experience and
-//     no rewires;
-//   - queues its Navarch behind it from the place shown above the seat: the
-//     Navarch stays in the deck, its card tells the wait and offers to leave
-//     the queue, and it takes the seat the moment the Erased is recalled.
+//     no rewires, with no queue behind it.
+// A university queue needs a second player of the faction, which the
+// fixture does not give: Player.AgentTrainingTest covers it, and the wait a
+// queued agent's card prints is checked here on the card's own wording.
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 const { Api } = require('../helpers/api');
@@ -41,7 +50,9 @@ const SHOTS = process.env.E2E_SHOTS;
 let api;
 let instanceId;
 let home;
-// seats of the Orb-INTEL: one per level (Flash buildings have one level)
+// level of the Orb-INTEL and the places it gives: one at levels 1 and 2,
+// two at 3 and 4, three at 5
+let orbLevel;
 let orbSeats;
 
 async function shot(page, name) {
@@ -112,14 +123,15 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   );
   instanceId = fixture.instance_id;
   home = fixture.empire.home;
-  orbSeats = fixture.empire.schools.buildings.find((b) => b.key === 'counterintelligence_open').level;
+  orbLevel = fixture.empire.schools.buildings.find((b) => b.key === 'counterintelligence_open').level;
+  orbSeats = [1, 1, 2, 2, 3][orbLevel - 1];
 });
 
 test.afterAll(async () => {
   if (api && instanceId) await api.finishInstance(ADMIN.email, instanceId);
 });
 
-test('an Erased goes to university, comes back with neural rewires, its skills are reallocated, and a Navarch queues behind it', async ({ page, context, baseURL }) => {
+test('an Erased goes to university, comes back with neural rewires, its skills are reallocated, and the Polytech seats it with no queue', async ({ page, context, baseURL }) => {
   page.setDefaultTimeout(30000);
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error.message)));
@@ -135,11 +147,22 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     expect(await seats(page, 'polytech')).toEqual({ taken: 0, free: 1 });
     expect(await seats(page, 'spy')).toEqual({ taken: 0, free: orbSeats });
     await expect(school(page, 'spy').locator('.school-seats > .school-seat.is-empty.is-clickable')).toHaveCount(orbSeats);
+    // the Citadel is no school
+    await expect(school(page, 'citadel')).toHaveCount(0);
 
-    // a school is its building's icon; the tooltip names it
+    // A school is its building's icon; the tooltip names it, says what the
+    // course costs, and ends with what the buildings of the system give
+    // every course in it: a Polytech of level 1 takes 0.75% off the time
+    // of a rewire.
+    const tooltip = (text) => page.locator('.tooltip .tooltip-inner', { hasText: text });
+
     await school(page, 'spy').locator('.school-building').hover();
-    await expect(page.locator('.tooltip .tooltip-inner', { hasText: 'Orb-INTEL' })).toBeVisible();
+    await expect(tooltip('Orb-INTEL')).toContainText('for each level of the agent and each level of the building');
+    await expect(tooltip('Orb-INTEL')).toContainText(/In this system: [-−]0\.75% rewire time\./);
     await shot(page, '01-schools');
+
+    await school(page, 'polytech').locator('.school-building').hover();
+    await expect(tooltip('One seat per Delta Polytech')).toContainText('There is no queue');
   });
 
   await test.step('the cards of both buildings say how many agents they seat', async () => {
@@ -162,6 +185,10 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     expect(await cardOf('Delta Polytech')).toBe(true);
     await expect(seatsRow).toHaveText(/training seats\s*1/i);
 
+    // and what the Polytech gives the courses of its system (the game prints a true minus sign)
+    await expect(card.locator('.complex-bonus', { hasText: /neural rewire time/i })).toHaveText(/[-−]0\.75%/);
+    await shot(page, '01c-polytech-card');
+
     expect(await cardOf('Orb-INTEL')).toBe(true);
     await expect(seatsRow).toHaveText(new RegExp(`course seats, erased\\s*${orbSeats}`, 'i'));
 
@@ -171,6 +198,34 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await expect(seatsRow).toHaveCount(0);
     await shot(page, '01b-building-card');
     await page.mouse.move(1250, 780);
+  });
+
+  await test.step('the details page has an Agent training section with its three percentages', async () => {
+    const tabs = page.locator('.system-content-menu .system-tab-item:not(.is-tool)');
+    await tabs.nth(1).click();
+
+    const stat = (key) => page.locator(`[data-training-stat="${key}"]`);
+    await expect(page.locator('.system-content-group-header', { hasText: /agent training/i })).toBeVisible();
+    await expect(stat('training_xp')).toContainText(/training experience/i);
+    // no Experiment Station in the system
+    await expect(stat('training_xp').locator('.yield-box')).toHaveText(/^\s*0%\s*$/);
+    await expect(stat('reallocation_time')).toContainText(/neural rewire time/i);
+    await expect(stat('reallocation_time').locator('.yield-box')).toHaveText(/^\s*[-−]0\.75%\s*$/);
+
+    // the fee of a course is cut by Holodomes, and Flash has none
+    await expect(stat('training_cost')).toContainText(/course fee/i);
+    await expect(stat('training_cost').locator('.yield-box')).toHaveText(/^\s*0%\s*$/);
+
+    // the breakdown names the buildings, like any other stat of the page
+    await stat('reallocation_time').locator('.yield-box').hover();
+    const breakdown = page.locator('.resource-detail', { hasText: /neural rewire time/i });
+    await expect(breakdown).toContainText('Delta Polytech');
+    await expect(breakdown).toContainText(/[-−]0\.75%/);
+    await shot(page, '01d-details-training');
+
+    await page.mouse.move(700, 620);
+    await tabs.nth(0).click();
+    await expect(school(page, 'spy')).toBeVisible();
   });
 
   await test.step('recall the Erased: it rests in the deck before a new duty', async () => {
@@ -279,8 +334,11 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
         met: { protection: seated.protection, determination: seated.determination },
       };
     });
-    expect(defense.met.protection).toBe(Math.trunc(defense.base.protection / 2));
-    expect(defense.met.determination).toBe(Math.trunc(defense.base.determination / 2));
+    // a university of level 1 leaves 40%, ten points more per level
+    const keep = [0.4, 0.5, 0.6, 0.7, 0.8][orbLevel - 1];
+    const cutBy = Math.round((1 - keep) * 100);
+    expect(defense.met.protection).toBe(Math.trunc(defense.base.protection * keep));
+    expect(defense.met.determination).toBe(Math.trunc(defense.base.determination * keep));
     expect(defense.met.protection).toBeLessThan(defense.base.protection);
 
     const cut = card.locator('.simple-bonus.is-cut');
@@ -288,10 +346,10 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await expect(cut.nth(1)).toHaveText(new RegExp(`^\\s*${defense.met.determination}\\s*$`));
 
     await cut.nth(0).hover();
-    await expect(tooltip(`Protection, base ${defense.base.protection}: -50% (training)`)).toBeVisible();
+    await expect(tooltip(`Protection, base ${defense.base.protection}: -${cutBy}% (training)`)).toBeVisible();
     await shot(page, '03g-defense-tooltip');
     await cut.nth(1).hover();
-    await expect(tooltip(`Determination, base ${defense.base.determination}: -50% (training)`)).toBeVisible();
+    await expect(tooltip(`Determination, base ${defense.base.determination}: -${cutBy}% (training)`)).toBeVisible();
 
     // Settled in. The card left open follows by itself: its one action is
     // done and its ribbon says the course has started.
@@ -304,7 +362,7 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await expect(card).toHaveCount(0);
 
     // the segments of the course take the ring's place, and the list says so
-    await expect(seat.locator('.seat-ring path')).toHaveCount(5);
+    await expect(seat.locator('.seat-ring path:not(.earning-fill)')).toHaveCount(5);
     await expect(seat.locator('.settle-fill')).toHaveCount(0);
     await expect(school(page, 'spy').locator('.seat-ring path.is-earned')).toHaveCount(0);
     await expect(line.locator('.title-small.is-training')).toContainText('on its course', { ignoreCase: true });
@@ -320,6 +378,40 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await shot(page, '04-student-card');
     await page.evaluate(() => document.querySelector('#app').__vue__.$store.dispatch('game/closeCharacter'));
     await expect(card).toHaveCount(0);
+  });
+
+  await test.step('the rewire being earned pulses and fills with its day of course', async () => {
+    // a rewire takes 20 ut at Flash speed, 30 s: slowed down to be looked at
+    expect((await setSpeedCheat(page, 0.25)).ok).toBe(true);
+
+    const seat = school(page, 'spy').locator('.school-seat.is-taken');
+    const earned = await seat.locator('.seat-ring path.is-earned').count();
+
+    // the first segment not lit, and one arc drawn over it
+    await expect(seat.locator('.seat-ring path.is-earning')).toHaveCount(1);
+    await expect(seat.locator('.seat-ring path.earning-fill')).toHaveCount(1);
+    const pulsing = await seat.locator('.seat-ring path:not(.earning-fill)')
+      .evaluateAll((paths) => paths.findIndex((el) => el.classList.contains('is-earning')));
+    expect(pulsing).toBe(earned);
+    expect(await seat.locator('.seat-ring path.is-earning').evaluate((el) => getComputedStyle(el).animationName))
+      .toBe('seat-ring-earning');
+
+    const drawn = () => seat.locator('.earning-fill')
+      .evaluate((el) => parseFloat(el.getAttribute('stroke-dasharray')));
+    const first = await drawn();
+    await expect.poll(drawn, { timeout: 15000, intervals: [500] }).toBeGreaterThan(first);
+
+    // the seat says when the next rewire comes
+    await seat.locator('.round-icon').hover();
+    await expect(page.locator('.tooltip .tooltip-inner', { hasText: 'on its course' })).toContainText(/next in \d/);
+    await shot(page, '04b-earning-seat');
+    if (SHOTS) {
+      // the ring is 44 px across: enlarged for the review
+      await page.evaluate(() => { document.querySelector('.school-box .school-list').style.zoom = 4; });
+      await page.locator('.school-box').screenshot({ path: path.join(SHOTS, '04b-ring.png') });
+      await page.evaluate(() => { document.querySelector('.school-box .school-list').style.zoom = ''; });
+    }
+    await page.mouse.move(700, 620);
   });
 
   await test.step('the ring fills as the course runs; the fifth rewire brings the agent home', async () => {
@@ -397,6 +489,37 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await shot(page, '08-reallocated');
   });
 
+  await test.step('two rewires add a point to a skill outright', async () => {
+    const card = deckCard(page, erasedName);
+    const ribbon = card.locator('.card-ribbon.is-reallocations');
+    const before = (await roster(page)).deck.find((c) => c.id === erased.id);
+    await ribbon.click();
+    await expect(card.locator('.skill-reallocation')).toHaveCount(6);
+
+    const main = await card.evaluate((el) => el.__vue__.mainSkillIndex);
+    const row = (i) => card.locator('.card-skill-block').nth(i).locator('.skill-reallocation button');
+
+    // nothing was taken: the + of the main skill adds a point, for two rewires
+    await row(main).last().click();
+    await expect(ribbon).toContainText('2 of 4 rewires used');
+    // four rewires buy two points, never three
+    await row(main).last().click();
+    await expect(ribbon).toContainText('4 of 4 rewires used');
+    await expect(row(main).last()).toBeDisabled();
+    await row(main).first().click();
+    await expect(ribbon).toContainText('2 of 4 rewires used');
+    await shot(page, '08a-adding-a-point');
+
+    await card.locator('.card-action .button').click();
+
+    await expect.poll(async () => (await roster(page)).deck.find((c) => c.id === erased.id).rewires).toBe(2);
+    const after = (await roster(page)).deck.find((c) => c.id === erased.id);
+    const total = (skills) => skills.reduce((sum, value) => sum + value, 0);
+    expect(after.skills[main]).toBe(before.skills[main] + 1);
+    expect(total(after.skills)).toBe(total(before.skills) + 1);
+    await expect(ribbon).toContainText('2 neural rewires');
+  });
+
   await test.step('no duty while a rewire is left: the card says so and the server refuses', async () => {
     await waitRested(page, erased.id);
     // the deck panel covers the list; the seat is clickable once it has closed
@@ -416,14 +539,14 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
       expect(await playerPush(page, event, payload)).toMatchObject({ ok: false, error: 'reallocations_unspent' });
     }
 
-    // give the other four up, from the same card: the button asks twice
+    // give the other two up, from the same card: the button asks twice
     const skillsBefore = (await roster(page)).deck.find((c) => c.id === erased.id).skills;
     await card.locator('.card-ribbon.is-reallocations').click();
     const button = card.locator('.card-action .button');
-    await expect(button).toHaveText('Discard 4 rewires', { ignoreCase: true });
+    await expect(button).toHaveText('Discard 2 rewires', { ignoreCase: true });
     await button.click();
     await expect(button).toHaveText('Are you sure? Discard', { ignoreCase: true });
-    expect((await roster(page)).deck.find((c) => c.id === erased.id).rewires).toBe(4);
+    expect((await roster(page)).deck.find((c) => c.id === erased.id).rewires).toBe(2);
     await shot(page, '08c-discard-armed');
     await button.click();
 
@@ -445,65 +568,27 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await shot(page, '09-polytech');
   });
 
-  const navarch = (await roster(page)).characters.find((c) => c.type === 'admiral' && c.status === 'on_board');
-  expect(navarch, 'the fixture places a Navarch on board').toBeTruthy();
-  const navarchName = (await serverPlayer(page)).characters.find((c) => c.id === navarch.id).name;
-  const taken = school(page, 'polytech').locator('.school-seat.is-taken');
-
-  await test.step('the place behind a seated student shows above it; the deck offers to join the queue', async () => {
-    expect((await playerPush(page, 'deactivate_character', { character_id: navarch.id })).ok).toBe(true);
-    await waitRested(page, navarch.id);
-
-    // nobody waits yet: no dot on the seat, and the place to take on hover
+  await test.step('the Polytech keeps no queue: nothing shows above its seated student', async () => {
+    const taken = school(page, 'polytech').locator('.school-seat.is-taken');
     await expect(taken.locator('.queue-pip')).toHaveCount(0);
     await taken.locator('.round-icon').hover();
-    const place = page.locator('.school-queue-popover .school-queue .queue-place');
-    await expect(place).toBeVisible();
-    await shot(page, '10-queue-place');
-    await place.click();
-
-    const card = deckCard(page, navarchName);
-    await expect(card.locator('.card-action .button')).toHaveText('Join the queue', { ignoreCase: true });
-    await shot(page, '11-deck-join-queue');
-    await card.locator('.card-action .button').click();
-
-    await expect.poll(async () => (await roster(page)).deck.find((c) => c.id === navarch.id).queue).toMatchObject({
-      system_id: home, school: 'polytech', wait: null,
-    });
+    await expect(page.locator('.tooltip .tooltip-inner', { hasText: 'in training' })).toBeVisible();
+    await expect(page.locator('.school-queue-popover .school-queue')).toHaveCount(0);
+    await page.mouse.move(700, 620);
   });
 
-  await test.step('the queued agent stays in the deck: its seat shows it, its card tells the wait', async () => {
-    // still a deck agent, and no duty for it
-    expect((await roster(page)).characters.some((c) => c.id === navarch.id)).toBe(false);
-
-    for (const [event, payload] of [
-      ['activate_character', { character_id: navarch.id, mode: 'on_board', system_id: home }],
-      ['enroll_character', { character_id: navarch.id, school: 'polytech', system_id: home }],
-    ]) {
-      expect(await playerPush(page, event, payload)).toMatchObject({ ok: false, error: 'character_queued' });
-    }
-
-    // a dot on the seat; the agent itself above it on hover
-    await expect(taken.locator('.queue-pip')).toHaveCount(1);
-    await taken.locator('.round-icon').hover();
-    await expect(page.locator('.school-queue-popover .school-queue .queue-agent')).toBeVisible();
-    await shot(page, '12-queue-shown');
-
+  await test.step('a queued agent\'s card words the longest wait', async () => {
     await page.evaluate(() => {
       const app = document.querySelector('#app').__vue__;
       app.$store.commit('game/clearAssignment');
       app.$root.$emit('openBottomMiniPanel', 'character-deck');
     });
 
-    const card = deckCard(page, navarchName);
-    // behind a Polytech student the wait has no end
-    await expect(card.locator('.card-ribbon.is-queued')).toHaveText('Waiting for a seat', { ignoreCase: true });
-    await expect(card.locator('.card-action .button').first()).toHaveText('Leave the queue', { ignoreCase: true });
-    await expect(card.locator('.card-action .button.is-icon')).toHaveCount(1);
-    await shot(page, '13-queued-card');
+    // The card's own wording of 38 hours and of 25 minutes, read off any deck
+    // card with a made-up place in line: no queue is open to a lone player.
+    const card = page.locator('.mp-container .card-container').first();
+    await expect(card).toBeVisible();
 
-    // behind a university student it is the rest of that student's course:
-    // the card's own wording of 38 hours, and of 25 minutes
     const wording = (ut) => card.evaluate((el, value) => {
       const vm = el.__vue__;
       const { seatWait } = vm.$options.computed;
@@ -522,44 +607,6 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     expect((await wording(38 * perHour)).text).toBe('38hrs to be seated');
     expect((await wording(38 * perHour)).hint).toMatch(/^Latest time to be seated: .*\d/);
     expect((await wording((25 / 60) * perHour)).text).toBe('25min to be seated');
-  });
-
-  await test.step('leave the queue from the card, join it again', async () => {
-    const card = deckCard(page, navarchName);
-    await card.locator('.card-action .button').first().click();
-
-    await expect.poll(async () => (await roster(page)).deck.find((c) => c.id === navarch.id).queue).toBe(null);
-    await expect(card.locator('.card-ribbon.is-queued')).toHaveCount(0);
-    await page.locator('.mp-container .mph-close-button').first().click();
-    await expect(taken.locator('.queue-pip')).toHaveCount(0);
-
-    expect(await playerPush(page, 'queue_character', {
-      character_id: navarch.id, school: 'polytech', system_id: home, behind: erased.id,
-    })).toMatchObject({ ok: true });
-    await page.evaluate(() => {
-      const app = document.querySelector('#app').__vue__;
-      app.$store.dispatch('game/reloadSystem', app.$socket);
-    });
-    await expect(taken.locator('.queue-pip')).toHaveCount(1);
-  });
-
-  await test.step('the student ahead is recalled: the queued agent takes the seat at once', async () => {
-    expect((await playerPush(page, 'deactivate_character', { character_id: erased.id })).ok).toBe(true);
-
-    await expect.poll(async () => {
-      const student = (await roster(page)).characters.find((c) => c.id === navarch.id);
-      return student ? student.status : null;
-    }).toBe('student');
-
-    const state = await roster(page);
-    expect(state.deck.some((c) => c.id === navarch.id)).toBe(false);
-    expect(state.deck.some((c) => c.id === erased.id)).toBe(true);
-
-    await expect(taken).toHaveCount(1);
-    await expect(taken.locator('.queue-pip')).toHaveCount(0);
-    await taken.locator('.round-icon').click();
-    await expect(page.locator('.opened-character .card-container .title-large')).toContainText(navarchName, { ignoreCase: true });
-    await shot(page, '14-seated-from-queue');
   });
 
   expect(errors).toEqual([]);

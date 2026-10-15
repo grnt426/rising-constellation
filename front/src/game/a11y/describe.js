@@ -4,7 +4,7 @@
 // counts as unknown. Each function takes the calling component for
 // $t / $tc and the store; wording lives under `a11y.*` in game.json.
 
-import { inClass, schoolBuilding, trainingStatus } from '@/game/training';
+import { inClass, schoolBuilding, trainingStatus, defenseFactor } from '@/game/training';
 
 // Obfuscated stats arrive as null or 'hidden' (CharacterCard renders
 // them as ░░).
@@ -135,7 +135,7 @@ export function agentCardSummary(vm, character, { fleet = null, nextXp = null } 
   // a student in class: the cut stats the card shows (CharacterCard.effective)
   const cut = character.status === 'student' && inClass(character.training)
     && typeof constant.training_defense_factor === 'number';
-  const met = (v) => (cut && typeof v === 'number' ? Math.trunc(v * constant.training_defense_factor) : value(v));
+  const met = (v) => (cut && typeof v === 'number' ? Math.trunc(v * defenseFactor(character.training, constant)) : value(v));
   parts.push(vm.$t('a11y.agent.stats', {
     protection: met(character.protection),
     determination: met(character.determination),

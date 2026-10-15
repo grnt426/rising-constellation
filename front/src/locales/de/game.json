@@ -358,6 +358,10 @@
         "military": "Streitkräfte",
         "mobility": "Mobilität",
         "radar": "S.L.S.D.",
+        "reallocation_time": "Dauer einer neuronalen Neuverdrahtung",
+        "training": "Ausbildung der Agenten",
+        "training_cost": "Kursgebühr",
+        "training_xp": "Erfahrung in Ausbildung",
         "visibility": "Sichtbarkeit",
         "workforce": "Bevölkerung"
       },

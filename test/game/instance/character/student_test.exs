@@ -50,6 +50,38 @@ defmodule Instance.Character.StudentTest do
     end
   end
 
+  describe "the conditions of its system" do
+    test "raise what a student earns, in every school", %{instance_id: instance_id} do
+      plain = student(instance_id, :polytech)
+      {:ok, helped} = Character.set_training_conditions(plain, %{xp_bonus: 25.0, time_factor: 1.0, school_level: nil})
+
+      {_, _, before} = tick(plain, 480)
+      {_, _, later} = tick(helped, 480)
+
+      assert_in_delta later.experience.value, before.experience.value * 1.25, 1.0e-6
+    end
+
+    test "shorten the wait for the next rewire, and are left alone when nothing changed",
+         %{instance_id: instance_id, constant: c} do
+      {_, _, active} = tick(student(instance_id, :university), c.university_settle_time)
+      assert Character.compute_next_tick_interval(active) <= c.university_reallocation_interval
+
+      conditions = %{xp_bonus: 0.0, time_factor: 0.5, school_level: 3}
+      {:ok, faster} = Character.set_training_conditions(active, conditions)
+      assert faster.training.school_level == 3
+      assert Training.next_event(faster.training, c) == c.university_reallocation_interval * 0.5
+
+      {_, _, earned} = tick(faster, c.university_reallocation_interval * 0.5)
+      assert Character.reallocations(earned) == 1
+
+      assert Character.set_training_conditions(faster, conditions) == :unchanged
+
+      # nobody else has a course to change
+      governor = %{student(instance_id, :polytech) | status: :governor}
+      assert Character.set_training_conditions(governor, conditions) == :unchanged
+    end
+  end
+
   describe "the clock of a course" do
     test "every tick says when its elapsed time was measured", %{instance_id: instance_id} do
       character = student(instance_id, :university)
@@ -164,15 +196,26 @@ defmodule Instance.Character.StudentTest do
   end
 
   describe "defence" do
-    test "protection and determination are halved in class", %{instance_id: instance_id} do
-      for school <- [:polytech, :university] do
-        character = student(instance_id, school)
+    test "protection and determination are halved at a Polytech", %{instance_id: instance_id} do
+      character = student(instance_id, :polytech)
 
-        assert Character.effective_protection(character) == 50
-        assert Character.effective_determination(character) == 30
-        # the agent's own values are untouched
-        assert character.protection == 101
-      end
+      assert Character.effective_protection(character) == 50
+      assert Character.effective_determination(character) == 30
+      # the agent's own values are untouched
+      assert character.protection == 101
+    end
+
+    test "at a university they fall to 40% at level 1, up to 80% at level 5", %{instance_id: instance_id} do
+      met =
+        for level <- 1..5 do
+          {:ok, character} =
+            Character.set_training_conditions(student(instance_id, :university), %{school_level: level})
+
+          {Character.effective_protection(character), Character.effective_determination(character)}
+        end
+
+      # 101 and 61, cut and truncated
+      assert met == [{40, 24}, {50, 30}, {60, 36}, {70, 42}, {80, 48}]
     end
 
     test "are whole again once the course is over, and for everyone else", %{instance_id: instance_id} do
@@ -234,11 +277,27 @@ defmodule Instance.Character.StudentTest do
       assert Character.reallocations(moved) == 2
     end
 
+    test "adds a point for two reallocations, beside the points it moves", %{instance_id: instance_id} do
+      character = graduate(instance_id, [5, 3, 1, 0, 2, 0], 5)
+
+      # one point added to the main skill, one moved to it
+      assert {:ok, raised} = Character.reallocate_skills(character, [7, 3, 0, 0, 2, 0])
+      assert raised.skills == [7, 3, 0, 0, 2, 0]
+      assert Enum.sum(raised.skills) == Enum.sum(character.skills) + 1
+      assert Character.reallocations(raised) == 2
+
+      # the two left buy one more
+      assert {:ok, again} = Character.reallocate_skills(raised, [7, 4, 0, 0, 2, 0])
+      assert Character.reallocations(again) == 0
+    end
+
     test "refuses a move without the reallocations, or past the limits", %{instance_id: instance_id} do
       character = graduate(instance_id, [5, 3, 1, 0, 2, 0], 1)
 
       assert Character.reallocate_skills(character, [8, 3, 0, 0, 0, 0]) == {:error, :not_enough_reallocations}
-      assert Character.reallocate_skills(character, [5, 3, 1, 0, 2, 1]) == {:error, :skill_points_mismatch}
+      # one reallocation adds nothing, and a point taken has to be placed
+      assert Character.reallocate_skills(character, [5, 3, 1, 0, 2, 1]) == {:error, :not_enough_reallocations}
+      assert Character.reallocate_skills(character, [5, 3, 0, 0, 2, 0]) == {:error, :skill_points_mismatch}
 
       assert Character.reallocate_skills(%{character | skills: [5, 5, 1, 0, 0, 0]}, [5, 6, 0, 0, 0, 0]) ==
                {:error, :skill_over_main}

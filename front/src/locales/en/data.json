@@ -192,11 +192,20 @@
       "sys_radar": {
         "name": "S.L.S.D. Level"
       },
+      "sys_reallocation_time": {
+        "name": "Neural Rewire Time"
+      },
       "sys_remove_contact": {
         "name": "Cybersecurity"
       },
       "sys_technology": {
         "name": "Technology"
+      },
+      "sys_training_cost": {
+        "name": "Training Cost"
+      },
+      "sys_training_xp": {
+        "name": "Training Experience"
       }
     },
     "building": {

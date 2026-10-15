@@ -297,7 +297,8 @@ defmodule Portal.Controllers.PlayerChannel do
   # the credits a university course earned.
   record("enroll_character", %{"character_id" => character_id, "school" => school, "system_id" => system_id}, socket) do
     with true <- is_integer(character_id) and is_integer(system_id),
-         {:ok, school} <- Map.fetch(%{"polytech" => :polytech, "university" => :university}, school) do
+         {:ok, school} <-
+           Map.fetch(school_names(), school) do
       case Game.call(iid(socket), :player, pid(socket), {:enroll_character, character_id, school, system_id}) do
         {:error, reason} -> {:error, %{reason: reason}}
         _ -> :ok
@@ -317,7 +318,8 @@ defmodule Portal.Controllers.PlayerChannel do
     behind = Map.get(payload, "behind")
 
     with true <- is_integer(character_id) and is_integer(system_id) and (is_nil(behind) or is_integer(behind)),
-         {:ok, school} <- Map.fetch(%{"polytech" => :polytech, "university" => :university}, school) do
+         {:ok, school} <-
+           Map.fetch(school_names(), school) do
       case Game.call(iid(socket), :player, pid(socket), {:queue_character, character_id, school, system_id, behind}) do
         {:error, reason} -> {:error, %{reason: reason}}
         _ -> :ok
@@ -661,6 +663,10 @@ defmodule Portal.Controllers.PlayerChannel do
   def broadcast_change(channel, payload) do
     Portal.Endpoint.broadcast(channel, "broadcast", payload)
   end
+
+  # the schools a client may name, by the name it sends
+  defp school_names,
+    do: Map.new(Instance.Character.Training.schools(), fn school -> {Atom.to_string(school), school} end)
 
   defp iid(socket), do: socket.assigns.instance_id
   defp pid(socket), do: socket.assigns.player_id

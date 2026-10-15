@@ -189,11 +189,20 @@
       "sys_radar": {
         "name": "S.L.S.D. Level"
       },
+      "sys_reallocation_time": {
+        "name": "Dauer einer neuronalen Neuverdrahtung"
+      },
       "sys_remove_contact": {
         "name": "Gegenspionage"
       },
       "sys_technology": {
         "name": "Technologie"
+      },
+      "sys_training_cost": {
+        "name": "Ausbildungskosten"
+      },
+      "sys_training_xp": {
+        "name": "Erfahrung in Ausbildung"
       }
     },
     "building": {

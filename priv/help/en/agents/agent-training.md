@@ -16,6 +16,8 @@ sources:
   - lib/game/instance/character/actions/assassination.ex
   - lib/game/instance/character/actions/conversion.ex
   - lib/data/game/content/constant-slow.ex
+length: long
+length_reason: the guide owns the rules every school shares, the queue, defence in class and the owner's rights
 status: draft
 ---
 A school is a building that trains an agent while it stays out of the field. You send an agent there from your deck, as you would a governor.
@@ -40,7 +42,7 @@ You cannot recall a student during a [[siege]].
 
 ## A student is easier to remove
 
-While a student is in class, its Protection and Determination are multiplied by {const:training_defense_factor}. Its card shows the cut value in orange, and the tooltip gives the base value. A student is never hidden, and an Erased in a school has no cover. An enemy Erased can remove a student. An enemy Siderian can win it over.
+While a student is in class, its Protection and Determination are cut. They are halved at a Delta Polytech. At a university they fall to 40% at building level 1, and 10 points more per level up to 80%. Its card shows the cut value in orange, and the tooltip gives the base value. A student is never hidden, and an Erased in a school has no cover. An enemy Erased can remove a student. An enemy Siderian can win it over.
 
 ## Losing a seat
 
@@ -50,7 +52,9 @@ No agent can be sent to a school during a [[siege]].
 
 ## The queue
 
-When a school has no free seat, one agent can wait behind each student. Hover a student to see the place above its seat.
+When a university has no free seat, one agent can wait behind each student. Hover a student to see the place above its seat. A Delta Polytech has no queue.
+
+You can have one agent in each university building, studying or waiting.
 
 - The agent stays in your deck. It takes no other duty while it waits.
 - It still counts toward your [[agent-limits|agent limit]].

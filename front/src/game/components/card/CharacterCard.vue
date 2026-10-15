@@ -82,7 +82,7 @@
           :class="{ 'is-clickable': canReallocate, 'is-open': reallocating }"
           @click.stop="toggleReallocation">
           <template v-if="reallocating">
-            {{ $t('card.character.reallocation_progress', { moved: reallocationMoved, total: reallocationsHeld }) }}
+            {{ $t('card.character.reallocation_progress', { moved: reallocationSpent, total: reallocationsHeld }) }}
           </template>
           <template v-else>
             {{ $tc('card.character.reallocations', reallocationsHeld, { count: reallocationsHeld }) }}
@@ -458,7 +458,8 @@ import viewport from '@/utils/viewport';
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
 import { formatCountdown } from '@/game/clock';
 import {
-  fee, inClass, reallocationProblem, schoolBuilding, seatWait, settling, trainingStatus, xpFactor,
+  defenseFactor, fee, inClass, reallocationCost, reallocationProblem, schoolBuilding, seatWait, settling,
+  trainingStatus, xpFactor,
 } from '@/game/training';
 
 export default {
@@ -564,15 +565,15 @@ export default {
     reallocating() { return this.draftSkills !== null; },
     shownSkills() { return this.draftSkills || this.character.skills; },
     mainSkillIndex() { return this.data.specializations.findIndex((s) => s.key === this.character.specialization); },
-    reallocationMoved() {
+    // rewires the draft spends: one per point moved, two per point added
+    reallocationSpent() {
       if (!this.draftSkills) return 0;
-      return this.draftSkills.reduce((sum, value, i) => sum + Math.max(value - this.character.skills[i], 0), 0);
+      return reallocationCost(this.character.skills, this.draftSkills);
     },
-    // points taken that are not placed yet
-    reallocationPool() {
+    // points taken off skills, placed or not
+    reallocationTaken() {
       if (!this.draftSkills) return 0;
-      const total = (list) => list.reduce((sum, value) => sum + value, 0);
-      return total(this.character.skills) - total(this.draftSkills);
+      return this.draftSkills.reduce((sum, value, i) => sum + Math.max(this.character.skills[i] - value, 0), 0);
     },
     reallocationProblem() {
       if (!this.draftSkills) return null;
@@ -673,7 +674,7 @@ export default {
     // that filter prints for a visible stat.
     effective(value) {
       if (!this.isInClass || typeof value !== 'number') return value;
-      return Math.trunc(value * this.constant.training_defense_factor);
+      return Math.trunc(value * defenseFactor(this.character.training, this.constant));
     },
     // What the ribbon of a student leaves unsaid: settling in earns nothing
     // yet (and until when), and what the course costs.
@@ -715,7 +716,7 @@ export default {
       return this.$t('card.character.training_defense', {
         stat: label,
         base: this.$options.filters.integer(base),
-        percent: Math.round((1 - this.constant.training_defense_factor) * 100),
+        percent: Math.round((1 - defenseFactor(this.character.training, this.constant)) * 100),
       });
     },
     skillName(i) { return this.$t(`data.character.${this.character.type}.skills[${i}].name`); },
@@ -723,15 +724,24 @@ export default {
       if (!this.canReallocate) return;
       this.draftSkills = this.reallocating ? null : [...this.character.skills];
     },
-    // a point comes off a skill before it goes onto another
+    // A point comes off a skill while a rewire is left to place it: every
+    // point taken has to go onto another skill, for one rewire.
     canTake(i) {
-      return this.draftSkills[i] > 0
-        && (this.draftSkills[i] > this.character.skills[i]
-          || this.reallocationMoved + this.reallocationPool < this.reallocationsHeld);
+      if (this.draftSkills[i] <= 0) return false;
+      // taking back a point that was given
+      if (this.draftSkills[i] > this.character.skills[i]) return true;
+      return this.reallocationTaken < this.reallocationsHeld;
     },
+    // A point goes onto a skill while the rewires pay for it: one when a
+    // point taken is waiting to be placed, two when it is added outright.
     canGive(i) {
-      if (this.reallocationPool <= 0 || this.draftSkills[i] >= 12) return false;
-      // giving back a point that was taken is always fine
+      if (this.draftSkills[i] >= 12) return false;
+
+      const draft = [...this.draftSkills];
+      draft[i] += 1;
+      if (reallocationCost(this.character.skills, draft) > this.reallocationsHeld) return false;
+
+      // giving back a point that was taken passes any limit
       if (this.draftSkills[i] < this.character.skills[i]) return true;
       return i === this.mainSkillIndex || this.draftSkills[i] < this.draftSkills[this.mainSkillIndex];
     },

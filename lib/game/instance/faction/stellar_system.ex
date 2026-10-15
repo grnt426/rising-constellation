@@ -50,6 +50,11 @@ defmodule Instance.Faction.StellarSystem do
     field(:corvette_lvl, %Core.Value{})
     field(:frigate_lvl, %Core.Value{})
     field(:capital_lvl, %Core.Value{})
+    # what the system's buildings give its students (StellarSystem.School,
+    # "Conditions")
+    field(:training_xp, %Core.Value{} | nil)
+    field(:reallocation_time, %Core.Value{} | nil)
+    field(:training_cost, %Core.Value{} | nil)
     field(:siege, atom() | nil)
     field(:station, %StellarSystem.Station{} | nil)
     field(:contact, %Core.Value{})
@@ -81,6 +86,9 @@ defmodule Instance.Faction.StellarSystem do
         :corvette_lvl,
         :frigate_lvl,
         :capital_lvl,
+        :training_xp,
+        :reallocation_time,
+        :training_cost,
         # station rides only full visibility (own faction) for v1 —
         # scouting foreign stations is a later design pass
         :station

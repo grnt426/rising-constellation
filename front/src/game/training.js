@@ -3,9 +3,11 @@
 // Instance.Character.Training, read-only here.
 
 import { liveElapsed, UNIT_MS } from '@/game/clock';
+import format from '@/utils/format';
 
-// The building that hosts each school. The Polytech takes every agent
-// type; a university takes the agents of its own type.
+// The building that hosts each school. The Polytech (basic training)
+// takes every agent type; a university (specialized training) takes the
+// agents of its own type.
 export const SCHOOL_BUILDINGS = {
   polytech: 'university_open',
   admiral: 'military_school_dome',
@@ -13,11 +15,63 @@ export const SCHOOL_BUILDINGS = {
   speaker: 'monument_dome',
 };
 
+// One seat per building for its owner's agents, the governor's rate, and
+// no queue.
+export const PASSIVE_SCHOOLS = ['polytech'];
+
+// Mirrors Training.seats/2: the places a university building gives at
+// `level`, one at levels 1 and 2, two at 3 and 4, three at 5.
+export function universitySeats(level) {
+  if (level >= 5) return 3;
+  if (level >= 3) return 2;
+  return 1;
+}
+
+// Mirrors Training.defense_factor/2: the share of its own Protection and
+// Determination a student in class keeps. At a university it follows the
+// building's level, 40% at level 1 to 80% at level 5; at a Polytech it is
+// `training_defense_factor`, a half.
+export function defenseFactor(training, constant) {
+  const level = training && training.school === 'university' ? training.school_level : null;
+  if (typeof level === 'number') return [0.4, 0.5, 0.6, 0.7, 0.8][Math.min(Math.max(level, 1), 5) - 1];
+  return constant.training_defense_factor;
+}
+
+// A training bonus as the cards print it, signed, with the decimals it has
+// (three at most): "+3.75", "−1.875", "0". The caller adds the "%".
+export function bonusNumber(value) {
+  if (!value) return '0';
+  return format.mixed(value, 3, true).replace(/([.,]\d*?)0+$/, '$1').replace(/[.,]$/, '');
+}
+
+export function isPassive(school) { return PASSIVE_SCHOOLS.includes(school); }
+
 const FEE_RESOURCES = { admiral: 'technology', spy: 'credit', speaker: 'ideology' };
 
 export function schoolBuilding(character) {
   if (!character.training) return null;
-  return character.training.school === 'polytech' ? SCHOOL_BUILDINGS.polytech : SCHOOL_BUILDINGS[character.type];
+  const { school } = character.training;
+  return isPassive(school) ? SCHOOL_BUILDINGS[school] : SCHOOL_BUILDINGS[character.type];
+}
+
+// What the buildings of its system give a course (Training, "Conditions"):
+// a percent of experience, a multiplier on the time a rewire takes, one on
+// its fee, and the level of its university. A map from before they existed
+// carries none.
+export function conditions(training) {
+  const read = (key, fallback) => (training && typeof training[key] === 'number' ? training[key] : fallback);
+
+  return {
+    xpBonus: read('xp_bonus', 0),
+    timeFactor: read('time_factor', 1),
+    costFactor: read('cost_factor', 1),
+    schoolLevel: read('school_level', 0),
+  };
+}
+
+// Ticks a rewire takes under the conditions of `training`.
+export function reallocationInterval(training, constant) {
+  return constant.university_reallocation_interval * conditions(training).timeFactor;
 }
 
 // Settling in or on its course: the agent holds a seat, pays its fee and
@@ -34,7 +88,21 @@ export function inClass(training) {
 export function settling(training, constant, time, speedFactor, wallNow = Date.now()) {
   if (!training || training.school !== 'university' || training.phase !== 'settling') return null;
 
-  const total = constant.university_settle_time;
+  return phaseProgress(training, constant.university_settle_time, time, speedFactor, wallNow);
+}
+
+// A university student on its course, as it stands right now in the rewire
+// it is earning: the same reading as `settling`, over the time a rewire
+// takes in its system. `elapsed` starts again at each rewire earned. null
+// for anyone who is not on a course.
+export function earning(training, constant, time, speedFactor, wallNow = Date.now()) {
+  if (!training || training.school !== 'university' || training.phase !== 'active') return null;
+
+  return phaseProgress(training, reallocationInterval(training, constant), time, speedFactor, wallNow);
+}
+
+// how far `training.elapsed` stands in a phase of `total` ticks right now
+function phaseProgress(training, total, time, speedFactor, wallNow) {
   const elapsed = Math.min(liveElapsed(training.elapsed, training.at, time, speedFactor, wallNow), total);
   const remaining = Math.max(total - elapsed, 0);
 
@@ -47,19 +115,25 @@ export function settling(training, constant, time, speedFactor, wallNow = Date.n
   };
 }
 
-// Multiplier on the governor's passive experience rate.
+// Multiplier on the governor's passive experience rate: the school's own,
+// raised by what the buildings of the system add.
 export function xpFactor(training, constant) {
   if (!training || training.phase !== 'active') return 0;
-  return training.school === 'polytech' ? constant.polytech_xp_factor : constant.university_xp_factor;
+  const base = training.school === 'university' ? constant.university_xp_factor : constant.polytech_xp_factor;
+  return base * (1 + (conditions(training).xpBonus / 100));
 }
 
-// { resource, amount } per tick, or null when the agent pays nothing.
+// { resource, amount } per tick, or null when the agent pays nothing: one
+// rate per level of the agent and per level of its university, less what
+// the Holodomes of the system take off.
 export function fee(character, constant) {
   const { training } = character;
   if (!training || training.school !== 'university' || !inClass(training)) return null;
 
   const resource = FEE_RESOURCES[character.type];
-  return { resource, amount: constant[`university_fee_${resource}`] * character.level };
+  const { schoolLevel, costFactor } = conditions(training);
+  const levels = (character.level + schoolLevel) * costFactor;
+  return { resource, amount: constant[`university_fee_${resource}`] * levels };
 }
 
 // One line saying where a student stands, for tooltips and cards.
@@ -67,7 +141,7 @@ export function trainingStatus(vm, character) {
   const { training } = character;
   if (!training) return '';
 
-  if (training.school === 'polytech') return vm.$t('galaxy.school.status_polytech');
+  if (isPassive(training.school)) return vm.$t('galaxy.school.status_polytech');
   if (training.phase === 'settling') return vm.$t('galaxy.school.status_settling');
   if (training.phase === 'active') return vm.$t('galaxy.school.status_active');
 
@@ -90,16 +164,27 @@ export function seatWait(queue, receivedAt, tickToMilisecondFactor, now = Date.n
   return { until, minutes, hours: Math.round(minutes / 60) };
 }
 
+// Mirrors Training.reallocation_cost/2: the rewires it takes to turn
+// `skills` into `draft`. One per point moved from a skill to another, two
+// per point added outright; points gained are paired with the points taken
+// first.
+export function reallocationCost(skills, draft) {
+  const deltas = draft.map((value, i) => value - skills[i]);
+  const gained = deltas.filter((delta) => delta > 0).reduce((sum, delta) => sum + delta, 0);
+  const taken = -deltas.filter((delta) => delta < 0).reduce((sum, delta) => sum + delta, 0);
+
+  return gained + Math.max(gained - taken, 0);
+}
+
 // Mirrors Training.check_reallocation/5: null when `draft` is a legal
 // reallocation of `skills`, otherwise the reason it is not.
 export function reallocationProblem(skills, draft, mainIndex, held, maxSkill = 12) {
-  const raised = draft.map((value, i) => value - skills[i]).filter((delta) => delta > 0);
-  const moved = raised.reduce((sum, delta) => sum + delta, 0);
   const total = (list) => list.reduce((sum, value) => sum + value, 0);
 
-  if (total(draft) !== total(skills)) return 'unplaced';
-  if (moved === 0) return 'nothing';
-  if (moved > held) return 'short';
+  // a point taken has to be placed
+  if (total(draft) < total(skills)) return 'unplaced';
+  if (!draft.some((value, i) => value > skills[i])) return 'nothing';
+  if (reallocationCost(skills, draft) > held) return 'short';
   if (draft.some((value, i) => value > skills[i] && value > maxSkill)) return 'maximum';
   if (draft.some((value, i) => value > skills[i] && i !== mainIndex && value > draft[mainIndex])) return 'main';
 
