@@ -56,7 +56,7 @@
         :key="`${character.id}-${action.name}-overview`"
         class="actions">
         <action-overview
-          v-if="action.overview && hoveredAction === `${character.id}-${action.name}`"
+          v-if="!previewRight && action.overview && hoveredAction === `${character.id}-${action.name}`"
           class="is-top-shifted"
           :theme="theme"
           :name="hoveredAction"
@@ -83,6 +83,20 @@
         </div>
       </div>
     </div>
+
+    <!-- the hovered action's success preview, opened right of the icon
+         when the left side is taken (see utils/agent-fan.js) -->
+    <div
+      v-if="previewRight && hoveredOverview"
+      class="toolbox-actions is-preview-right">
+      <div class="actions">
+        <action-overview
+          class="is-top-shifted"
+          :theme="theme"
+          :name="hoveredAction"
+          :data="hoveredOverview" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -99,6 +113,7 @@ export default {
     isBesieger: Boolean,
     small: Boolean,
     flipped: Boolean,
+    previewRight: Boolean,
   },
   data() {
     return {
@@ -110,6 +125,10 @@ export default {
     selectedCharacter() { return this.$store.state.game.selectedCharacter; },
     isOwn() { return this.character.owner.id === this.player.id; },
     isSelected() { return this.selectedCharacter && this.selectedCharacter.id === this.character.id; },
+    hoveredOverview() {
+      const action = this.actions.find((a) => this.hoveredAction === `${this.character.id}-${a.name}`);
+      return action ? action.overview : null;
+    },
   },
   methods: {
     statValue(value) {

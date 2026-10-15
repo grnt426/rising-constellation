@@ -199,6 +199,25 @@ test('the grid keeps to the first area it fits in, else takes the last', () => {
   assert.ok(inside(big, whole), 'fifteen members fall back to the whole view');
 });
 
+test('success previews that would open under the left panel open right instead', () => {
+  // 1440×900: the system info panel and its tab strip cover the view's
+  // left 312px
+  const view = VIEWS[0];
+  const origin = originOf(view, -6.75);
+  const free = { left: 312, top: 0, right: view.width, bottom: view.height };
+  const { cells } = unfurlLayout(squad(15, 2), { angle: -6.75, origin, areas: [free, areaOf(view)] });
+
+  cells.forEach((c) => {
+    const opensLeftAt = origin.x + c.x + badgeLeft(2) - 212;
+    assert.equal(c.previewRight, opensLeftAt < free.left, `column ${c.col}`);
+  });
+  assert.ok(cells.filter((c) => c.col === 0).every((c) => !c.previewRight), 'nearest column opens left');
+  assert.ok(cells.filter((c) => c.col === 2).every((c) => c.previewRight), 'farthest column opens right');
+
+  // nothing to dodge without a measured view
+  assert.ok(unfurlLayout(squad(15, 2), { angle: 0 }).cells.every((c) => !c.previewRight));
+});
+
 test('without a measured view it still lays out, unclamped', () => {
   const { cells, tray } = unfurlLayout(squad(12, 2), { angle: 20 });
   assert.equal(cells.length, 12);

@@ -328,6 +328,14 @@
   .round-icon.is-big ~ .toolbox-actions { right: 32px; }
   .round-icon.is-small ~ .toolbox-actions { right: 20px; }
 
+  // an action's success preview opened on the icon's right side (unfurled
+  // squadron members whose left side runs under the system info panel):
+  // same vertical placement as the button row, mirrored past the icon
+  .toolbox-actions.is-preview-right {
+    right: auto;
+    left: 25px;
+  }
+
   .action-label {
     position: absolute;
     display: flex;
@@ -491,6 +499,13 @@
     .fan-member {
       position: absolute;
       width: 0; height: 0;
+
+      // the hovered member's success preview and hover card open over
+      // its neighbours in the grid; without this, members later in the
+      // DOM paint their icons and buttons on top of them
+      &:hover {
+        z-index: 2;
+      }
 
       .agent-badge {
         animation: unfurl 140ms ease-out backwards;

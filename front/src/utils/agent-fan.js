@@ -31,6 +31,11 @@ const PREFERRED_ROWS = 5;
 const MARGIN = 8;
 // room the hover card needs above an icon center; with less, it opens below
 const CARD_ROOM = 100;
+// An action's success preview (ActionOverview, 200px plus its 20px
+// margin) opens to the left of the badge's buttons and reaches this far
+// past the leftmost one (the buttons themselves sit 8px right of their
+// slots).
+const PREVIEW_REACH = 212;
 // band (formation capsule) radius around an armada member's icon
 const BAND_RADIUS = 30;
 
@@ -99,7 +104,9 @@ function capacity(area, origin, x0, left, colPitch) {
 // grid isn't kept anywhere in particular.
 //
 // Returns, relative to the stack's center:
-//   cells: [{ x, y, col, row, flip }] (flip: open the hover card below)
+//   cells: [{ x, y, col, row, flip, previewRight }] (flip: open the
+//          hover card below; previewRight: open action success previews
+//          right of the icon)
 //   tray:  { left, top, width, height }, the grid's backdrop
 export function unfurlLayout(members, { angle = 0, origin = null, areas = [] } = {}) {
   const count = members.length;
@@ -160,11 +167,15 @@ export function unfurlLayout(members, { angle = 0, origin = null, areas = [] } =
     if (top < area.top + MARGIN) dy += area.top + MARGIN - top;
   }
 
-  cells.forEach((cell) => {
+  cells.forEach((cell, index) => {
     cell.y += dy;
     cell.flip = origin
       ? origin.y + cell.y < CARD_ROOM
       : angle < -30;
+    // a preview that would open under the panel left of the first area
+    // opens right of the icon instead, over the grid's nearer columns
+    cell.previewRight = !!origin && areas.length > 0
+      && origin.x + cell.x + badgeLeft(members[index].actions || 0) - PREVIEW_REACH < areas[0].left;
   });
 
   // The tray backs the grid and tucks just under the stack's icon. It
