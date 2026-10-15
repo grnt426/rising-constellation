@@ -23,11 +23,9 @@ A university course trains an agent of one type for a fee. It gives experience a
 - Navarchs study at an [[building/military_school_dome]]. They pay {rate:university_fee_technology|technology} for each of their levels and each level of the building.
 - Erased study at an [[building/counterintelligence_open]]. They pay {rate:university_fee_credit|credits} for each of their levels and each level of the building.
 
-Each level of the building gives one seat. In a Flash game every building has one level, so a university has one seat.
+A building gives one place at levels 1 and 2, two at levels 3 and 4, and three at level 5. In a Flash game every building has one level, so a university has one place.
 
-You can seat one agent in each university building, whatever its level. This holds in your own systems too. The other seats are for the other players of your faction.
-
-Your next agent can wait in the [[school-queue|queue]] behind your own student. It takes the seat when the student leaves.
+You can have one agent in each university building, studying or waiting in its [[school-queue|queue]]. This holds in your own systems too. The other places are for the other players of your faction.
 
 A university takes agents of level {const:university_min_level} or higher. This holds for your own agents too. A lower agent can train at a [[polytech-training|Delta Polytech]] first.
 
@@ -35,12 +33,14 @@ A university takes agents of level {const:university_min_level} or higher. This 
 
 1. The student settles in for {duration:university_settle_time}. It pays the fee and gains nothing yet. A ring fills around its seat during that time, and its card gives the time left.
 2. Then it gains experience {const:university_xp_factor} times as fast as a governor.
-3. Every {duration:university_reallocation_interval} on the course gives one neural rewire. A [[building/ideo_open]] in the system shortens that time, and a [[building/university_open]] adds to the experience. See [[training-bonuses]].
+3. Every {duration:university_reallocation_interval} on the course gives one neural rewire. A [[building/university_open]] in the system shortens that time, and a [[building/research_orbital]] adds to the experience. See [[training-bonuses]].
 4. The course ends when the agent holds {const:university_max_reallocations} rewires. The agent goes back to your deck at once.
 
 {shot:student-card#status,defence,recall|A student's card: its school and stage (1), its cut Protection and Determination (2) and the Recall button (3).}
 
 The agent comes home by itself, even during a [[siege]]. Its seat goes to the agent waiting behind it in the [[school-queue|queue]], if there is one.
+
+While it studies, its Protection and Determination fall to 40% of their value at a building of level 1. Each level adds 10 points, up to 80% at level 5.
 
 You can recall a student before the end of its course, except during a siege. It keeps the rewires it earned so far.
 
@@ -54,16 +54,16 @@ An agent can take as many courses as you like. It must first spend or discard ev
 
 The fee is part of your income, like a salary. It counts the level of the agent and the level of the building, so it rises when either gains a level.
 
-    a level 10 Siderian in a Monolith of level 5: (10 + 5) × {rate:university_fee_ideology|ideology} = {rate:45|ideology}
+    a level 10 Siderian in a Monolith of level 5: (10 + 5) × {rate:university_fee_ideology|ideology} = {rate:30|ideology}
 
 In a system with several buildings of the same university, the highest level counts for all its students.
 
-Each level of a [[building/ideo_dome]] in the system takes 4% off the fee. See [[training-bonuses]].
+The [[building/ideo_dome|Holodomes]] of the system take part of the fee off, up to 80%. The salary is paid on top and never discounted. See [[training-bonuses]].
 
 If your stock of that resource is empty and still falling, the course stops. The student goes back to your deck with the rewires it earned.
 
 ## Faction-mates
 
-A player of your faction can send an agent to your university, under the same level rule as yours. Your whole faction shares the seats of the university, one seat for each player in each building. Each player pays the fee of their own agents.
+A player of your faction can send an agent to your university, under the same level rule as yours. Your whole faction shares the places of the university, one agent for each player in each building. Each player pays the fee of their own agents.
 
 As the owner you can send any student home. See [[agent-training]].

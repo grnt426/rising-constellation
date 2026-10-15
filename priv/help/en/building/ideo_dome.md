@@ -3,7 +3,6 @@ kind: catalog
 status: draft
 sources:
   - lib/data/game/content/building-slow.ex
-  - lib/game/instance/character/training.ex
   - lib/game/instance/stellar_system/school.ex
 ---
-Besides its ideology, it gives its owner one training seat for an agent, whatever its level. Each of its levels also lowers the fee of the university courses of its system. See [[polytech-training]].
+Besides its ideology, each of its levels lowers the fee of the university courses of its system. See [[training-bonuses]].
