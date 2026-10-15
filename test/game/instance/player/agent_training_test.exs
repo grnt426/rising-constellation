@@ -299,7 +299,7 @@ defmodule Player.AgentTrainingTest do
         # seated under the conditions of the day: nothing helps yet, and the
         # Orb-INTEL is of level 1
         conditions = fn -> Instance.Character.Training.conditions(live(iid, erased.id).training) end
-        assert conditions.() == %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0, school_level: 1}
+        assert conditions.() == %{xp_bonus: 0.0, time_bonus: 0.0, cost_bonus: 0.0, school_level: 1}
 
         # in class at a university of level 1, it defends itself with 40% of its own
         [listed] = system_state(iid, home).students
@@ -307,11 +307,11 @@ defmodule Player.AgentTrainingTest do
 
         # a Delta Polytech of level 1 takes 0.75% off the time a rewire takes
         {body_uid, polytech_tile} = put_building(iid, home, :university_open, 1)
-        wait_until("the student knows of the Polytech", fn -> conditions.().time_factor == 0.9925 end)
+        wait_until("the student knows of the Polytech", fn -> conditions.().time_bonus == -0.75 end)
 
         # its owner's copy and its system's follow: the fee and the seat's ring are read there
         wait_until("the copies follow", fn ->
-          on_roster(player_state(iid, pid), erased.id).training.time_factor == 0.9925 and
+          on_roster(player_state(iid, pid), erased.id).training.time_bonus == -0.75 and
             Instance.StellarSystem.School.outdated(system_state(iid, home)) == []
         end)
 
@@ -334,7 +334,63 @@ defmodule Player.AgentTrainingTest do
                    {:dev_put_building, body_uid, polytech_tile, :university_open, 1, :damaged}
                  )
 
-        wait_until("the student knows the Polytech is damaged", fn -> conditions.().time_factor == 1.0 end)
+        wait_until("the student knows the Polytech is damaged", fn -> conditions.().time_bonus == 0.0 end)
+      end)
+    end
+
+    test "a system restored from a snapshot taken before the bonuses fills them in when it starts",
+         %{conn: conn, user1: account} do
+      with_empire(conn, account, fn %{iid: iid, pid: pid, home: home} ->
+        erased = hire(iid, pid, :spy, level: 5)
+        put_building(iid, home, :counterintelligence_open, 1)
+        put_building(iid, home, :university_open, 1)
+        assert :ok == Game.call(iid, :player, pid, {:enroll_character, erased.id, :university, home})
+
+        # What a snapshot from before the bonuses holds: no training values in
+        # the system, and a student whose course carries no conditions
+        conditions = [:xp_bonus, :time_bonus, :cost_bonus, :school_level]
+        strip = fn training -> Map.drop(training, conditions) end
+
+        {:ok, system_pid} = Game.get_pid({iid, :stellar_system, home})
+
+        :sys.replace_state(system_pid, fn state ->
+          data =
+            state.data
+            |> Map.drop([:training_xp, :reallocation_time, :training_cost])
+            |> Map.update!(:students, fn students -> Enum.map(students, &%{&1 | training: strip.(&1.training)}) end)
+
+          %{state | data: data}
+        end)
+
+        {:ok, character_pid} = Game.get_pid({iid, :character, erased.id})
+        :sys.replace_state(character_pid, fn state -> %{state | data: Map.update!(state.data, :training, strip)} end)
+
+        read = fn -> Instance.Character.Training.conditions(live(iid, erased.id).training) end
+        assert read.().school_level == nil
+        refute Map.has_key?(system_state(iid, home), :training_xp)
+
+        # the instance starts the system again (a boot after the deploy)
+        pauses = :sys.get_state(system_pid).tick.cumulated_pauses
+        assert :ok == Game.call(iid, :stellar_system, home, {:start, pauses})
+
+        system = system_state(iid, home)
+        assert system.reallocation_time.value == -0.75
+        assert system.training_xp.value == 0
+
+        wait_until("the student knows its school again", fn ->
+          read.() == %{xp_bonus: 0.0, time_bonus: -0.75, cost_bonus: 0.0, school_level: 1}
+        end)
+
+        # and defends itself as a student of a level-1 university: 40% of its own
+        wait_until("the system lists it with its cut defence", fn ->
+          [listed] = system_state(iid, home).students
+          listed.protection == trunc(erased.protection * 0.4)
+        end)
+
+        # a second start finds nothing to do
+        before = system_state(iid, home)
+        assert :ok == Game.call(iid, :stellar_system, home, {:start, pauses})
+        assert system_state(iid, home).bodies == before.bodies
       end)
     end
 

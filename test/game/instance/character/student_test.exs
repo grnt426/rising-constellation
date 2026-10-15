@@ -53,7 +53,7 @@ defmodule Instance.Character.StudentTest do
   describe "the conditions of its system" do
     test "raise what a student earns, in every school", %{instance_id: instance_id} do
       plain = student(instance_id, :polytech)
-      {:ok, helped} = Character.set_training_conditions(plain, %{xp_bonus: 25.0, time_factor: 1.0, school_level: nil})
+      {:ok, helped} = Character.set_training_conditions(plain, %{xp_bonus: 25.0, time_bonus: 0.0, school_level: nil})
 
       {_, _, before} = tick(plain, 480)
       {_, _, later} = tick(helped, 480)
@@ -66,7 +66,7 @@ defmodule Instance.Character.StudentTest do
       {_, _, active} = tick(student(instance_id, :university), c.university_settle_time)
       assert Character.compute_next_tick_interval(active) <= c.university_reallocation_interval
 
-      conditions = %{xp_bonus: 0.0, time_factor: 0.5, school_level: 3}
+      conditions = %{xp_bonus: 0.0, time_bonus: -50.0, school_level: 3}
       {:ok, faster} = Character.set_training_conditions(active, conditions)
       assert faster.training.school_level == 3
       assert Training.next_event(faster.training, c) == c.university_reallocation_interval * 0.5

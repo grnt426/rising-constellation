@@ -603,16 +603,16 @@ defmodule Instance.StellarSystem.SchoolTest do
 
       assert School.conditions(system, :university, :speaker) == %{
                xp_bonus: 21.75,
-               time_factor: 0.8725,
-               cost_factor: 0.8125,
+               time_bonus: -12.75,
+               cost_bonus: -18.75,
                school_level: 4
              }
 
       # the same experience in a Polytech seat
       assert School.conditions(system, :polytech, :spy) == %{
                xp_bonus: 21.75,
-               time_factor: 0.8725,
-               cost_factor: 0.8125,
+               time_bonus: -12.75,
+               cost_bonus: -18.75,
                school_level: nil
              }
     end
@@ -622,26 +622,26 @@ defmodule Instance.StellarSystem.SchoolTest do
 
       assert School.conditions(bare, :university, :speaker) == %{
                xp_bonus: 0.0,
-               time_factor: 1.0,
-               cost_factor: 1.0,
+               time_bonus: 0.0,
+               cost_bonus: 0.0,
                school_level: 1
              }
 
       assert School.conditions(trained(bare, 0, 0), :university, :speaker) ==
-               %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0, school_level: 1}
+               %{xp_bonus: 0.0, time_bonus: 0.0, cost_bonus: 0.0, school_level: 1}
     end
 
     test "cut a fee by 80% at most, add up without a cap otherwise, and never make anything worse" do
       # six Holodomes of level 5: -90%, of which 80% apply
-      assert %{cost_factor: 0.2} = School.conditions(trained(system([]), 0.0, 0.0, -90.0), :polytech, :spy)
+      assert %{cost_bonus: -80.0} = School.conditions(trained(system([]), 0.0, 0.0, -90.0), :polytech, :spy)
       # five: -75%
-      assert %{cost_factor: 0.25} = School.conditions(trained(system([]), 0.0, 0.0, -75.0), :polytech, :spy)
+      assert %{cost_bonus: -75.0} = School.conditions(trained(system([]), 0.0, 0.0, -75.0), :polytech, :spy)
 
       # fifteen Experiment Stations and six Delta Polytechs of level 5
-      assert %{xp_bonus: 225.0, time_factor: 0.55} =
+      assert %{xp_bonus: 225.0, time_bonus: -45.0} =
                School.conditions(trained(system([]), 225.0, -45.0), :polytech, :spy)
 
-      assert %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0} =
+      assert %{xp_bonus: 0.0, time_bonus: 0.0, cost_bonus: 0.0} =
                School.conditions(trained(system([]), -5.0, 12.0, 30.0), :polytech, :spy)
     end
 
@@ -676,7 +676,7 @@ defmodule Instance.StellarSystem.SchoolTest do
 
       assert [
                {%{id: 2}, ^conditions},
-               {%{id: 4}, %{xp_bonus: 3.0, time_factor: 1.0, cost_factor: 1.0, school_level: nil}}
+               {%{id: 4}, %{xp_bonus: 3.0, time_bonus: 0.0, cost_bonus: 0.0, school_level: nil}}
              ] =
                School.outdated(seated)
 

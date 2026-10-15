@@ -123,11 +123,16 @@ of the final spec):
   Experiment Stations of level 5 give +225% experience (156 a day in a
   university), six Delta Polytechs of level 5 take 45% off the rewire time
   (13 h 12 a rewire).
-- The fee reduction is capped at 80% from all sources (`@min_cost_factor`
+- The fee reduction is capped at 80% from all sources (`@max_fee_cut`
   in `StellarSystem.School`): five Holodomes of level 5 take 75% off, a
   sixth brings it to the cap. The salary is never discounted. Experience
-  and rewire time have no cap; a floor of 1% on the rewire time
-  (`@min_time_factor`) is a guard no system reaches.
+  and rewire time have no cap; stopping the rewire-time cut at 99%
+  (`@max_time_cut`) is a guard no system reaches.
+- A student's conditions (below) are percentages, never multipliers: every float reaches
+  the client rounded to three decimals (`JasonUtils.encode`), so a rewire
+  time of 0.9925 arrived as 0.993 and read "−0.7%". Maps of the first
+  build carry `time_factor`/`cost_factor`; `Training.set_conditions/2`
+  drops them when the start refresh resyncs the student.
 - The experience bonus also raises basic training. Settling in and the
   salary are not affected by any building.
 - A damaged building gives nothing.
@@ -148,7 +153,7 @@ of the final spec):
 
 **How a student learns of it.** A student ticks by itself, hours apart, so
 its system hands it four numbers and they ride in its `training` map
-(`xp_bonus`, `time_factor`, `cost_factor`, `school_level`;
+(`xp_bonus`, `time_bonus`, `cost_bonus`, `school_level`;
 `Training.conditions/1` reads a map that carries none as no bonus):
 
 - At enrolment the system stamps them on its copy of the student
@@ -162,9 +167,15 @@ its system hands it four numbers and they ride in its `training` map
   update to its owner and its system. The system's copy then matches.
 - A rewire under way keeps its share done: `Training.set_conditions/2`
   scales `elapsed` with the time a rewire takes.
-- Students seated before this shipped run without bonus, pay on the level
-  of the agent alone and defend themselves at half, until the next
-  recompute in their system.
+- A system restored from a snapshot taken before these values existed
+  fills them in when the instance starts it: its `{:start, _}` handler
+  calls `StellarSystem.refresh_training/1`, which recomputes the bonuses
+  when a training value is missing or a student is out of date, and so
+  tells its students their conditions (`school_level` included, which their
+  defence reads). Without it, a quiet system showed the details page's
+  Agent Training section greyed out and its students kept half their
+  defence and no bonus until something else made it recompute (seen in
+  prod, i185, 2026-10-15). Any later start finds nothing to do.
 
 The client reads the same four numbers (`conditions` in
 `front/src/game/training.js`) for the rate on the card, the fee, the
@@ -444,9 +455,15 @@ Client:
   the icon of their school's building, their stage and the time left to
   settle in; a click opens their card. One toolbar button goes round three
   states: students listed, only students, students left out.
-- `galaxy/selection/TrainingQueue.vue`: the "actions" of a student, shown
-  beside its opened card: settling in, with a progress ring and the moment
-  it is over. Nothing once the course has started.
+- `galaxy/selection/TrainingQueue.vue`: the Training panel beside a
+  student's opened card. Settling in, with a progress ring and the moment
+  it is over, then what the course gives and costs and when: experience an
+  hour and a day, the next level (a skill point), the next neural rewire,
+  the next extra skill point (when the agent holds the next even number of
+  rewires, two of which add a point), its way home, the fee, the share of
+  its defence it keeps and the system's bonuses. `outlook` in
+  `training.js` carries the copy's experience and elapsed time forward
+  from `training.at`. The ring around the seat keeps to the rewires.
 
 ## Player manual
 

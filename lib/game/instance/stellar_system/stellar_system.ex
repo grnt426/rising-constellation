@@ -1083,6 +1083,25 @@ defmodule Instance.StellarSystem.StellarSystem do
     end
   end
 
+  @doc """
+  Recomputes the system's bonuses when agent training needs it: the system
+  was restored from a snapshot taken before `training_xp`,
+  `reallocation_time` and `training_cost` existed, or a student of it runs
+  under other conditions than its buildings give (StellarSystem.School.outdated/1),
+  which the recomputation then tells it (`sync_training/1`). Anything else
+  is left as it is.
+  """
+  def refresh_training(state) do
+    missing? = Enum.any?([:training_xp, :reallocation_time, :training_cost], fn key -> not Map.has_key?(state, key) end)
+
+    if missing? or StellarSystem.School.outdated(state) != [] do
+      {_change, _notifs, state} = compute_bonus({MapSet.new(), [], state})
+      state
+    else
+      state
+    end
+  end
+
   # Tells every student whose course still runs under other conditions than
   # the system's buildings now give (StellarSystem.School.outdated/1: an
   # Experiment Station, a Delta Polytech or a Holodome built, upgraded,

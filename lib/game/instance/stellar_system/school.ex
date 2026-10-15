@@ -341,11 +341,11 @@ defmodule Instance.StellarSystem.School do
 
   # The Holodomes of a system take at most 80% off the fee of a course. The
   # experience and the rewire time have no cap: a system only holds so
-  # many buildings. The floor on the rewire time is a guard, not a balance
-  # rule: six Delta Polytechs of level 5 take 45% off, and it would take a
-  # system of a hundred and thirty of them to reach it.
-  @min_cost_factor 0.2
-  @min_time_factor 0.01
+  # many buildings. The cut on the rewire time stops at 99% as a guard, not
+  # a balance rule: six Delta Polytechs of level 5 take 45% off, and it
+  # would take a system of a hundred and thirty of them to reach it.
+  @max_fee_cut 80.0
+  @max_time_cut 99.0
 
   @doc """
   The conditions a course of `school` runs under in this system right now,
@@ -361,14 +361,14 @@ defmodule Instance.StellarSystem.School do
   def conditions(system, school, type) do
     %{
       xp_bonus: Float.round(max(bonus(system, :training_xp), 0.0), 4),
-      time_factor: factor(bonus(system, :reallocation_time), @min_time_factor),
-      cost_factor: factor(bonus(system, :training_cost), @min_cost_factor),
+      time_bonus: cut(bonus(system, :reallocation_time), @max_time_cut),
+      cost_bonus: cut(bonus(system, :training_cost), @max_fee_cut),
       school_level: school_level(system, school, type)
     }
   end
 
-  # a percentage taken off (never added), as the multiplier it leaves
-  defp factor(percent, floor), do: Float.round(max(1 + min(percent, 0.0) / 100, floor), 4)
+  # a percentage taken off, never added, and never more than `max`
+  defp cut(percent, max), do: Float.round(max(min(percent, 0.0), -max), 4)
 
   @doc "The highest level among the buildings of a university, nil for any other school or with none standing."
   def school_level(system, :university, type) do

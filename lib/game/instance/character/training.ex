@@ -25,7 +25,7 @@ defmodule Instance.Character.Training do
         elapsed: ut spent in the current phase (since the last reallocation earned while :active),
         ended: nil | :completed | :unpaid,
         at: the action clock (`Instance.Time.Time.now/1`, ms) when `elapsed` was last measured, or nil,
-        xp_bonus, time_factor, cost_factor, school_level: the conditions of the system it sits in (see below)}
+        xp_bonus, time_bonus, cost_bonus, school_level: the conditions of the system it sits in (see below)}
 
   ## Conditions
 
@@ -38,12 +38,17 @@ defmodule Instance.Character.Training do
   and they ride in its `training`:
 
     * `xp_bonus` — percent added to the school's experience rate;
-    * `time_factor` — multiplier on `university_reallocation_interval`;
-    * `cost_factor` — multiplier on the fee;
+    * `time_bonus` — percent (zero or less) of `university_reallocation_interval`
+      a rewire takes off;
+    * `cost_bonus` — percent (zero or less) of the fee taken off;
     * `school_level` — the highest level among the buildings of its
       university, nil at a Polytech.
 
-  They postdate the first students: read them with `conditions/1`.
+  They postdate the first students: read them with `conditions/1`. They are
+  percentages, not multipliers: every float reaches the client rounded to
+  three decimals (JasonUtils), which -0.75 survives and 0.9925 does not.
+  Maps of the first build of these conditions carry `time_factor` and
+  `cost_factor` instead; `set_conditions/2` drops them.
 
   `elapsed` only moves when the student ticks, which is at its next event:
   hours apart. `at` is what lets a client holding a copy tell how far along
@@ -56,7 +61,7 @@ defmodule Instance.Character.Training do
   @passive_hosts %{polytech: :university_open}
   @university_hosts %{speaker: :monument_dome, spy: :counterintelligence_open, admiral: :military_school_dome}
 
-  @default_conditions %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0, school_level: nil}
+  @default_conditions %{xp_bonus: 0.0, time_bonus: 0.0, cost_bonus: 0.0, school_level: nil}
 
   # Protection and Determination of a university student, as a share of its
   # own, by the level of its university
@@ -119,26 +124,33 @@ defmodule Instance.Character.Training do
 
   @doc """
   Puts `training` under new `conditions` (a map with `xp_bonus`,
-  `time_factor`, `cost_factor` and `school_level`). A rewire being earned keeps the share
-  of it already done: `elapsed` is scaled with the time a rewire now takes.
+  `time_bonus`, `cost_bonus` and `school_level`). A rewire being earned
+  keeps the share of it already done: `elapsed` is scaled with the time a
+  rewire now takes.
   """
   def set_conditions(training, conditions) when is_map(training) do
     before = conditions(training)
     later = Map.merge(before, Map.take(conditions, Map.keys(@default_conditions)))
 
     training =
-      if training.school == :university and training.phase == :active and before.time_factor > 0,
-        do: %{training | elapsed: training.elapsed * later.time_factor / before.time_factor},
+      if training.school == :university and training.phase == :active and pace(before) > 0,
+        do: %{training | elapsed: training.elapsed * pace(later) / pace(before)},
         else: training
 
-    Map.merge(training, later)
+    training
+    |> Map.drop([:time_factor, :cost_factor])
+    |> Map.merge(later)
   end
 
   def set_conditions(training, _conditions), do: training
 
   @doc "Ut a rewire takes under the conditions of `training`."
   def reallocation_interval(training, constant),
-    do: constant.university_reallocation_interval * conditions(training).time_factor
+    do: constant.university_reallocation_interval * pace(conditions(training))
+
+  # the share of its base time a rewire takes, and of its base fee a course costs
+  defp pace(%{time_bonus: bonus}), do: 1 + bonus / 100
+  defp price(%{cost_bonus: bonus}), do: 1 + bonus / 100
 
   @doc "The action clock reading `elapsed` was measured at, nil when unknown."
   def anchored_at(training) when is_map(training), do: Map.get(training, :at)
@@ -186,11 +198,11 @@ defmodule Instance.Character.Training do
   or nil when it pays nothing (a Polytech, or a course that has ended).
   The standard salary is apart: it is never discounted. One rate per resource, paid once per level of the
   agent and once per level of its university, less what the Holodomes of
-  the system take off (`cost_factor`).
+  the system take off (`cost_bonus`).
   """
   def fee(type, level, %{school: :university} = training, constant) do
-    %{school_level: school_level, cost_factor: cost_factor} = conditions(training)
-    levels = (level + (school_level || 0)) * cost_factor
+    conditions = conditions(training)
+    levels = (level + (conditions.school_level || 0)) * price(conditions)
 
     if enrolled?(training) do
       case type do

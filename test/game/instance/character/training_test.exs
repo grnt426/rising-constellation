@@ -85,20 +85,28 @@ defmodule Instance.Character.TrainingTest do
     test "are none for a new course, and for a map from before they existed" do
       assert Training.conditions(Training.new(:university, @c)) == %{
                xp_bonus: 0.0,
-               time_factor: 1.0,
-               cost_factor: 1.0,
+               time_bonus: 0.0,
+               cost_bonus: 0.0,
                school_level: nil
              }
 
       old = %{school: :university, phase: :active, elapsed: 100.0, ended: nil}
-      assert Training.conditions(old) == %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0, school_level: nil}
+      assert Training.conditions(old) == %{xp_bonus: 0.0, time_bonus: 0.0, cost_bonus: 0.0, school_level: nil}
       assert Training.xp_factor(old, @c) == 2.0
       assert Training.reallocation_interval(old, @c) == 480
       assert Training.fee(:spy, 10, old, @c) == {:credit, 200}
     end
 
+    test "replace the multipliers a map of the first build carries" do
+      first = Map.merge(Training.new(:university, @c), %{time_factor: 0.9925, cost_factor: 0.8})
+      later = Training.set_conditions(first, %{time_bonus: -0.75, cost_bonus: -20.0, school_level: 1})
+
+      refute Map.has_key?(later, :time_factor) or Map.has_key?(later, :cost_factor)
+      assert Training.conditions(later) == %{xp_bonus: 0.0, time_bonus: -0.75, cost_bonus: -20.0, school_level: 1}
+    end
+
     test "add their percent to the experience of every school" do
-      conditions = %{xp_bonus: 15.0, time_factor: 1.0, school_level: nil}
+      conditions = %{xp_bonus: 15.0, time_bonus: 0.0, school_level: nil}
 
       for school <- [:polytech] do
         assert_in_delta Training.xp_factor(Training.set_conditions(Training.new(school, @c), conditions), @c),
@@ -116,7 +124,7 @@ defmodule Instance.Character.TrainingTest do
     test "shorten the time a rewire takes" do
       # a Citadel of level 5: -7.5%
       training =
-        Training.set_conditions(Training.new(:university, @c), %{xp_bonus: 0.0, time_factor: 0.925, school_level: 1})
+        Training.set_conditions(Training.new(:university, @c), %{xp_bonus: 0.0, time_bonus: -7.5, school_level: 1})
 
       assert Training.reallocation_interval(training, @c) == 444.0
       assert Training.time_left(training, 0, @c) == 80 + 5 * 444.0
@@ -136,16 +144,16 @@ defmodule Instance.Character.TrainingTest do
       {half, 0, _, _} = Training.advance(Training.new(:university, @c), 0, 80 + 240, @c)
       assert half.elapsed == 240.0
 
-      faster = Training.set_conditions(half, %{xp_bonus: 0.0, time_factor: 0.5, school_level: 1})
+      faster = Training.set_conditions(half, %{xp_bonus: 0.0, time_bonus: -50.0, school_level: 1})
       assert faster.elapsed == 120.0
       assert Training.next_event(faster, @c) == 120.0
 
       # and back
-      assert Training.set_conditions(faster, %{xp_bonus: 0.0, time_factor: 1.0, school_level: 1}).elapsed == 240.0
+      assert Training.set_conditions(faster, %{xp_bonus: 0.0, time_bonus: 0.0, school_level: 1}).elapsed == 240.0
 
       # a student that is settling in has no rewire under way
       settling = Training.new(:university, @c)
-      assert Training.set_conditions(settling, %{xp_bonus: 0.0, time_factor: 0.5, school_level: 1}).elapsed == 0.0
+      assert Training.set_conditions(settling, %{xp_bonus: 0.0, time_bonus: -50.0, school_level: 1}).elapsed == 0.0
     end
   end
 
@@ -214,14 +222,14 @@ defmodule Instance.Character.TrainingTest do
 
     test "charges per level of the agent and per level of its university, in the resource of the agent's type" do
       training =
-        Training.set_conditions(Training.new(:university, @c), %{xp_bonus: 0.0, time_factor: 1.0, school_level: 5})
+        Training.set_conditions(Training.new(:university, @c), %{xp_bonus: 0.0, time_bonus: 0.0, school_level: 5})
 
       # 2 * (level of agent + level of uni); 20 times that sum in credits
       assert Training.fee(:speaker, 10, training, @c) == {:ideology, 30}
       assert Training.fee(:admiral, 10, training, @c) == {:technology, 30}
       assert Training.fee(:spy, 10, training, @c) == {:credit, 300}
 
-      first = Training.set_conditions(training, %{xp_bonus: 0.0, time_factor: 1.0, school_level: 1})
+      first = Training.set_conditions(training, %{xp_bonus: 0.0, time_bonus: 0.0, school_level: 1})
       assert Training.fee(:spy, 5, first, @c) == {:credit, 120}
 
       assert Training.fee(:spy, 10, Training.finish(training, :unpaid), @c) == nil
@@ -230,7 +238,7 @@ defmodule Instance.Character.TrainingTest do
     test "charges less in a system whose Holodomes cut the fee" do
       # Holodomes of levels 5 and 2: -15% and -3.75%
       training =
-        Training.set_conditions(Training.new(:university, @c), %{cost_factor: 0.8125, school_level: 5})
+        Training.set_conditions(Training.new(:university, @c), %{cost_bonus: -18.75, school_level: 5})
 
       assert {:ideology, fee} = Training.fee(:speaker, 10, training, @c)
       assert_in_delta fee, 24.375, 1.0e-9

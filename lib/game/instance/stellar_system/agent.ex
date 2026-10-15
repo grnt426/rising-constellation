@@ -11,6 +11,16 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, {:ok, state.data}, state}
   end
 
+  # The instance starts this system (a boot, or a resume). A system restored
+  # from a snapshot taken before agent training's bonuses existed has no
+  # training values yet, and its students run under conditions it never
+  # gave them: it recomputes its bonuses once, which fills in both
+  # (StellarSystem.refresh_training/1). Any other start changes nothing.
+  def on_call({:start, cumulated_pauses}, _from, state) do
+    tick = Core.Tick.start(%{state.tick | cumulated_pauses: cumulated_pauses})
+    {:reply, :ok, %{state | tick: tick, data: StellarSystem.refresh_training(state.data)}}
+  end
+
   def on_call(:get_position, _from, state) do
     {:reply, {:ok, state.data.position}, state}
   end
