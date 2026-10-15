@@ -339,9 +339,9 @@ defmodule Instance.Character.Agent do
     {:reply, data, %{state | data: data}}
   end
 
-  # The buildings of the system a student sits in changed (a Polytech, a
-  # Citadel or a Holodome built, upgraded, damaged or lost, its university
-  # gone up a level): its course goes on under the new conditions
+  # The buildings of the system a student sits in changed (an Experiment
+  # Station, a Delta Polytech or a Holodome built, upgraded, damaged or
+  # lost, its university gone up a level): its course goes on under the new conditions
   # (StellarSystem.sync_training/1). The tick just before this body has
   # played the time spent under the old ones; `elapsed` is true as of now,
   # so the anchor is taken again, and the tick is armed for the new pace.

@@ -95,9 +95,9 @@ defmodule Data.Game.Constant.Content.Slow do
         university_settle_time: 80,
         university_reallocation_interval: 480,
         university_max_reallocations: 5,
-        university_fee_credit: 30,
-        university_fee_technology: 3,
-        university_fee_ideology: 3,
+        university_fee_credit: 20,
+        university_fee_technology: 2,
+        university_fee_ideology: 2,
         university_min_level: 5,
         training_defense_factor: 0.5
       }

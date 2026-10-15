@@ -1084,9 +1084,9 @@ defmodule Instance.StellarSystem.StellarSystem do
   end
 
   # Tells every student whose course still runs under other conditions than
-  # the system's buildings now give (StellarSystem.School.outdated/1: a
-  # Polytech, a Citadel or a Holodome built, upgraded, damaged or lost, a
-  # university gone up a level) what they have become. A student ticks by
+  # the system's buildings now give (StellarSystem.School.outdated/1: an
+  # Experiment Station, a Delta Polytech or a Holodome built, upgraded,
+  # damaged or lost, a university gone up a level) what they have become. A student ticks by
   # itself and answers with its usual {:update_character, ...}, which brings
   # the roster's copy up to date: until then it is told again at each pass,
   # which changes nothing the second time.

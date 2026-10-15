@@ -328,8 +328,9 @@ defmodule Instance.Character.Character do
   def reallocations(state) when is_map(state), do: Map.get(state, :reallocations, 0) || 0
 
   @doc """
-  Protection and Determination as an attacker meets them: cut by
-  `training_defense_factor` while the agent is in class.
+  Protection and Determination as an attacker meets them: cut while the
+  agent is in class, by `Training.defense_factor/2` (a half at a Polytech,
+  40% to 80% at a university by its level).
   """
   def effective_protection(%Character.Character{} = state), do: training_penalty(state, state.protection)
   def effective_determination(%Character.Character{} = state), do: training_penalty(state, state.determination)
@@ -337,7 +338,7 @@ defmodule Instance.Character.Character do
   defp training_penalty(%Character.Character{status: :student} = state, value) do
     if Training.penalized?(Map.get(state, :training)) do
       constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
-      Kernel.trunc(value * constant.training_defense_factor)
+      Kernel.trunc(value * Training.defense_factor(Map.get(state, :training), constant))
     else
       value
     end

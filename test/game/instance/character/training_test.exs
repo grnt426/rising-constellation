@@ -14,28 +14,28 @@ defmodule Instance.Character.TrainingTest do
     university_settle_time: 80,
     university_reallocation_interval: 480,
     university_max_reallocations: 5,
-    university_fee_credit: 30,
-    university_fee_technology: 3,
-    university_fee_ideology: 3
+    university_fee_credit: 20,
+    university_fee_technology: 2,
+    university_fee_ideology: 2,
+    training_defense_factor: 0.5
   }
 
   describe "host buildings" do
-    test "every agent type shares the Polytech, the Citadel and the Holodome, and has its own university" do
+    test "every agent type shares the Polytech and has its own university" do
       for type <- [:admiral, :spy, :speaker] do
         assert Training.host_building(:polytech, type) == :university_open
-        assert Training.host_building(:citadel, type) == :ideo_open
-        assert Training.host_building(:holodome, type) == :ideo_dome
       end
 
       assert Training.school_of(:university_open) == {:polytech, nil}
-      assert Training.school_of(:ideo_open) == {:citadel, nil}
       assert Training.school_of(:monument_dome) == {:university, :speaker}
-      assert Training.school_of(:ideo_dome) == {:holodome, nil}
+      # the Citadel and the Holodome seat nobody
+      assert Training.school_of(:ideo_open) == nil
+      assert Training.school_of(:ideo_dome) == nil
       assert Training.school_of(:infra_open) == nil
 
-      assert Enum.all?([:polytech, :citadel, :holodome], &Training.passive?/1)
+      assert Training.passive?(:polytech)
       refute Training.passive?(:university)
-      assert Training.schools() == [:polytech, :citadel, :holodome, :university]
+      assert Training.schools() == [:polytech, :university]
 
       assert Training.host_building(:university, :speaker) == :monument_dome
       assert Training.host_building(:university, :spy) == :counterintelligence_open
@@ -56,20 +56,28 @@ defmodule Instance.Character.TrainingTest do
     end
   end
 
-  describe "a Citadel or a Holodome" do
-    test "is a Polytech in all but its building: one seat, the governor's rate, no fee, no end" do
-      for school <- [:citadel, :holodome] do
-        training = Training.new(school, @c)
+  describe "places" do
+    test "a Polytech seats one agent whatever its level; a university one at levels 1 and 2, two at 3 and 4, three at 5" do
+      for level <- 1..5, do: assert(Training.seats(:polytech, level) == 1)
 
-        assert training.school == school
-        assert Training.seats(school, 5) == 1
-        assert Training.xp_factor(training, @c) == 1.0
-        assert Training.fee(:speaker, 10, training, @c) == nil
-        assert Training.next_event(training, @c) == :never
-        assert Training.time_left(training, 0, @c) == nil
+      assert Enum.map(1..5, &Training.seats(:university, &1)) == [1, 1, 2, 2, 3]
+    end
+  end
 
-        assert {^training, 0, 5_000, []} = Training.advance(training, 0, 5_000, @c)
-      end
+  describe "defence" do
+    test "a university student keeps 40% of its own at level 1, ten points more per level, 80% at level 5" do
+      factors =
+        for level <- 1..5 do
+          training = Training.set_conditions(Training.new(:university, @c), %{school_level: level})
+          Training.defense_factor(training, @c)
+        end
+
+      assert factors == [0.4, 0.5, 0.6, 0.7, 0.8]
+    end
+
+    test "a Polytech student keeps half, and so does a university student from before the level was known" do
+      assert Training.defense_factor(Training.new(:polytech, @c), @c) == 0.5
+      assert Training.defense_factor(%{school: :university, phase: :active, elapsed: 0.0, ended: nil}, @c) == 0.5
     end
   end
 
@@ -86,13 +94,13 @@ defmodule Instance.Character.TrainingTest do
       assert Training.conditions(old) == %{xp_bonus: 0.0, time_factor: 1.0, cost_factor: 1.0, school_level: nil}
       assert Training.xp_factor(old, @c) == 2.0
       assert Training.reallocation_interval(old, @c) == 480
-      assert Training.fee(:spy, 10, old, @c) == {:credit, 300}
+      assert Training.fee(:spy, 10, old, @c) == {:credit, 200}
     end
 
     test "add their percent to the experience of every school" do
       conditions = %{xp_bonus: 15.0, time_factor: 1.0, school_level: nil}
 
-      for school <- [:polytech, :citadel, :holodome] do
+      for school <- [:polytech] do
         assert_in_delta Training.xp_factor(Training.set_conditions(Training.new(school, @c), conditions), @c),
                         1.15,
                         1.0e-9
@@ -208,26 +216,26 @@ defmodule Instance.Character.TrainingTest do
       training =
         Training.set_conditions(Training.new(:university, @c), %{xp_bonus: 0.0, time_factor: 1.0, school_level: 5})
 
-      # 3 * level of agent + 3 * level of uni; 30 of each in credits
-      assert Training.fee(:speaker, 10, training, @c) == {:ideology, 45}
-      assert Training.fee(:admiral, 10, training, @c) == {:technology, 45}
-      assert Training.fee(:spy, 10, training, @c) == {:credit, 450}
+      # 2 * (level of agent + level of uni); 20 times that sum in credits
+      assert Training.fee(:speaker, 10, training, @c) == {:ideology, 30}
+      assert Training.fee(:admiral, 10, training, @c) == {:technology, 30}
+      assert Training.fee(:spy, 10, training, @c) == {:credit, 300}
 
       first = Training.set_conditions(training, %{xp_bonus: 0.0, time_factor: 1.0, school_level: 1})
-      assert Training.fee(:spy, 5, first, @c) == {:credit, 180}
+      assert Training.fee(:spy, 5, first, @c) == {:credit, 120}
 
       assert Training.fee(:spy, 10, Training.finish(training, :unpaid), @c) == nil
     end
 
     test "charges less in a system whose Holodomes cut the fee" do
-      # a Holodome of level 5: -20%
+      # Holodomes of levels 5 and 2: -15% and -3.75%
       training =
-        Training.set_conditions(Training.new(:university, @c), %{cost_factor: 0.8, school_level: 5})
+        Training.set_conditions(Training.new(:university, @c), %{cost_factor: 0.8125, school_level: 5})
 
       assert {:ideology, fee} = Training.fee(:speaker, 10, training, @c)
-      assert_in_delta fee, 36.0, 1.0e-9
+      assert_in_delta fee, 24.375, 1.0e-9
       assert {:credit, fee} = Training.fee(:spy, 10, training, @c)
-      assert_in_delta fee, 360.0, 1.0e-9
+      assert_in_delta fee, 243.75, 1.0e-9
 
       # nothing else changes with it
       assert Training.xp_factor(%{training | phase: :active}, @c) == 2.0

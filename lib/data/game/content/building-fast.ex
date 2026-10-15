@@ -217,7 +217,7 @@ defmodule Data.Game.Building.Content.Fast do
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_technology, type: :add, value: 4.0},
               %Core.Bonus{from: :body_pop, to: :sys_technology, type: :add, value: 0.6},
-              %Core.Bonus{from: :direct, to: :sys_training_xp, type: :add, value: 3.0}
+              %Core.Bonus{from: :direct, to: :sys_reallocation_time, type: :add, value: -0.75}
             ],
             credit: 3360,
             hide_patent?: false,
@@ -258,7 +258,10 @@ defmodule Data.Game.Building.Content.Fast do
         key: :research_orbital,
         levels: [
           %{
-            bonus: [%Core.Bonus{from: :body_tec, to: :sys_technology, type: :add, value: 3.0}],
+            bonus: [
+              %Core.Bonus{from: :body_tec, to: :sys_technology, type: :add, value: 3.0},
+              %Core.Bonus{from: :direct, to: :sys_training_xp, type: :add, value: 1.5}
+            ],
             credit: 6720,
             hide_patent?: false,
             level: 1,
@@ -280,8 +283,7 @@ defmodule Data.Game.Building.Content.Fast do
           %{
             bonus: [
               %Core.Bonus{from: :direct, to: :sys_ideology, type: :add, value: 4.0},
-              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.6},
-              %Core.Bonus{from: :direct, to: :sys_reallocation_time, type: :add, value: -1.5}
+              %Core.Bonus{from: :body_pop, to: :sys_ideology, type: :add, value: 0.6}
             ],
             credit: 3360,
             hide_patent?: false,

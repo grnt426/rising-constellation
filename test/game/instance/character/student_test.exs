@@ -196,15 +196,26 @@ defmodule Instance.Character.StudentTest do
   end
 
   describe "defence" do
-    test "protection and determination are halved in class", %{instance_id: instance_id} do
-      for school <- [:polytech, :university] do
-        character = student(instance_id, school)
+    test "protection and determination are halved at a Polytech", %{instance_id: instance_id} do
+      character = student(instance_id, :polytech)
 
-        assert Character.effective_protection(character) == 50
-        assert Character.effective_determination(character) == 30
-        # the agent's own values are untouched
-        assert character.protection == 101
-      end
+      assert Character.effective_protection(character) == 50
+      assert Character.effective_determination(character) == 30
+      # the agent's own values are untouched
+      assert character.protection == 101
+    end
+
+    test "at a university they fall to 40% at level 1, up to 80% at level 5", %{instance_id: instance_id} do
+      met =
+        for level <- 1..5 do
+          {:ok, character} =
+            Character.set_training_conditions(student(instance_id, :university), %{school_level: level})
+
+          {Character.effective_protection(character), Character.effective_determination(character)}
+        end
+
+      # 101 and 61, cut and truncated
+      assert met == [{40, 24}, {50, 30}, {60, 36}, {70, 42}, {80, 48}]
     end
 
     test "are whole again once the course is over, and for everyone else", %{instance_id: instance_id} do
