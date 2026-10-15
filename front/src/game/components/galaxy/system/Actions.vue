@@ -34,7 +34,10 @@
       </div>
     </div>
 
-    <div class="system-actions">
+    <div
+      ref="fan"
+      class="system-actions"
+      :class="{ 'is-unfurled': openedCluster !== null }">
       <!-- formation arcs: one band along the inner ring per own armada
            with 2+ members present. viewBox 0 0 100 100 with
            preserveAspectRatio none matches orbitStyle's percentage
@@ -111,6 +114,13 @@
           class="cluster"
           :class="`force-${slot.theme}`"
           @mouseenter="enterCluster(slot.key)">
+          <!-- the open squadron's backdrop, first so it sits under the
+               stack and every member -->
+          <div
+            v-if="openedCluster === slot.key && unfurl"
+            ref="tray"
+            class="cluster-tray"
+            :style="trayStyle"></div>
           <!-- a collapsed stack containing an armada wears the capsule -->
           <div
             v-if="slot.hasArmada"
@@ -130,16 +140,18 @@
             @click="clickCluster(slot.key)">
             ×{{ slot.entries.length }} · {{ slot.owner.name }}
           </div>
+          <!-- members unfurl into a grid of rows toward the system
+               center (utils/agent-fan.js) -->
           <div
-            v-if="openedCluster === slot.key"
+            v-if="openedCluster === slot.key && unfurl"
             class="cluster-fan">
             <!-- unfurled armada members get the same band, drawn in
-                 pixel space through their fanned positions -->
+                 pixel space around their column -->
             <svg
-              v-if="unfurlBands(slot).length > 0"
+              v-if="unfurl.bands.length > 0"
               class="armada-links-px">
               <path
-                v-for="band in unfurlBands(slot)"
+                v-for="band in unfurl.bands"
                 :key="band.key"
                 class="armada-band-shape"
                 :d="band.d" />
@@ -148,13 +160,13 @@
               v-for="(entry, mi) in slot.entries"
               :key="entry.character.id"
               class="fan-member"
-              :style="unfurlOffsets(slot.entries.length, slot.angle)[mi]">
+              :style="{ left: `${unfurl.cells[mi].x}px`, top: `${unfurl.cells[mi].y}px` }">
               <agent-badge
                 :character="entry.character"
                 :actions="entry.actions"
                 :theme="getTheme(entry.character.owner.faction)"
                 :system="system"
-                :flipped="slot.angle < -30"
+                :flipped="unfurl.cells[mi].flip"
                 @select="clickCharacter" />
             </div>
           </div>
@@ -189,6 +201,7 @@ import { TimelineLite, Expo } from 'gsap';
 import SystemOrdersMixin from '@/game/mixins/SystemOrdersMixin';
 import { canReportAgent, reportAgent } from '@/game/components/chat/reportSighting';
 import armadaUtil from '@/utils/armada';
+import { unfurlLayout, unfurlBandPaths } from '@/utils/agent-fan';
 
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
 import AgentBadge from '@/game/components/galaxy/system/AgentBadge.vue';
@@ -209,6 +222,10 @@ export default {
       openedCluster: null,
       clusterPinned: false,
       docListenersAttached: false,
+      // where the open squadron's stack sits in the visible part of the
+      // view and where its grid may go, measured when it opens:
+      // { origin, areas } in px (see measureFan)
+      fanView: null,
     };
   },
   computed: {
@@ -339,6 +356,39 @@ export default {
 
       return slots;
     },
+    // the open squadron's grid: member cells, the tray behind them and
+    // the formation bands, all relative to the stack
+    unfurl() {
+      const slot = this.outerSlots.find((s) => s.key === this.openedCluster);
+      if (!slot || slot.kind !== 'cluster') {
+        return null;
+      }
+
+      const members = slot.entries.map((entry) => ({
+        actions: entry.actions.length,
+        group: armadaUtil.groupId(entry.character),
+      }));
+      const { cells, tray } = unfurlLayout(members, {
+        angle: slot.angle,
+        origin: this.fanView ? this.fanView.origin : null,
+        areas: this.fanView ? this.fanView.areas : [],
+      });
+
+      return {
+        cells,
+        tray,
+        bands: unfurlBandPaths(armadaUtil.bands(slot.entries), cells),
+      };
+    },
+    trayStyle() {
+      const { tray } = this.unfurl;
+      return {
+        left: `${tray.left}px`,
+        top: `${tray.top}px`,
+        width: `${tray.width}px`,
+        height: `${tray.height}px`,
+      };
+    },
   },
   watch: {
     'system.id': function systemChanged() {
@@ -362,91 +412,63 @@ export default {
         top: `calc(50% + ${(Math.sin(rad) * radius).toFixed(2)}%)`,
       };
     },
-    // members fan out toward the system center; layers grow outward so any
-    // squadron size stays readable: ~7 in the first ring, ~10 in the second…
-    // The 112px first ring keeps members clear of the neighbouring slots'
-    // action buttons, which sit ~32px inward of the outer ring.
-    unfurlOffsets(count, slotAngle) {
-      const offsets = [];
-      let layer = 0;
-      let placed = 0;
+    // Where the grid may go, in px from the on-screen part of the view:
+    // preferably clear of the two panels that paint over the system view
+    // (the system's info on the left, the selected agent at the bottom
+    // right), else anywhere in the view. The stack's element is a 0x0
+    // anchor on its slot point.
+    measureFan(key) {
+      const refs = this.$refs[`cluster-${key}`];
+      const root = Array.isArray(refs) ? refs[0] : refs;
+      const view = this.$refs.fan;
+      if (!root || !view) {
+        this.fanView = null;
+        return;
+      }
 
-      while (placed < count) {
-        const r = 112 + (62 * layer);
-        const stepDeg = ((2 * Math.asin(27 / r)) * 180) / Math.PI;
-        const cap = Math.min(count - placed, Math.floor(170 / stepDeg) + 1);
+      const v = view.getBoundingClientRect();
+      const left = Math.max(v.left, 0);
+      const top = Math.max(v.top, 0);
+      const whole = {
+        left: 0,
+        top: 0,
+        right: Math.min(v.right, window.innerWidth) - left,
+        bottom: Math.min(v.bottom, window.innerHeight) - top,
+      };
+      const r = root.getBoundingClientRect();
+      const free = { ...whole };
 
-        for (let i = 0; i < cap; i += 1) {
-          const deg = slotAngle + 180 + (stepDeg * (i - ((cap - 1) / 2)));
-          const rad = (deg * Math.PI) / 180;
-          offsets.push({
-            left: `${(r * Math.cos(rad)).toFixed(1)}px`,
-            top: `${(r * Math.sin(rad)).toFixed(1)}px`,
-          });
+      const info = document.querySelector('.system-info');
+      if (info) {
+        const p = info.getBoundingClientRect();
+        if (p.width > 0 && p.right > left && p.left < r.left) {
+          free.left = Math.max(free.left, p.right - left);
         }
-
-        placed += cap;
-        layer += 1;
+      }
+      const selection = document.querySelector('.selection-view-container');
+      if (selection) {
+        const p = selection.getBoundingClientRect();
+        if (p.width > 0 && p.left < r.left && p.top > r.top + 25) {
+          free.bottom = Math.min(free.bottom, p.top - top);
+        }
       }
 
-      return offsets;
+      this.fanView = {
+        origin: { x: r.left - left, y: r.top - top },
+        areas: [free, whole],
+      };
     },
-    // pixel-space capsule around an unfurled armada's members: fanned
-    // members sit on rings around the cluster origin, so the band is
-    // the same arc construction as the own-agent ring. An armada (max
-    // 3) always fits the first unfurl layer, so one ring suffices;
-    // members are adjacent thanks to the slot's groupAdjacent order.
-    unfurlBands(slot) {
-      const offsets = this.unfurlOffsets(slot.entries.length, slot.angle);
-
-      return armadaUtil.bands(slot.entries).map((band) => {
-        const points = band.indexes.map((i) => ({
-          x: parseFloat(offsets[i].left),
-          y: parseFloat(offsets[i].top),
-        }));
-
-        const r = Math.hypot(points[0].x, points[0].y);
-        // unwrap around the first member — the unfurl faces the system
-        // center, which puts right-side slots on atan2's ±180° seam
-        const raw = points.map((pt) => (Math.atan2(pt.y, pt.x) * 180) / Math.PI);
-        const base = raw[0];
-        const angles = raw.map((a) => {
-          let d = a - base;
-          if (d > 180) d -= 360;
-          if (d < -180) d += 360;
-          return base + d;
-        });
-        const pad = (33 / r) * (180 / Math.PI);
-
-        return {
-          key: `${slot.key}-${band.groupId}`,
-          d: armadaUtil.capsulePath(
-            0, 0, r + 30, r - 30,
-            Math.min(...angles) - pad,
-            Math.max(...angles) + pad,
-          ),
-        };
-      });
-    },
-    unfurlMaxRadius(count) {
-      let layer = 0;
-      let placed = 0;
-
-      while (placed < count) {
-        const r = 112 + (62 * layer);
-        const stepDeg = ((2 * Math.asin(27 / r)) * 180) / Math.PI;
-        placed += Math.floor(170 / stepDeg) + 1;
-        layer += 1;
+    onResize() {
+      if (this.openedCluster) {
+        this.measureFan(this.openedCluster);
       }
-
-      return 112 + (62 * (layer - 1)) + 25;
     },
     // Hovering any top-level agent slot dismisses another slot's open fan
     // (even a pinned one — moving to a different agent is a deliberate shift
-    // of attention). Members of the open fan sit inside their cluster's own
-    // slot, so pointing at them never triggers this; and when an unfurled
-    // member covers a neighbouring badge, hit-testing gives the member the
-    // hover, so the fan doesn't close underneath it.
+    // of attention). Members of the open fan and its tray sit inside their
+    // cluster's own slot, so pointing at them never triggers this; and the
+    // tray takes the hover over any neighbouring badge it covers, so the
+    // fan doesn't close underneath it.
     enterSlot(key) {
       if (this.openedCluster && this.openedCluster !== key) {
         this.closeCluster();
@@ -454,16 +476,21 @@ export default {
     },
     enterCluster(key) {
       this.enterSlot(key);
-      this.openedCluster = key;
-      this.attachDocListeners();
+      this.openCluster(key);
     },
     clickCluster(key) {
       if (this.openedCluster === key && this.clusterPinned) {
         this.closeCluster();
         return;
       }
-      this.openedCluster = key;
+      this.openCluster(key);
       this.clusterPinned = true;
+    },
+    openCluster(key) {
+      if (this.openedCluster !== key) {
+        this.measureFan(key);
+      }
+      this.openedCluster = key;
       this.attachDocListeners();
     },
     closeCluster() {
@@ -475,23 +502,32 @@ export default {
       const refs = this.$refs[`cluster-${this.openedCluster}`];
       return Array.isArray(refs) ? refs[0] : refs;
     },
+    // The open squadron closes once the pointer strays past its tray and
+    // its stack (a pinned one tolerates a wider margin).
     onDocMove(event) {
       if (!this.openedCluster) {
         return;
       }
       const root = this.clusterRoot();
-      const slot = this.outerSlots.find((s) => s.key === this.openedCluster);
-      if (!root || !slot) {
+      if (!root || !this.unfurl) {
         this.closeCluster();
         return;
       }
-      const rect = root.getBoundingClientRect();
-      const dx = event.clientX - (rect.left + (rect.width / 2));
-      const dy = event.clientY - (rect.top + (rect.height / 2));
-      const buffer = this.clusterPinned ? 170 : 90;
-      const threshold = this.unfurlMaxRadius(slot.entries.length) + buffer;
+      const refs = this.$refs.tray;
+      const tray = Array.isArray(refs) ? refs[0] : refs;
+      const stack = root.querySelector(':scope > .round-icon');
+      if (!tray || !stack) {
+        // opened on this very move: the tray renders on the next tick
+        return;
+      }
+      const t = tray.getBoundingClientRect();
+      const s = stack.getBoundingClientRect();
+      const buffer = this.clusterPinned ? 120 : 40;
 
-      if (Math.sqrt((dx * dx) + (dy * dy)) > threshold) {
+      if (event.clientX < Math.min(t.left, s.left) - buffer
+        || event.clientX > Math.max(t.right, s.right) + buffer
+        || event.clientY < Math.min(t.top, s.top) - buffer
+        || event.clientY > Math.max(t.bottom, s.bottom) + buffer) {
         this.closeCluster();
       }
     },
@@ -559,9 +595,12 @@ export default {
     new TimelineLite()
       .set(this.$refs.container, { css: { opacity: 0 } })
       .to(this.$refs.container, { css: { opacity: 1 }, ease: Expo.linear, duration: 1 }, 0);
+
+    window.addEventListener('resize', this.onResize);
   },
   beforeDestroy() {
     this.detachDocListeners();
+    window.removeEventListener('resize', this.onResize);
   },
   components: {
     ActionOverview,

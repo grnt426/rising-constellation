@@ -228,6 +228,11 @@
   z-index: 1;
   pointer-events: none;
 
+  // an open squadron covers the station box and the system header too
+  &.is-unfurled {
+    z-index: 3;
+  }
+
   // formation band along the inner ring, drawn behind the badges
   // (.orbit-item z-indexes sit above it). The path is a true capsule
   // OUTLINE (outer arc + inner arc + rounded caps), so the subtle
@@ -463,6 +468,21 @@
       pointer-events: auto;
     }
 
+    // backdrop of an open squadron: sets the grid apart from the planets
+    // and badges beneath it, and keeps the hover while the pointer
+    // crosses the gaps between members (geometry: utils/agent-fan.js)
+    .cluster-tray {
+      position: absolute;
+      background: rgba(0, 0, 0, .82);
+      border: solid 1px $grey-dark;
+      pointer-events: auto;
+      animation: tray-in 140ms ease-out backwards;
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+      }
+    }
+
     .cluster-fan {
       position: absolute;
       top: 0; left: 0;
@@ -483,6 +503,11 @@
       }
     }
   }
+}
+
+@keyframes tray-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes unfurl {
@@ -569,6 +594,10 @@
 
     .cluster-count {
       border-color: $color;
+    }
+
+    .cluster-tray {
+      border-color: transparentize($color, .4);
     }
   }
 
