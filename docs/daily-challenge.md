@@ -121,11 +121,13 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   planet, rolled from the seeded generator), and `grants: %{patents: [...]}`,
   research the player starts with, ancestors included (`Player.new/4`). The
   Monolith's line costs about 165,000 technology against a best recorded
-  30-minute stock of 145,000, so it is granted and the race is the build:
-  9,000 credits and 130 production for the dome infrastructure, then 160,000
-  credits and 20,000 production, from a start of 300,000 credits and about
-  130 production. That is roughly two minutes for a player who goes straight
-  for it. Building completion has no
+  30-minute stock of 145,000, so it was first granted whole and the race was
+  the build: 9,000 credits and 130 production for the dome infrastructure,
+  then 160,000 credits and 20,000 production, from a start of 300,000
+  credits and about 130 production. Simulated, that took 1.6-3.9 minutes on
+  all 21 Monumental dates through 2027-09, which left no research in the
+  race, so it was reworked again (see the 2026-10-16 entry below). Building
+  completion has no
   player-visible signal, so one was added following the `:ship_built`
   pattern: when a tracked wonder (`@wonder_keys` in `StellarSystem`) finishes
   in a player-owned system, `next_tick` tags the change set `{:wonder_built,
@@ -144,17 +146,31 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   was the last link alone. Real-engine simulation (a tech-maximizing bot,
   calibrated at a median 87% of the best human Archives of Ages score per
   day) banked 87k-209k across all 14 generated Destroyer systems, and no
-  system or mutator combination tested reached the full line. The day now
-  grants the line through shipyard_4 (`grants`), pins Open Science
-  (`pinned_mutators`: a pinned boon takes one of the two boon slots), and
-  keeps technology-income and patent-cost banes off the day
-  (`banned_axes`). Its granted patents don't count toward the 5% markup
-  (`grants: %{..., markup_free: true}`, read by
-  `Player.priced_patent_count/1`; the client gets the list as
-  `markup_free_patents` in the global channel's instance info). Other days
-  with grants (Monumental) keep the markup until player feedback says
-  otherwise. Simulated, that finishes on every system tested, about 15-25
-  minutes in.
+  system or mutator combination tested reached the full line. A first fix
+  granted the line through shipyard_4; the user ruled that handing over
+  whole lines takes the challenge away, so both research races now grant
+  only cheap starters and discount what is left:
+  - **Destroyer**: grants through shipyard_2 (`grants`, `markup_free: true`
+    so they don't raise later prices), sells the other seven patents at a
+    fifth (`patent_discounts`), pins Open Science (`pinned_mutators`: a
+    pinned boon takes one of the two boon slots) and keeps
+    technology-income and patent-cost banes off the day (`banned_axes`).
+    Discounting only the 220k merge_fighter_3 failed every day, even at
+    zero: the rest of the line still cost more than a run earns.
+    Simulated as configured: all 14 Destroyer days finished, 16-25
+    minutes in (median 19.6).
+  - **Monumental**: grants citadel through dome_happiness (they still count
+    toward the markup), sells dome_ideo at a quarter and bans the same
+    banes. Without the ban, 18 of 21 dates finished; the misses had rolled
+    Lost Sciences or Luddite Backlash. As configured, 20 of 21 finished,
+    13-25 minutes in (median 18.7). The miss, 2026-12-22, is a generation
+    bug: `ensure_habitable_planet` relabelled a tileless gas giant as the
+    home planet, so nothing can be built there.
+
+  `patent_discounts` is read by `Player.patent_price/2`, the one price both
+  the purchase and the client use: the global channel's instance info
+  carries `patent_discounts` and `markup_free_patents`, and the patent card
+  multiplies in its own discount.
 - **Package days + The Bequest** — an objective may carry `package_mutators`;
   the generator pins those instead of rolling 2 boons + 1 bane (the scripted
   setup IS the day). First package: **The Bequest** — start with 100,000,000

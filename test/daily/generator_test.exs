@@ -201,6 +201,21 @@ defmodule Daily.GeneratorTest do
     end
   end
 
+  test "an objective's banned axes never get a bane" do
+    # The Destroyer's Blueprint and Monumental keep technology-income and
+    # patent-cost banes away: either would undercut a research race.
+    for offset <- 0..364 do
+      date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+      gd = Generator.for_date(date)
+      banned = Daily.Objective.banned_axes(gd["daily"]["objective"])
+
+      if banned != [] do
+        bane = gd["mutators"] |> Enum.map(&Mutator.get(&1["key"])) |> Enum.find(&(&1.polarity == :negative))
+        refute bane.axis in banned, "#{date} (#{gd["daily"]["objective"]}): bane #{bane.key}"
+      end
+    end
+  end
+
   test "--all may roll roadmap mutators that aren't wired yet" do
     # Sweep a year of dates with the full roster enabled; at least one day
     # should pick a not-yet-implemented mutator (the roadmap entries vastly

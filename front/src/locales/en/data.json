@@ -1700,7 +1700,7 @@
         "name": "Coffers of the Realm"
       },
       "destroyers_blueprint": {
-        "description": "A race: research Armoring, the patent that unlocks the Destroyer (the first capital ship). Every patent before it, up to Space Hyperstructures, is already yours, and Open Science halves the price. Score is the time left when it completes; ties break on patents researched, then banked technology.",
+        "description": "A race: research Armoring, the patent that unlocks the Destroyer (the first capital ship). The first patents of its line, up to Precision Cranes, are already yours; every patent after them costs a fifth of its price, and Open Science halves that again. Score is the time left when it completes; ties break on patents researched, then banked technology.",
         "name": "The Destroyer's Blueprint"
       },
       "fleet_in_being_armada": {
@@ -1736,7 +1736,7 @@
         "name": "Land Rush"
       },
       "monumental": {
-        "description": "A race: raise the Monolith on your system's barren world. Its patents are already yours. Score is the time left when it's built; ties break on how far along your economy is.",
+        "description": "A race: raise the Monolith on your system's barren world. The first patents of its line, up to Holograms, are already yours, and Monumental Architecture, the Monolith's own patent, costs a quarter of its price. Score is the time left when it's built; ties break on how far along your economy is.",
         "name": "Monumental"
       },
       "rising_creed": {

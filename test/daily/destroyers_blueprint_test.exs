@@ -2,9 +2,10 @@ defmodule Daily.DestroyersBlueprintTest do
   @moduledoc """
   The Destroyer's Blueprint shipped unwinnable: its patent ends an 11-patent
   line worth about 625,000 technology with the per-patent markup, several
-  times what a run banks. The day now grants the line up to the fourth
-  shipyard, pins Open Science and keeps technology-income and patent-cost
-  banes away; its granted patents don't raise later prices.
+  times what a run banks. The day now grants the cheap starters (through
+  the second shipyard, without raising later prices), sells the rest of the
+  line at a fifth, pins Open Science and keeps technology-income and
+  patent-cost banes away.
   """
   use RC.DataCase, async: false
 
@@ -13,25 +14,24 @@ defmodule Daily.DestroyersBlueprintTest do
 
   @moduletag timeout: 180_000
 
-  # The Destroyer's line, oldest first; all but the last link is granted.
-  @granted_line [
-    :citadel,
-    :shipyard_1,
-    :merge_fighter_1,
-    :shipyard_2,
+  # The Destroyer's line, oldest first: the granted starters, then the rest.
+  @granted_line [:citadel, :shipyard_1, :merge_fighter_1, :shipyard_2]
+  @rest_of_line [
     :merge_fighter_2,
     :merge_corvette_1,
     :shipyard_3,
     :merge_fighter_3,
     :merge_corvette_2,
-    :shipyard_4
+    :shipyard_4,
+    :capital_1
   ]
 
-  test "the objective grants the line, pins Open Science and bans the banes that undercut it" do
+  test "the objective grants the starters, discounts the rest, pins Open Science and bans the banes that undercut it" do
     objective = Objective.get(:destroyers_blueprint)
 
-    assert Objective.granted_patents(objective) == [:shipyard_4]
+    assert Objective.granted_patents(objective) == [:shipyard_2]
     assert Objective.markup_free_grants?(objective)
+    assert Objective.patent_discounts(objective) == Map.new(@rest_of_line, &{&1, 0.2})
     assert Objective.pinned_mutators(objective) == [:open_science]
     assert Objective.banned_axes(objective) == [:technology_income, :patent_cost]
 
@@ -106,6 +106,32 @@ defmodule Daily.DestroyersBlueprintTest do
     {:ok, after_second} = Game.call(iid, :player, profile.id, :get_state)
     assert_in_delta after_first.technology.value - after_second.technology.value, 50 * 1.05 * 0.5, 0.01
     assert Instance.Player.Player.priced_patent_count(after_second) == 2
+
+    # The rest of the line sells at a fifth, on top of Open Science and the
+    # markup for the two patents researched.
+    for key <- @rest_of_line do
+      patent = Data.Querier.one(Data.Game.Patent, iid, key)
+      assert_in_delta Instance.Player.Player.patent_price(after_second, patent), patent.cost * 1.1 * 0.5 * 0.2, 0.01
+    end
+
+    # ...and the price charged is the price quoted.
+    merge_fighter_2 = Data.Querier.one(Data.Game.Patent, iid, :merge_fighter_2)
+    quoted = Instance.Player.Player.patent_price(after_second, merge_fighter_2)
+    assert_in_delta quoted, 6600.0, 0.01
+    give_technology(iid, profile.id, quoted)
+    {:ok, funded} = Game.call(iid, :player, profile.id, :get_state)
+    :ok = Game.call(iid, :player, profile.id, {:purchase_patent, :merge_fighter_2})
+    {:ok, after_third} = Game.call(iid, :player, profile.id, :get_state)
+    assert_in_delta funded.technology.value - after_third.technology.value, quoted, 0.01
+  end
+
+  # Top up the player's technology in place (test setup only).
+  defp give_technology(iid, player_id, amount) do
+    {:ok, pid} = Game.get_pid({iid, :player, player_id})
+
+    :sys.replace_state(pid, fn state ->
+      %{state | data: %{state.data | technology: Core.DynamicValue.add_value(state.data.technology, amount)}}
+    end)
   end
 
   defp create_profile do

@@ -528,6 +528,31 @@ defmodule Instance.Player.Player do
     Enum.count(state.patents, &(&1 not in free))
   end
 
+  @doc """
+  Price factors a daily objective puts on single patents
+  (`patent_discounts`), as `%{patent_key => factor}`. Empty outside such a
+  day.
+  """
+  def patent_discounts(instance_id) do
+    instance_id
+    |> Instance.Mutators.daily_objective()
+    |> Daily.Objective.patent_discounts()
+  end
+
+  @doc """
+  What `patent` costs this player right now, in technology: the base price,
+  plus 5% per patent held (markup_free_patents/1 aside), scaled by the
+  on_cost mutators (Open Science / Lost Sciences) and the day's discount on
+  that patent. Every factor is 1.0 in a vanilla game.
+  """
+  def patent_price(%Player.Player{} = state, patent) do
+    constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+    cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :patent)
+    discount = Map.get(patent_discounts(state.instance_id), patent.key, 1.0)
+
+    patent.cost * (1 + priced_patent_count(state) * constant.patent_level_price_increase) * cost_mult * discount
+  end
+
   def purchase_patent(%Player.Player{} = state, patent_key) do
     try do
       patent = Data.Querier.one(Data.Game.Patent, state.instance_id, patent_key)
@@ -539,12 +564,7 @@ defmodule Instance.Player.Player do
         unless Enum.any?(state.patents, fn p -> p == patent.ancestor end), do: throw(:patent_locked)
       end
 
-      constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
-
-      # on_cost mutators (Open Science / Lost Sciences) scale the tech price;
-      # 1.0 in vanilla games so the cost is unchanged.
-      cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :patent)
-      cost = patent.cost * (1 + priced_patent_count(state) * constant.patent_level_price_increase) * cost_mult
+      cost = patent_price(state, patent)
 
       if cost > state.technology.value, do: throw(:not_enough_technology)
 

@@ -161,13 +161,15 @@ export default {
     },
   },
   computed: {
-    // Same price the server charges: base × (1 + researched × increase) ×
-    // the Open Science / Lost Sciences multiplier (Player.purchase_patent/2);
-    // the panel's costFactor leaves out the markup-free patents some dailies
-    // grant.
+    // Same price the server charges (Player.patent_price/2): base ×
+    // (1 + researched × increase) × the Open Science / Lost Sciences
+    // multiplier × the day's discount on this patent; the panel's
+    // costFactor leaves out the markup-free patents some dailies grant.
     cost() {
-      const multiplier = this.$store.state.game.instanceInfo.patent_cost_multiplier || 1;
-      return this.patent.cost * (1 + (this.costFactor || 0)) * multiplier;
+      const info = this.$store.state.game.instanceInfo;
+      const multiplier = info.patent_cost_multiplier || 1;
+      const discount = (info.patent_discounts || {})[this.patent.key] || 1;
+      return this.patent.cost * (1 + (this.costFactor || 0)) * multiplier * discount;
     },
   },
   methods: {

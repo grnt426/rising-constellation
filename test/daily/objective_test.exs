@@ -188,21 +188,25 @@ defmodule Daily.ObjectiveTest do
       refute Objective.race_completed?(objective, %{})
     end
 
-    test "the day guarantees a barren world and grants the Monolith's patent" do
+    test "the day guarantees a barren world, grants the starters and discounts the Monolith's patent" do
       objective = Objective.get(:monumental)
 
       assert Objective.required_bodies(objective) == [:sterile_planet]
       assert Objective.required_bodies(:monumental) == [:sterile_planet]
       assert Objective.required_bodies("monumental") == [:sterile_planet]
-      assert Objective.granted_patents("monumental") == [:dome_ideo]
+      assert Objective.granted_patents("monumental") == [:dome_happiness]
 
-      # the Monolith's own patent is the one granted
+      # the Monolith's own patent is researched, at a quarter of its price
       monolith = Enum.find(Data.Game.Building.Content.Slow.data(), &(&1.key == :monument_dome))
-      assert hd(monolith.levels).patent in Objective.granted_patents(objective)
+      assert hd(monolith.levels).patent == :dome_ideo
+      refute :dome_ideo in Objective.granted_patents(objective)
+      assert Objective.patent_discounts(objective) == %{dome_ideo: 0.25}
+      assert Objective.banned_axes(objective) == [:technology_income, :patent_cost]
 
       # other days need and grant nothing
       assert Objective.required_bodies(:golden_flow) == []
       assert Objective.granted_patents(:golden_flow) == []
+      assert Objective.patent_discounts(:golden_flow) == %{}
       assert Objective.required_bodies(nil) == []
       assert Objective.granted_patents(nil) == []
       assert Objective.required_bodies("no_such_day") == []
