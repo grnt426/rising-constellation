@@ -4,7 +4,7 @@ defmodule Daily.DestroyersBlueprintTest do
   line worth about 625,000 technology with the per-patent markup, several
   times what a run banks. The day now grants the line up to the fourth
   shipyard, pins Open Science and keeps technology-income and patent-cost
-  banes away; granted patents no longer raise prices on any day.
+  banes away; its granted patents don't raise later prices.
   """
   use RC.DataCase, async: false
 
@@ -31,12 +31,15 @@ defmodule Daily.DestroyersBlueprintTest do
     objective = Objective.get(:destroyers_blueprint)
 
     assert Objective.granted_patents(objective) == [:shipyard_4]
+    assert Objective.markup_free_grants?(objective)
     assert Objective.pinned_mutators(objective) == [:open_science]
     assert Objective.banned_axes(objective) == [:technology_income, :patent_cost]
 
-    # other objectives carry none of it
+    # other objectives carry none of it; Monumental's grant keeps the markup
     assert Objective.pinned_mutators(:golden_flow) == []
     assert Objective.banned_axes(:golden_flow) == []
+    refute Objective.markup_free_grants?(:monumental)
+    refute Objective.markup_free_grants?(:golden_flow)
   end
 
   test "every Destroyer day carries Open Science, one rolled boon and an allowed bane" do
@@ -89,6 +92,7 @@ defmodule Daily.DestroyersBlueprintTest do
     {:ok, player} = Game.call(iid, :player, profile.id, :get_state)
     assert player.patents == @granted_line
     assert Instance.Player.Player.granted_patents(iid) == @granted_line
+    assert Instance.Player.Player.markup_free_patents(iid) == @granted_line
     assert Instance.Player.Player.priced_patent_count(player) == 0
 
     # First research of the day: base price, halved by Open Science, with no

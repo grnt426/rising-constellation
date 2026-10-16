@@ -127,8 +127,8 @@ defmodule Daily.Objective do
     # technology (625,765 with the per-patent markup), several times what a
     # 30-minute run banks (about 90k-210k in simulation; 145k-179k for the
     # best Archives of Ages scores). So the line up to the fourth shipyard is
-    # granted, granted patents don't raise prices
-    # (Player.priced_patent_count/1), Open Science halves the price, and no
+    # granted without raising later prices (`markup_free`,
+    # Player.priced_patent_count/1), Open Science halves the price, and no
     # bane may cut technology income or raise patent prices. Simulated, a
     # strong player then finishes on every generated system, about 15-25
     # minutes in.
@@ -140,7 +140,7 @@ defmodule Daily.Objective do
       mode: :race,
       stat_field: nil,
       race: %{patent: :capital_1, cost: 80_000},
-      grants: %{patents: [:shipyard_4]},
+      grants: %{patents: [:shipyard_4], markup_free: true},
       pinned_mutators: [:open_science],
       banned_axes: [:technology_income, :patent_cost],
       description:
@@ -172,8 +172,8 @@ defmodule Daily.Objective do
     # generated system must hold for the goal to be possible at all (see
     # required_bodies/1 — the generator adds what the rolls left out), and
     # `grants` the research the player starts with (granted_patents/1; each
-    # patent comes with its ancestors, and none of them raises later patent
-    # prices).
+    # patent comes with its ancestors). Granted patents raise later prices
+    # like researched ones unless the grant says `markup_free: true`.
     %{
       key: :monumental,
       name: "Monumental",
@@ -319,6 +319,19 @@ defmodule Daily.Objective do
   def granted_patents(%{grants: %{patents: patents}}) when is_list(patents), do: patents
   def granted_patents(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: granted_patents(get(key))
   def granted_patents(_), do: []
+
+  @doc """
+  Whether the day's granted patents stay out of the 5%-per-patent price
+  increase (`grants: %{markup_free: true}`). Off unless the objective says
+  so: only The Destroyer's Blueprint does, pending player feedback on other
+  days with grants.
+  """
+  def markup_free_grants?(%{grants: %{markup_free: true}}), do: true
+
+  def markup_free_grants?(key) when (is_atom(key) and not is_nil(key)) or is_binary(key),
+    do: markup_free_grants?(get(key))
+
+  def markup_free_grants?(_), do: false
 
   @doc """
   Mutators the day always carries (`pinned_mutators: [...]`), as catalog

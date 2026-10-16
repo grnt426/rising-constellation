@@ -148,10 +148,13 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   grants the line through shipyard_4 (`grants`), pins Open Science
   (`pinned_mutators`: a pinned boon takes one of the two boon slots), and
   keeps technology-income and patent-cost banes off the day
-  (`banned_axes`). Granted patents no longer count toward the 5% markup on
-  any day (`Player.priced_patent_count/1`; the client gets the granted list
-  as `granted_patents` in the global channel's instance info). Simulated,
-  that finishes on every system tested, about 15-25 minutes in.
+  (`banned_axes`). Its granted patents don't count toward the 5% markup
+  (`grants: %{..., markup_free: true}`, read by
+  `Player.priced_patent_count/1`; the client gets the list as
+  `markup_free_patents` in the global channel's instance info). Other days
+  with grants (Monumental) keep the markup until player feedback says
+  otherwise. Simulated, that finishes on every system tested, about 15-25
+  minutes in.
 - **Package days + The Bequest** — an objective may carry `package_mutators`;
   the generator pins those instead of rolling 2 boons + 1 bane (the scripted
   setup IS the day). First package: **The Bequest** — start with 100,000,000

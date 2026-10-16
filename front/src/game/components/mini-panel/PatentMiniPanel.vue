@@ -184,10 +184,10 @@ export default {
     purchasedPatentsNumber() { return this.purchasedPatents.length; },
     patentCostMultiplier() { return this.$store.state.game.instanceInfo.patent_cost_multiplier || 1; },
     // Same count the server prices with (Player.priced_patent_count/1):
-    // patents a daily objective granted don't raise later prices.
+    // some dailies grant patents that don't raise later prices.
     costFactor() {
-      const granted = this.$store.state.game.instanceInfo.granted_patents || [];
-      const priced = this.purchasedPatents.filter((p) => !granted.includes(p)).length;
+      const free = this.$store.state.game.instanceInfo.markup_free_patents || [];
+      const priced = this.purchasedPatents.filter((p) => !free.includes(p)).length;
       return priced * this.constant.patent_level_price_increase;
     },
     tabs() {

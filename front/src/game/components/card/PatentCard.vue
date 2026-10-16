@@ -163,7 +163,8 @@ export default {
   computed: {
     // Same price the server charges: base × (1 + researched × increase) ×
     // the Open Science / Lost Sciences multiplier (Player.purchase_patent/2);
-    // the panel's costFactor leaves out patents a daily objective granted.
+    // the panel's costFactor leaves out the markup-free patents some dailies
+    // grant.
     cost() {
       const multiplier = this.$store.state.game.instanceInfo.patent_cost_multiplier || 1;
       return this.patent.cost * (1 + (this.costFactor || 0)) * multiplier;

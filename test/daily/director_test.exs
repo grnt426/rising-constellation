@@ -191,6 +191,10 @@ defmodule Daily.DirectorTest do
 
       # the Floating Gardens stay locked: only the Monolith's line is granted
       refute :open_ideo in player.patents
+
+      # this grant is not markup-free: the line still raises later prices
+      assert Instance.Player.Player.markup_free_patents(iid) == []
+      assert Instance.Player.Player.priced_patent_count(player) == length(player.patents)
     end
   end
 

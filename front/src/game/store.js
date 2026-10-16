@@ -168,8 +168,8 @@ const defaultState = () => {
       speedup: 1,
       // Open Science / Lost Sciences scale every patent price.
       patent_cost_multiplier: 1,
-      // Patents a daily objective granted; they don't raise later prices.
-      granted_patents: [],
+      // Granted patents that don't raise later prices (some dailies).
+      markup_free_patents: [],
     },
 
     data: {},

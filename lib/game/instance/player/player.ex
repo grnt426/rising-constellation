@@ -511,13 +511,21 @@ defmodule Instance.Player.Player do
   end
 
   @doc """
-  How many patents raise the price of the next one: every patent held except
-  those a daily objective granted. A granted line is a head start, so it must
-  not make the rest of the day's research dearer.
+  Granted patents that don't raise later prices: the day's whole granted
+  line when its objective marks the grant `markup_free` (The Destroyer's
+  Blueprint, whose line is a head start that must not make the rest of the
+  day's research dearer), otherwise none.
   """
+  def markup_free_patents(instance_id) do
+    if instance_id |> Instance.Mutators.daily_objective() |> Daily.Objective.markup_free_grants?(),
+      do: granted_patents(instance_id),
+      else: []
+  end
+
+  @doc "How many held patents raise the price of the next one (see markup_free_patents/1)."
   def priced_patent_count(%Player.Player{} = state) do
-    granted = granted_patents(state.instance_id)
-    Enum.count(state.patents, &(&1 not in granted))
+    free = markup_free_patents(state.instance_id)
+    Enum.count(state.patents, &(&1 not in free))
   end
 
   def purchase_patent(%Player.Player{} = state, patent_key) do

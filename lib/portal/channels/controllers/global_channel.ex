@@ -69,10 +69,10 @@ defmodule Portal.Controllers.GlobalChannel do
               # Lost Sciences): the patent panel and cards multiply the
               # price they show by this, like Player.purchase_patent/2.
               patent_cost_multiplier: Instance.Mutators.cost_multiplier(instance_id, :patent),
-              # Patents a daily objective granted up front. They don't raise
-              # later prices (Player.priced_patent_count/1), so the patent
-              # panel leaves them out of its price factor.
-              granted_patents: Instance.Player.Player.granted_patents(instance_id)
+              # Granted patents that don't raise later prices (The
+              # Destroyer's Blueprint; Player.markup_free_patents/1), which
+              # the patent panel leaves out of its price factor.
+              markup_free_patents: Instance.Player.Player.markup_free_patents(instance_id)
             }
 
             payload = %{
