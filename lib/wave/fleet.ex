@@ -22,6 +22,13 @@ defmodule Wave.Fleet do
   the shipyards (`yard_profile?/2`), and a yard lays down only the hulls whose
   shipyard stands there (`can_build?/3`). A ship leaves the yard with the experience
   the system gives that class, as a player's does (`initial_xp/2`).
+
+  ## Posts and threats
+
+  Defenders spread over the Rebellion's systems (`defense_post/4`); the other
+  roles wait at staging posts along the front, a few to a system
+  (`staging_post/4`, `surplus/2`). A hostile fleet in or next to a Rebellion
+  system draws the nearest idle fleets to it (`threats/5`, `responders/4`).
   """
 
   alias Instance.StellarSystem.StellarSystem
@@ -287,6 +294,188 @@ defmodule Wave.Fleet do
       {if(MapSet.member?(yard_ids, system.id), do: 0, else: 1), -(Map.get(system, :production) || 0.0), system.id}
     end)
     |> Enum.map(& &1.id)
+  end
+
+  # --- staging -----------------------------------------------------------------
+
+  @doc """
+  Where the next fleet with a job outside (raid, siege, conquest, screen)
+  waits: a staging post, one of the Rebellion systems nearest the humans.
+  `front` is the Rebellion's systems as ids, nearest the humans first;
+  `posted` lists every posted fleet as `{post, role}`, the defenders too,
+  since a garrison takes room at a post.
+
+  Enough posts are opened to hold every waiting fleet `cap` to a system,
+  defenders counted, and never fewer than `width`. Among them a post under
+  `cap` beats a full one; then a siege or conquest fleet goes where a screen
+  waits for one to cover, and a screen where such a fleet waits uncovered;
+  then the post with the fewest fleets, then the one nearer the humans.
+
+  Options: `:width` (4), `:cap` (2). nil when `front` is empty.
+  """
+  def staging_post(front, posted, role, opts \\ [])
+
+  def staging_post([], _posted, _role, _opts), do: nil
+
+  def staging_post(front, posted, role, opts) when is_list(front) and is_list(posted) do
+    cap = max(Keyword.get(opts, :cap, 2), 1)
+    width = max(Keyword.get(opts, :width, 4), 1)
+    garrison = Enum.frequencies_by(posted, &elem(&1, 0))
+    waiting = Enum.count(posted, &(elem(&1, 1) != :defense)) + 1
+
+    front
+    |> staging_posts(posted, waiting, width, cap)
+    |> Enum.with_index()
+    |> Enum.min_by(fn {post, index} ->
+      count = Map.get(garrison, post, 0)
+      {if(count >= cap, do: 1, else: 0), partner_rank(role, post, posted), count, index}
+    end)
+    |> elem(0)
+  end
+
+  # The front posts, nearest first, until there is room for every waiting
+  # fleet and at least `width` of them.
+  defp staging_posts(front, posted, waiting, width, cap) do
+    defenders = posted |> Enum.filter(&(elem(&1, 1) == :defense)) |> Enum.frequencies_by(&elem(&1, 0))
+
+    front
+    |> Enum.reduce_while({[], 0}, fn post, {taken, room} ->
+      taken = [post | taken]
+      room = room + max(cap - Map.get(defenders, post, 0), 0)
+
+      if length(taken) >= width and room >= waiting,
+        do: {:halt, {taken, room}},
+        else: {:cont, {taken, room}}
+    end)
+    |> elem(0)
+    |> Enum.reverse()
+  end
+
+  @escorted [:siege, :conquest]
+
+  @doc "True for the roles a screen walks out with."
+  def escorted?(role), do: role in @escorted
+
+  # 0 when this post holds a partner waiting for a fleet of `role`.
+  defp partner_rank(role, post, posted) do
+    here = for {^post, other} <- posted, do: other
+    escorted = Enum.count(here, &escorted?/1)
+    screens = Enum.count(here, &(&1 == :screen))
+
+    cond do
+      escorted?(role) and screens > escorted -> 0
+      role == :screen and escorted > screens -> 0
+      escorted?(role) or role == :screen -> 1
+      true -> 0
+    end
+  end
+
+  @doc """
+  The waiting fleets a post holds beyond `cap`, as a set of ids. `posted` is
+  `[{id, post, role, since}]` over every posted fleet. A post's defenders
+  take their room first and are never surplus; of the others, the fleets
+  posted longest stay.
+  """
+  def surplus(posted, cap) when is_list(posted) do
+    cap = max(cap, 1)
+
+    posted
+    |> Enum.group_by(&elem(&1, 1))
+    |> Enum.flat_map(fn {_post, fleets} ->
+      {defenders, waiting} = Enum.split_with(fleets, &(elem(&1, 2) == :defense))
+
+      waiting
+      |> Enum.sort_by(fn {id, _post, _role, since} -> {since, id} end)
+      |> Enum.drop(max(cap - length(defenders), 0))
+      |> Enum.map(&elem(&1, 0))
+    end)
+    |> MapSet.new()
+  end
+
+  # --- threats -----------------------------------------------------------------
+
+  @doc """
+  The Rebellion systems hostile fleets threaten, worst first. `hostiles` are
+  the fleets the Rebellion can see, as `%{id:, system:, tiles:, faction:}`;
+  `held` the ids of the Rebellion's systems and dominions; `owners` maps a
+  system id to the faction holding it; `adjacency` is the lane graph.
+
+  A fleet standing in a Rebellion system threatens it (`:inside`). One
+  standing next door threatens every Rebellion system a lane away
+  (`:next_door`), unless it stands in a system of its own faction: a fleet at
+  home is a garrison, not a raid on its way. Fleets under `:min_tiles` ships
+  (3) are scouts and colony ships and threaten nothing.
+
+  Returns `[%{target:, kind:, tiles:, hostile:}]`: `tiles` is what stands
+  inside, or the most that stands in one system next door; `hostile` the id
+  of the largest fleet inside, nil next door.
+  """
+  def threats(hostiles, held, owners, adjacency, opts \\ []) do
+    min_tiles = Keyword.get(opts, :min_tiles, 3)
+
+    hostiles
+    |> Enum.filter(&((&1.tiles || 0) >= min_tiles))
+    |> Enum.flat_map(fn hostile ->
+      cond do
+        MapSet.member?(held, hostile.system) ->
+          [{hostile.system, :inside, hostile}]
+
+        Map.get(owners, hostile.system) == hostile.faction ->
+          []
+
+        true ->
+          for next <- Map.get(adjacency, hostile.system, []),
+              MapSet.member?(held, next),
+              do: {next, :next_door, hostile}
+      end
+    end)
+    |> Enum.group_by(&elem(&1, 0))
+    |> Enum.map(fn {target, sightings} -> threat(target, sightings) end)
+    |> Enum.sort_by(&{if(&1.kind == :inside, do: 0, else: 1), -&1.tiles, &1.target})
+  end
+
+  defp threat(target, sightings) do
+    case for({_target, :inside, hostile} <- sightings, do: hostile) do
+      [] ->
+        tiles =
+          sightings
+          |> Enum.group_by(fn {_target, _kind, hostile} -> hostile.system end)
+          |> Enum.map(fn {_system, here} -> here |> Enum.map(fn {_t, _k, h} -> h.tiles end) |> Enum.sum() end)
+          |> Enum.max()
+
+        %{target: target, kind: :next_door, tiles: tiles, hostile: nil}
+
+      inside ->
+        largest = Enum.max_by(inside, &{&1.tiles, -&1.id})
+        %{target: target, kind: :inside, tiles: inside |> Enum.map(& &1.tiles) |> Enum.sum(), hostile: largest.id}
+    end
+  end
+
+  @doc """
+  The fleets that answer a threat of `tiles` ships, as ids. `present` is the
+  Rebellion's ships already there or on their way; `candidates` are
+  `[%{id:, ships:, travel:}]`. The nearest go first, until what stands there
+  outnumbers the threat `:ratio` (1.5) to one or `:max` (3) fleets are sent.
+  Nothing is sent when that is already so, nor when even all of them would
+  not match the threat ship for ship (`:floor` 1.0): a fleet thrown away is
+  worse than a raid endured.
+  """
+  def responders(tiles, present, candidates, opts \\ []) when is_number(tiles) and is_number(present) do
+    need = tiles * Keyword.get(opts, :ratio, 1.5)
+    floor = tiles * Keyword.get(opts, :floor, 1.0)
+    max_fleets = Keyword.get(opts, :max, 3)
+
+    {chosen, total} =
+      candidates
+      |> Enum.filter(&(&1.ships > 0))
+      |> Enum.sort_by(&{&1.travel, -&1.ships, &1.id})
+      |> Enum.reduce_while({[], present}, fn candidate, {chosen, total} ->
+        if total >= need or length(chosen) >= max_fleets,
+          do: {:halt, {chosen, total}},
+          else: {:cont, {[candidate.id | chosen], total + candidate.ships}}
+      end)
+
+    if present >= need or total < floor, do: [], else: Enum.reverse(chosen)
   end
 
   @doc """

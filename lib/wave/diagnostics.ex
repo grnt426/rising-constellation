@@ -176,6 +176,10 @@ defmodule Wave.Diagnostics do
         {"lost", get.(:fleets_lost)},
         {"ships laid down", get.(:fleet_ships_laid)}
       ]),
+      outcome("Fleet sorties", get.(:sorties_ordered), [
+        {"resolved", get.(:sorties_resolved)},
+        {"with a screen", get.(:sortie_escorts)}
+      ]),
       outcome("Fleet results", get.(:fleet_wins) + get.(:fleet_losses), [
         {"won", get.(:fleet_wins)},
         {"lost", get.(:fleet_losses)}
@@ -273,11 +277,14 @@ defmodule Wave.Diagnostics do
     Map.new(Warlord.fleets(warlord), fn {id, entry} ->
       {id,
        Map.merge(entry, %{
-         target: entry.post || entry.yard,
+         target: get_in(entry, [:response, :target]) || sortie_target(entry) || entry.post || entry.yard,
          duty: "#{length(entry.slots)} ships, #{entry.laid} laid down"
        })}
     end)
   end
+
+  defp sortie_target(%{stage: :sortie, sortie: %{target: target}}), do: target
+  defp sortie_target(_entry), do: nil
 
   # A Siderian's trade and a convert's origin, next to its kind.
   defp label("Fleet", entry), do: "Fleet · #{entry.role}"

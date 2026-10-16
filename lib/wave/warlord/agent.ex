@@ -41,8 +41,11 @@ defmodule Wave.Warlord.Agent do
 
   Where a game switches fleets on, more Navarchs are hired for a role each
   (`Wave.Fleet`), given a design players fielded in it (`Wave.Blueprints`),
-  built one ship at a time in a shipyard system and posted. They do not
-  attack yet.
+  built one ship at a time in a shipyard system and posted. The garrisons
+  stay on their posts; the rest wait at staging posts along the front and set
+  out from there to pillage, bombard and invade what the humans hold
+  (`Wave.Sortie`). Any idle fleet also answers a hostile fleet it can see in or
+  next to a Rebellion system (the fleet response).
   """
 
   use Core.TickServer
@@ -50,7 +53,7 @@ defmodule Wave.Warlord.Agent do
   require Logger
 
   alias Instance.Character.{ActionQueue, Character, Speaker, Spy}
-  alias Wave.{Blueprints, Doctrine, Erased, Fleet, Geometry, Nav, Pressure, Research, Siderian, Warlord}
+  alias Wave.{Blueprints, Doctrine, Erased, Fleet, Geometry, Nav, Pressure, Research, Siderian, Sortie, Warlord}
 
   @colony_ship :transport_1
 
@@ -100,7 +103,7 @@ defmodule Wave.Warlord.Agent do
   # `Wave.report_fleet/3`): score the identity it was built from. No tick: a
   # result must never make the Rebellion act.
   def on_cast({:fleet_result, character_id, kind, result}, state) do
-    data = Warlord.upgrade(state.data)
+    data = state.data |> Warlord.upgrade() |> Warlord.sortie_result(character_id, kind, result)
 
     data =
       with outcome when outcome != nil <- Doctrine.outcome(result),
@@ -208,10 +211,11 @@ defmodule Wave.Warlord.Agent do
         (Warlord.erased_hire_due?(data) and Warlord.hired_erased_count(data) < Map.get(gauges, :erased_cap, 1))
 
     adrift_fleets = adrift_fleets(data, player, summaries)
+    threat_check? = threat_check_due?(data)
 
     needs_geometry? =
       refresh? or idle_navarchs != [] or idle_siderians != [] or idle_erased != [] or adrift_fleets != [] or
-        hire_pending?
+        hire_pending? or threat_check?
 
     data =
       with true <- needs_geometry?,
@@ -301,16 +305,25 @@ defmodule Wave.Warlord.Agent do
         # Agents seduced from the humans join the rosters before anyone is steered.
         data = adopt_converts(data, ctx)
 
-        # One hostile reading per recon interval, for the Erased and for the
-        # Siderians whose trades weigh people and stability.
-        {data, view} = maybe_recon(data, ctx, idle_erased != [] or Enum.any?(idle_siderians, &reads_people?(data, &1)))
+        # One hostile reading per recon interval, for the Erased, for the
+        # Siderians whose trades weigh people and stability, for a fleet
+        # weighing a target, and for the fleets' look at what threatens the
+        # Rebellion's systems.
+        {data, view} =
+          maybe_recon(
+            data,
+            ctx,
+            idle_erased != [] or adrift_fleets != [] or Enum.any?(idle_siderians, &reads_people?(data, &1)) or
+              threat_check?
+          )
 
         {data, ctx} = steer_navarchs(data, ctx, idle_navarchs, colonisation, nav_cap)
         {data, ctx} = steer_siderians(data, ctx, view, idle_siderians, captures)
         {data, ctx} = steer_erased(data, ctx, view, idle_erased)
 
         data
-        |> steer_fleets(ctx, adrift_fleets)
+        |> steer_fleets(ctx, view, adrift_fleets)
+        |> respond_to_threats(ctx, if(threat_check?, do: view), adrift_fleets)
         |> tend_convert_navarchs(ctx)
         |> maybe_hire_navarch(ctx, nav_cap)
         |> maybe_hire_siderian(ctx, quotas)
@@ -3206,24 +3219,38 @@ defmodule Wave.Warlord.Agent do
   defp navarch_score(character), do: max(Map.get(character, :level) || 1, 1)
 
   # The fleets that are idle with somewhere to go: off their yard while
-  # building, finished and not yet posted, away from their post, or mauled.
-  # Steering them needs the galaxy.
+  # building, finished and not yet posted, away from their post, crowded off
+  # a staging post, mauled, ready for a sortie or back from one, or off the
+  # system they were sent to defend. Steering them needs the galaxy.
   defp adrift_fleets(data, player, summaries) do
     if Warlord.fleets_enabled?(data) do
       held = MapSet.new(player.stellar_systems ++ player.dominions, & &1.id)
       refit = number(knob(data, "fleet_refit_share", 0.35), 0.35)
+      crowded = crowded_fleets(data)
+      fleets = Warlord.fleets(data)
+      attacks? = fleet_attacks?(data)
 
-      for {id, entry} <- Warlord.fleets(data),
+      for {id, entry} <- fleets,
           summary = summaries[id],
           roster_idle?(summary),
           summary.system != nil,
           Map.get(entry, :retry_at, 0.0) <= data.elapsed,
-          fleet_adrift?(data, entry, summary, held, refit),
+          fleet_adrift?(data, entry, summary, held, refit) or MapSet.member?(crowded, id) or
+            sortie_due?(attacks?, entry, fleets),
           do: id
     else
       []
     end
   end
+
+  defp fleet_attacks?(data), do: knob(data, "fleet_attacks", true) != false
+
+  # A striker on its post's books, standing idle, wants a target. A fleet on a
+  # sortie that stands idle has finished it; a screen only once the fleet it
+  # covers has.
+  defp sortie_due?(true, %{stage: :posted, role: role}, _fleets), do: Sortie.striker?(role)
+  defp sortie_due?(_attacks?, %{stage: :sortie} = entry, fleets), do: Sortie.finished?(entry, fleets)
+  defp sortie_due?(_attacks?, _entry, _fleets), do: false
 
   defp fleet_adrift?(data, %{stage: :building} = entry, summary, _held, _refit),
     do: summary.system != entry.yard or not Map.has_key?(data.yards, entry.yard)
@@ -3235,26 +3262,78 @@ defmodule Wave.Warlord.Agent do
       Fleet.missing_share(entry.slots, fleet_size(summary)) >= refit
   end
 
+  # A responder stands idle away from the system it was sent to: it was
+  # thrown off on the way or there. Its posting is over.
+  defp fleet_adrift?(_data, %{stage: :response} = entry, summary, held, refit) do
+    target = response_target(entry)
+
+    summary.system != target or not MapSet.member?(held, target) or
+      Fleet.missing_share(entry.slots, fleet_size(summary)) >= refit
+  end
+
   defp fleet_adrift?(_data, _entry, _summary, _held, _refit), do: false
+
+  defp response_target(entry), do: entry |> Map.get(:response, %{}) |> Map.get(:target)
+
+  # The waiting fleets a staging post holds beyond the cap (Fleet.surplus/2).
+  defp crowded_fleets(data) do
+    posted =
+      for {id, %{stage: :posted, post: post} = entry} <- Warlord.fleets(data),
+          post != nil,
+          do: {id, post, entry.role, entry.since}
+
+    Fleet.surplus(posted, staging_cap(data))
+  end
+
+  defp staging_cap(data), do: max(trunc(number(knob(data, "fleet_post_cap", 2), 2)), 1)
+
+  defp staging_opts(data),
+    do: [width: max(trunc(number(knob(data, "fleet_staging_posts", 4), 4)), 1), cap: staging_cap(data)]
+
+  # Every fleet on a post's books as `{post, role}`, but `except`. A
+  # responder keeps its post: it walks back there when the threat is over.
+  defp posted_fleets(data, except) do
+    for {id, %{stage: stage, post: post} = entry} <- Warlord.fleets(data),
+        id != except,
+        post != nil,
+        stage in [:posted, :response],
+        do: {post, entry.role}
+  end
 
   defp fleet_size(%{army_size: %{filled: filled}}) when is_integer(filled), do: filled
   defp fleet_size(_summary), do: 0
 
-  defp steer_fleets(data, _ctx, []), do: data
+  defp steer_fleets(data, _ctx, _view, []), do: data
 
-  defp steer_fleets(data, ctx, ids) do
+  defp steer_fleets(data, ctx, view, ids) do
     posts = fleet_posts(data, ctx)
+    summaries = Map.new(ctx.player.characters, &{&1.id, &1})
 
-    Enum.reduce(ids, data, fn id, acc ->
+    # Finished sorties are closed before anyone is steered, and the strikers
+    # are steered first: a fleet setting out again takes the screen standing
+    # beside it before that screen is sent home.
+    {data, released} =
+      Enum.reduce(ids, {data, []}, fn id, {acc, released} ->
+        {acc, more} = close_sortie(acc, summaries, id)
+        {acc, more ++ released}
+      end)
+
+    fleets = Warlord.fleets(data)
+    strikers_first = fn id -> if(Sortie.striker?(get_in(fleets, [id, :role])), do: 0, else: 1) end
+
+    (ids ++ released)
+    |> Enum.uniq()
+    |> Enum.sort_by(&{strikers_first.(&1), &1})
+    |> Enum.reduce(data, fn id, acc ->
       entry = Map.get(Warlord.fleets(acc), id)
-      summary = Enum.find(ctx.player.characters, &(&1.id == id))
+      summary = Map.get(summaries, id)
 
-      if entry && summary, do: steer_fleet(acc, ctx, posts, summary, entry), else: acc
+      if entry && summary, do: steer_fleet(acc, ctx, view, posts, summary, entry), else: acc
     end)
   end
 
   # Building: walk to the yard, or find another when the yard was lost.
-  defp steer_fleet(data, ctx, _posts, summary, %{stage: :building} = entry) do
+  defp steer_fleet(data, ctx, _view, _posts, summary, %{stage: :building} = entry) do
     if Map.has_key?(data.yards, entry.yard) do
       fleet_travel(data, ctx, summary, entry.yard, "order:fleet_to_yard")
     else
@@ -3266,7 +3345,7 @@ defmodule Wave.Warlord.Agent do
   end
 
   # Finished: take a post and walk there.
-  defp steer_fleet(data, ctx, posts, summary, %{stage: :complete} = entry) do
+  defp steer_fleet(data, ctx, _view, posts, summary, %{stage: :complete} = entry) do
     case fleet_post(data, posts, entry) do
       nil ->
         Warlord.fleet_wait(data, summary.id, 20.0)
@@ -3287,39 +3366,332 @@ defmodule Wave.Warlord.Agent do
   end
 
   # Posted: back to a yard when mauled, to a new post when this one was lost,
-  # back to the post when a lost fight threw it off.
-  defp steer_fleet(data, ctx, posts, summary, %{stage: :posted} = entry) do
+  # to a staging post with room when this one is crowded. Then a striker sets
+  # out on a sortie from wherever it stands, and anyone else off its post (a
+  # lost fight threw it off, a screen's sortie is over) walks back to it.
+  defp steer_fleet(data, ctx, view, posts, summary, %{stage: :posted} = entry) do
     refit = number(knob(data, "fleet_refit_share", 0.35), 0.35)
 
     cond do
       Fleet.missing_share(entry.slots, fleet_size(summary)) >= refit ->
-        case another_yard(data, entry) do
-          nil ->
-            Warlord.fleet_wait(data, summary.id, 120.0)
-
-          yard ->
-            log(data, "wave_fleet_refit", summary.id, yard.id, %{
-              day: Warlord.match_day(data),
-              role: entry.role,
-              design: entry.design,
-              ships_left: fleet_size(summary)
-            })
-
-            data
-            |> Warlord.fleet_stage(summary.id, :building, %{yard: yard.id})
-            |> Warlord.count(:fleets_refit)
-            |> fleet_travel(ctx, summary, yard.id, "order:fleet_to_yard")
-        end
+        refit_fleet(data, ctx, summary, entry)
 
       not MapSet.member?(posts.held, entry.post) ->
         Warlord.fleet_stage(data, summary.id, :complete, %{post: nil})
 
       true ->
+        case restage(data, ctx, posts, summary, entry) do
+          {:moved, data} ->
+            data
+
+          # Crowded with no post that has room: a striker still looks for a
+          # target; anyone else waits on its post and looks again later.
+          :full when summary.system == entry.post ->
+            if Sortie.striker?(entry.role) and fleet_attacks?(data),
+              do: on_post(data, ctx, view, summary, entry),
+              else: Warlord.fleet_wait(data, summary.id, 120.0)
+
+          _ ->
+            on_post(data, ctx, view, summary, entry)
+        end
+    end
+  end
+
+  # Responding: back to a yard when mauled; otherwise the fleet was thrown
+  # off on its way or at the system it defends, and is posted again (the
+  # next pass walks it home).
+  defp steer_fleet(data, ctx, _view, _posts, summary, %{stage: :response} = entry) do
+    refit = number(knob(data, "fleet_refit_share", 0.35), 0.35)
+
+    if Fleet.missing_share(entry.slots, fleet_size(summary)) >= refit,
+      do: refit_fleet(data, ctx, summary, entry),
+      else: stand_down(data, summary.id, entry, :thrown_off)
+  end
+
+  defp steer_fleet(data, _ctx, _view, _posts, _summary, _entry), do: data
+
+  # A posted fleet with no reason to move: a striker sets out if it finds
+  # something worth it, and anyone off its post walks back.
+  defp on_post(data, ctx, view, summary, entry) do
+    case sortie(data, ctx, view, summary, entry) do
+      {:ordered, data} ->
+        data
+
+      # No reading of the galaxy this pass: look again on the next.
+      :wait ->
+        data
+
+      # Nothing worth setting out for from the post: look again later.
+      {:none, data} when summary.system == entry.post ->
+        Warlord.fleet_wait(data, summary.id, number(knob(data, "fleet_sortie_retry_ut", 20.0), 20.0))
+
+      {:none, data} ->
         fleet_travel(data, ctx, summary, entry.post, "order:fleet_to_post")
     end
   end
 
-  defp steer_fleet(data, _ctx, _posts, _summary, _entry), do: data
+  # --- sorties (Wave.Sortie) ---------------------------------------------------
+
+  # A fleet on a sortie stands idle with nothing queued: the strike ran, or
+  # the fleet was beaten off or turned away. It goes back on its post's books
+  # and is steered from where it stands. The screens that walked with it are
+  # released too, when they stand idle. Returns the screens it released.
+  defp close_sortie(data, summaries, id) do
+    fleets = Warlord.fleets(data)
+
+    with %{stage: :sortie} = entry <- Map.get(fleets, id),
+         true <- Sortie.finished?(entry, fleets),
+         %Character{action_status: :idle, actions: actions, system: system} <-
+           call(data, :player, data.player_id, {:get_character_state, id}),
+         true <- ActionQueue.empty?(actions) do
+      {data, payload} = Warlord.sortie_closed(data, id)
+
+      log(
+        data,
+        "wave_fleet_sortie_resolved",
+        id,
+        payload.target,
+        Map.merge(payload, %{at: system, ships_left: fleet_size(Map.get(summaries, id))})
+      )
+
+      released = for escort <- Sortie.escorts(fleets, id), roster_idle?(Map.get(summaries, escort)), do: escort
+
+      data =
+        Enum.reduce(released, Warlord.count(data, :sorties_resolved), fn escort, acc ->
+          acc |> close_sortie(summaries, escort) |> elem(0)
+        end)
+
+      {data, released}
+    else
+      _ -> {data, []}
+    end
+  end
+
+  # `{:ordered, data}`, `{:none, data}` when this fleet has nothing to set out
+  # for, or `:wait` when there is no reading of the galaxy to judge by.
+  defp sortie(data, ctx, view, summary, entry) do
+    cond do
+      not fleet_attacks?(data) -> {:none, data}
+      # A screen sets out with a striker or not at all. Without a reading no
+      # striker decides anything this pass, so the screen standing beside one
+      # is not sent home yet either.
+      Sortie.escort?(entry.role) -> if(view == nil, do: :wait, else: {:none, data})
+      not Sortie.striker?(entry.role) -> {:none, data}
+      fleet_size(summary) == 0 -> {:none, data}
+      view == nil -> :wait
+      true -> plan_sortie(data, ctx, view, summary, entry)
+    end
+  end
+
+  # What the humans hold within reach, that this fleet may strike, did not
+  # itself strike a moment ago and no other fleet is already working. The
+  # systems the Rebellion has leaned on lately
+  # are thinned out (Wave.Pressure), one is drawn by weight, and the fleet
+  # then weighs that one.
+  defp plan_sortie(data, ctx, view, summary, entry) do
+    reach = number(knob(data, "fleet_sortie_max_travel_ut", 1440.0), 1440.0)
+    times = travel_times(data, ctx, summary.system, reach)
+    taken = Sortie.targets(Warlord.fleets(data))
+    attack = Sortie.attack(entry.role, summary)
+    rest = number(knob(data, "fleet_sortie_rest_ut", 240.0), 240.0)
+
+    # A player's last system is not invaded: `holdings` is nil when the knob
+    # says nobody is spared.
+    holdings = if knob(data, "fleet_conquest_spare_last", true) != false, do: Sortie.holdings(ctx.geo.systems)
+
+    ctx.geo.systems
+    |> Enum.filter(fn system ->
+      MapSet.member?(ctx.held, system.id) and within?(times, system.id, reach) and
+        not MapSet.member?(taken, system.id) and
+        not Sortie.struck?(entry, system.id, data.elapsed, rest) and
+        not Sortie.spared?(entry.role, system, holdings) and
+        Sortie.legal?(entry.role, attack, MapSet.member?(ctx.geo.takeable, system.sector_id))
+    end)
+    |> rested(data, & &1.id)
+    |> Enum.map(fn system ->
+      %{
+        id: system.id,
+        depth: Geometry.depth_of(ctx.geo, system),
+        population: if(Wave.Recon.visibility(view, system.id) >= 3, do: Map.get(system, :population)),
+        travel: Map.fetch!(times, system.id)
+      }
+    end)
+    |> Sortie.pick(roll(data), rear_factor: number(knob(data, "fleet_sortie_rear_factor", 0.5), 0.5), reach: reach)
+    |> case do
+      nil -> {:none, data}
+      target -> weigh_sortie(data, ctx, view, summary, entry, target, attack)
+    end
+  end
+
+  # The fleet weighs the target it drew: not one already under siege, not one
+  # whose garrison it can see and cannot match, and then on its odds against
+  # the defense, the way a remover weighs a victim.
+  defp weigh_sortie(data, ctx, view, summary, entry, target, attack) do
+    reading = read_target(data, view, target.id)
+    escort = if Sortie.escorted?(entry.role), do: idle_screen(data, ctx, summary)
+    ships = fleet_size(summary) + if(escort, do: fleet_size(escort), else: 0)
+    chance = Sortie.chance(attack, summary.level, reading.defense)
+
+    cond do
+      reading.sieged? -> {:none, data}
+      Sortie.outgunned?(ships, reading.garrison) -> {:none, data}
+      roll(data) >= Wave.Intel.attempt_chance(chance, knob(data, "fleet_sortie_gate", %{})) -> {:none, data}
+      true -> order_sortie(data, ctx, summary, entry, target, escort, chance)
+    end
+  end
+
+  # What the Rebellion can read of a target. A system's defense, a siege on it
+  # and the fleets standing in it are all legible at visibility 2
+  # (Instance.Faction.StellarSystem.obfuscate/4); below that it knows nothing.
+  defp read_target(data, view, system_id) do
+    if Wave.Recon.visibility(view, system_id) >= 2 do
+      garrison =
+        view.hostiles
+        |> Enum.filter(&(&1.type == :admiral and &1.system == system_id and not Map.get(&1, :governor?, false)))
+        |> Enum.map(&(&1.tiles || 0))
+        |> Enum.sum()
+
+      case call(data, :stellar_system, system_id, :get_state) do
+        {:ok, %{defense: %{value: defense}} = system} when is_number(defense) ->
+          %{defense: defense, sieged?: Map.get(system, :siege) != nil, garrison: garrison}
+
+        _ ->
+          %{defense: nil, sieged?: false, garrison: garrison}
+      end
+    else
+      %{defense: nil, sieged?: false, garrison: 0}
+    end
+  end
+
+  # A screen standing idle beside the fleet, fit to walk with it.
+  defp idle_screen(data, ctx, summary) do
+    refit = number(knob(data, "fleet_refit_share", 0.35), 0.35)
+    fleets = Warlord.fleets(data)
+
+    Enum.find(ctx.player.characters, fn other ->
+      case Map.get(fleets, other.id) do
+        %{stage: :posted, role: role, slots: slots} ->
+          Sortie.escort?(role) and other.system == summary.system and roster_idle?(other) and
+            Sortie.fit?(slots, fleet_size(other), refit)
+
+        _ ->
+          false
+      end
+    end)
+  end
+
+  defp order_sortie(data, ctx, summary, entry, target, escort, chance) do
+    action = Sortie.action(entry.role)
+    kind = "sortie:#{action}"
+
+    case order(data, ctx, summary, action, target.id) do
+      :ok ->
+        sortie = %{action: action, target: target.id, from: summary.system, odds: chance && Float.round(chance, 3)}
+
+        log(
+          data,
+          "wave_fleet_sortie",
+          summary.id,
+          target.id,
+          Map.merge(sortie, %{
+            day: Warlord.match_day(data),
+            role: entry.role,
+            design: entry.design,
+            ships: fleet_size(summary),
+            travel: Float.round(target.travel / 1, 1),
+            odds_class: Wave.Intel.odds_class(chance),
+            escort: escort && escort.id
+          })
+        )
+
+        data =
+          data
+          |> Warlord.sortie_ordered(summary.id, sortie)
+          |> Warlord.count(:sorties_ordered)
+          |> Warlord.order(kind, :ok)
+          |> press(ctx, action, target.id)
+          |> send_escort(ctx, escort, summary.id, target.id)
+
+        {:ordered, data}
+
+      {:error, reason} ->
+        {:none,
+         data
+         |> Warlord.refuse(:sortie, reason)
+         |> Warlord.order(kind, {:error, reason})
+         |> Warlord.fleet_wait(summary.id, 20.0)}
+    end
+  end
+
+  # The screen walks to the same system and stands there with the striker.
+  defp send_escort(data, _ctx, nil, _striker_id, _target_id), do: data
+
+  defp send_escort(data, ctx, escort, striker_id, target_id) do
+    case travel(data, ctx, escort, target_id) do
+      result when result in [:ok, {:error, :already_there}] ->
+        data
+        |> Warlord.sortie_ordered(escort.id, %{
+          action: "escort",
+          target: target_id,
+          from: escort.system,
+          escort_of: striker_id
+        })
+        |> Warlord.count(:sortie_escorts)
+        |> Warlord.order("sortie:escort", :ok)
+
+      {:error, reason} ->
+        data |> Warlord.refuse(:sortie_escort, reason) |> Warlord.order("sortie:escort", {:error, reason})
+    end
+  end
+
+  defp refit_fleet(data, ctx, summary, entry) do
+    case another_yard(data, entry) do
+      nil ->
+        Warlord.fleet_wait(data, summary.id, 120.0)
+
+      yard ->
+        log(data, "wave_fleet_refit", summary.id, yard.id, %{
+          day: Warlord.match_day(data),
+          role: entry.role,
+          design: entry.design,
+          ships_left: fleet_size(summary)
+        })
+
+        data
+        |> Warlord.fleet_stage(summary.id, :building, %{yard: yard.id, response: nil})
+        |> Warlord.count(:fleets_refit)
+        |> fleet_travel(ctx, summary, yard.id, "order:fleet_to_yard")
+    end
+  end
+
+  # A fleet crowded off its staging post takes one with room: `{:moved,
+  # data}`. `:full` when every post is as full, `:fine` when it is not crowded.
+  defp restage(data, ctx, posts, summary, entry) do
+    if MapSet.member?(crowded_fleets(data), summary.id) do
+      opts = staging_opts(data)
+      posted = posted_fleets(data, summary.id)
+      post = Fleet.staging_post(posts.front, posted, entry.role, opts)
+
+      if post == nil or post == entry.post or Enum.count(posted, &(elem(&1, 0) == post)) >= opts[:cap] do
+        :full
+      else
+        log(data, "wave_fleet_restaged", summary.id, post, %{
+          day: Warlord.match_day(data),
+          role: entry.role,
+          design: entry.design,
+          from: entry.post
+        })
+
+        {:moved,
+         data
+         |> Warlord.fleet_stage(summary.id, :posted, %{post: post})
+         |> Warlord.count(:fleets_restaged)
+         |> fleet_travel(ctx, summary, post, "order:fleet_to_post")}
+      end
+    else
+      :fine
+    end
+  end
 
   defp another_yard(data, entry) do
     ships = Map.new(Data.Querier.all(Data.Game.Ship, data.instance_id), &{&1.key, &1})
@@ -3346,8 +3718,7 @@ defmodule Wave.Warlord.Agent do
   end
 
   # The Rebellion's systems as posts: border sectors and inner ones, shipyards
-  # first, and the border system nearest the humans, where the fleets with a
-  # job outside muster.
+  # first, and the front line, where the fleets with a job outside wait.
   defp fleet_posts(data, ctx) do
     held = ctx.player.stellar_systems ++ ctx.player.dominions
     yard_ids = data.yards |> Map.keys() |> MapSet.new()
@@ -3355,32 +3726,28 @@ defmodule Wave.Warlord.Agent do
     border = Fleet.rank_posts(border, yard_ids)
     core = Fleet.rank_posts(core, yard_ids)
 
-    %{border: border, core: core, held: MapSet.new(held, & &1.id), muster: muster_point(data, ctx, border, core)}
+    %{border: border, core: core, held: MapSet.new(held, & &1.id), front: front_line(data, ctx, border ++ core)}
   end
 
-  defp muster_point(data, ctx, border, core) do
+  # The Rebellion's systems nearest the humans first: by lane hops to anything
+  # another faction holds (one BFS from all of it), then border before inner
+  # and in post order. Systems nothing hostile can reach come last.
+  defp front_line(data, ctx, ranked) do
     hostile = for system <- ctx.geo.systems, system.faction not in [nil, data.bot_faction], do: system.id
-    candidates = Enum.take(if(border == [], do: core, else: border), 12)
+    hops = if hostile == [], do: %{}, else: Nav.hop_distances(ctx.geo.adjacency, hostile)
 
-    nearest =
-      candidates
-      |> Enum.with_index()
-      |> Enum.map(fn {id, rank} ->
-        distances = Nav.hop_distances(ctx.geo.adjacency, id)
-        {hostile |> Enum.map(&Map.get(distances, &1)) |> Enum.reject(&is_nil/1) |> Enum.min(fn -> nil end), rank, id}
-      end)
-      |> Enum.reject(fn {hops, _rank, _id} -> is_nil(hops) end)
-      |> Enum.min(fn -> nil end)
-
-    case nearest do
-      {_hops, _rank, id} -> id
-      nil -> List.first(candidates)
-    end
+    ranked
+    |> Enum.with_index()
+    |> Enum.sort_by(fn {id, rank} -> {Map.get(hops, id, :unreachable), rank} end)
+    |> Enum.map(&elem(&1, 0))
   end
 
   defp fleet_post(data, posts, %{role: :defense}) do
     posted =
-      for {_id, %{role: :defense, stage: :posted, post: post}} <- Warlord.fleets(data), post != nil, do: post
+      for {_id, %{role: :defense, stage: stage, post: post}} <- Warlord.fleets(data),
+          post != nil,
+          stage in [:posted, :response],
+          do: post
 
     Fleet.defense_post(
       posted,
@@ -3390,7 +3757,159 @@ defmodule Wave.Warlord.Agent do
     )
   end
 
-  defp fleet_post(_data, posts, _entry), do: posts.muster
+  # Raid, siege, conquest and screen fleets wait at a staging post.
+  defp fleet_post(data, posts, entry),
+    do: Fleet.staging_post(posts.front, posted_fleets(data, nil), entry.role, staging_opts(data))
+
+  # --- the fleet response --------------------------------------------------------
+
+  # Every `fleet_response_interval_ut` the fleets look at the hostile fleets
+  # the Rebellion can see, on a pass that also takes a hostile reading.
+  defp threat_check_due?(data) do
+    Warlord.fleets_enabled?(data) and knob(data, "fleet_response", true) != false and
+      map_size(Warlord.fleets(data)) > 0 and
+      Warlord.threat_check_due?(data, number(knob(data, "fleet_response_interval_ut", 10.0), 10.0)) and
+      Warlord.recon_due?(data, knob(data, "erased_recon_interval_ut", 3.0) * 1.0)
+  end
+
+  # A hostile fleet in or next to a Rebellion system draws the nearest idle
+  # posted fleets to it (Fleet.threats/5, Fleet.responders/4); a responder
+  # whose system is no longer threatened goes back to its post. Fleets the
+  # steering already moved this pass (`steered`) are left for the next look.
+  defp respond_to_threats(data, _ctx, nil, _steered), do: data
+
+  defp respond_to_threats(data, ctx, view, steered) do
+    held = MapSet.new(ctx.player.stellar_systems ++ ctx.player.dominions, & &1.id)
+    owners = Map.new(ctx.geo.systems, &{&1.id, &1.faction})
+
+    # A fleet standing in a system is legible at visibility 2.
+    hostiles =
+      for hostile <- view.hostiles,
+          hostile.type == :admiral,
+          not Map.get(hostile, :governor?, false),
+          Wave.Recon.visibility(view, hostile.system) >= 2,
+          do: hostile
+
+    threats =
+      Fleet.threats(hostiles, held, owners, ctx.geo.adjacency,
+        min_tiles: trunc(number(knob(data, "fleet_response_min_ships", 3), 3))
+      )
+
+    targets = MapSet.new(threats, & &1.target)
+    summaries = Map.new(ctx.player.characters, &{&1.id, &1})
+
+    data =
+      Warlord.fleets(data)
+      |> Enum.filter(fn {_id, entry} ->
+        entry.stage == :response and not MapSet.member?(targets, response_target(entry))
+      end)
+      |> Enum.reduce(data, fn {id, entry}, acc -> stand_down(acc, id, entry, :threat_over) end)
+      |> Warlord.mark_threat_check()
+      |> Warlord.gauge(:fleet_threats, length(threats))
+
+    Enum.reduce(threats, data, &answer_threat(&2, ctx, &1, targets, summaries, MapSet.new(steered)))
+  end
+
+  # Back on its post's books; the next pass walks it home.
+  defp stand_down(data, id, entry, reason) do
+    log(data, "wave_fleet_stood_down", id, response_target(entry), %{
+      day: Warlord.match_day(data),
+      role: entry.role,
+      reason: reason,
+      post: entry.post
+    })
+
+    if entry.post,
+      do: Warlord.fleet_stage(data, id, :posted, %{response: nil}),
+      else: Warlord.fleet_stage(data, id, :complete, %{response: nil})
+  end
+
+  defp answer_threat(data, ctx, threat, targets, summaries, steered) do
+    fleets = Warlord.fleets(data)
+    reach = number(knob(data, "fleet_response_max_travel_ut", 180.0), 180.0)
+    refit = number(knob(data, "fleet_refit_share", 0.35), 0.35)
+
+    # What already stands there or is on its way.
+    present =
+      fleets
+      |> Enum.filter(fn {id, entry} ->
+        summary = summaries[id]
+        summary != nil and (summary.system == threat.target or response_target(entry) == threat.target)
+      end)
+      |> Enum.map(fn {id, _entry} -> fleet_size(summaries[id]) end)
+      |> Enum.sum()
+
+    # The fleets an earlier look sent here count against the cap.
+    sent =
+      Enum.count(fleets, fn {_id, entry} -> entry.stage == :response and response_target(entry) == threat.target end)
+
+    times = travel_times(data, ctx, threat.target, reach)
+
+    # Idle posted fleets within reach, fit to fight, standing at no system
+    # that is itself threatened. One whose stage changed this pass (a screen
+    # a finished sortie just released) was already given its orders.
+    candidates =
+      for {id, %{stage: :posted} = entry} <- fleets,
+          summary = summaries[id],
+          summary != nil,
+          roster_idle?(summary),
+          not MapSet.member?(steered, id),
+          Map.get(entry, :since) != data.elapsed,
+          is_integer(summary.system),
+          not MapSet.member?(targets, summary.system),
+          Map.has_key?(times, summary.system),
+          Fleet.missing_share(entry.slots, fleet_size(summary)) < refit,
+          do: %{id: id, ships: fleet_size(summary), travel: Map.fetch!(times, summary.system)}
+
+    threat.tiles
+    |> Fleet.responders(present, candidates,
+      ratio: number(knob(data, "fleet_response_ratio", 1.5), 1.5),
+      floor: number(knob(data, "fleet_response_floor", 1.0), 1.0),
+      max: max(trunc(number(knob(data, "fleet_response_max_fleets", 3), 3)) - sent, 0)
+    )
+    |> Enum.reduce(data, fn id, acc -> dispatch_responder(acc, ctx, summaries[id], fleets[id], threat) end)
+  end
+
+  # Inside one of its systems the Rebellion attacks the largest hostile fleet
+  # outright, as a player would; next door it stands guard in the system, and
+  # its stance does the rest.
+  defp dispatch_responder(data, ctx, summary, entry, threat) do
+    result =
+      case threat do
+        %{kind: :inside, hostile: hostile} when is_integer(hostile) ->
+          order(data, ctx, summary, "fight", threat.target, %{"target_character" => hostile})
+
+        _ ->
+          travel(data, ctx, summary, threat.target)
+      end
+
+    case result do
+      :ok ->
+        log(data, "wave_fleet_response", summary.id, threat.target, %{
+          day: Warlord.match_day(data),
+          role: entry.role,
+          kind: threat.kind,
+          hostile: threat.hostile,
+          hostile_ships: threat.tiles,
+          ships: fleet_size(summary),
+          from: summary.system,
+          post: entry.post
+        })
+
+        data
+        |> Warlord.fleet_stage(summary.id, :response, %{
+          response: %{target: threat.target, kind: threat.kind, hostile: threat.hostile}
+        })
+        |> Warlord.count(:fleet_responses)
+        |> Warlord.order("order:fleet_response", :ok)
+
+      {:error, reason} ->
+        data
+        |> Warlord.refuse(:fleet_response, reason)
+        |> Warlord.order("order:fleet_response", {:error, reason})
+        |> Warlord.fleet_wait(summary.id, 20.0)
+    end
+  end
 
   # ---------------------------------------------------------------------------
   # Research: patents and lexes

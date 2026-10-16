@@ -32,6 +32,8 @@ defmodule Wave.Siderian do
   ledger alone.
   """
 
+  alias Wave.Draw
+
   @proselyte 0
   @agitator 1
   @seducer 2
@@ -220,10 +222,10 @@ defmodule Wave.Siderian do
   | travel | 1 next door, 0.5 at the edge of `reach` |
   """
   def destab_weight(target, opts) do
-    size(Map.get(target, :population)) *
+    Draw.size(Map.get(target, :population)) *
       softness(Map.get(target, :estimate)) *
-      depth_factor(Map.get(target, :depth), opts) *
-      nearness(Map.get(target, :travel, 0.0), Keyword.get(opts, :reach, 480.0))
+      Draw.rear(Map.get(target, :depth), Keyword.get(opts, :nearest_depth, 0), Keyword.get(opts, :rear_factor, 0.5)) *
+      Draw.nearness(Map.get(target, :travel, 0.0), Keyword.get(opts, :reach, 480.0))
   end
 
   @doc """
@@ -236,55 +238,16 @@ defmodule Wave.Siderian do
   def pick_destab([], _roll, _opts), do: nil
 
   def pick_destab(targets, roll, opts) when is_number(roll) do
-    nearest = targets |> Enum.map(&Map.get(&1, :depth)) |> Enum.reject(&is_nil/1) |> Enum.min(fn -> 0 end)
-    opts = Keyword.put(opts, :nearest_depth, nearest)
+    opts = Keyword.put(opts, :nearest_depth, Draw.nearest_depth(targets))
 
-    weighted =
-      targets
-      |> Enum.sort_by(& &1.id)
-      |> Enum.map(&{&1, destab_weight(&1, opts)})
-      |> Enum.filter(fn {_target, weight} -> weight > 0 end)
-
-    case weighted do
-      [] -> nil
-      _ -> draw(weighted, roll)
-    end
+    targets
+    |> Enum.sort_by(& &1.id)
+    |> Enum.map(&{&1, destab_weight(&1, opts)})
+    |> Draw.pick(roll)
   end
-
-  defp size(population) when is_number(population), do: 1.0 + min(max(population, 0), 100) / 100
-  defp size(_population), do: 1.5
 
   defp softness(estimate) when is_number(estimate), do: (1.75 - estimate / 40) |> max(0.5) |> min(2.0)
   defp softness(_estimate), do: 1.0
-
-  # A sector nothing connects to rebel space counts as three further back.
-  @unreached_sectors 3
-
-  defp depth_factor(depth, opts) do
-    nearest = Keyword.get(opts, :nearest_depth, 0)
-    behind = if is_integer(depth), do: max(depth - nearest, 0), else: @unreached_sectors
-
-    :math.pow(Keyword.get(opts, :rear_factor, 0.5), behind)
-  end
-
-  defp nearness(travel, reach) when is_number(travel) and is_number(reach) and reach > 0,
-    do: 1.0 / (1.0 + max(travel, 0.0) / reach)
-
-  defp nearness(_travel, _reach), do: 1.0
-
-  defp draw(weighted, roll) do
-    total = weighted |> Enum.map(&elem(&1, 1)) |> Enum.sum()
-    aim = roll * total
-
-    weighted
-    |> Enum.reduce_while(0.0, fn {target, weight}, acc ->
-      if aim < acc + weight, do: {:halt, {:drawn, target}}, else: {:cont, acc + weight}
-    end)
-    |> case do
-      {:drawn, target} -> target
-      _ -> weighted |> List.last() |> elem(0)
-    end
-  end
 
   @doc """
   Rank practice grounds for a new cluster: the Rebellion's border sectors

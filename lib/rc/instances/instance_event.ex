@@ -53,6 +53,11 @@ defmodule RC.Instances.InstanceEvent do
     wave_fleet_refit
     wave_fleet_lost
     wave_fleet_result
+    wave_fleet_restaged
+    wave_fleet_response
+    wave_fleet_stood_down
+    wave_fleet_sortie
+    wave_fleet_sortie_resolved
     wave_design_new
     wave_design_refuzzed
     wave_design_replaced

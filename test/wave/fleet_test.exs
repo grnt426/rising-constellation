@@ -199,8 +199,181 @@ defmodule Wave.FleetTest do
     end
   end
 
+  describe "staging posts" do
+    # Post the fleets one after the other, the way the Warlord does as they finish.
+    defp stage_all(front, roles, opts) do
+      Enum.reduce(roles, [], fn role, posted -> posted ++ [{Fleet.staging_post(front, posted, role, opts), role}] end)
+    end
+
+    defp per_post(posted), do: posted |> Enum.frequencies_by(&elem(&1, 0))
+
+    test "waiting fleets spread over the front, no more than the cap to a system" do
+      front = Enum.to_list(1..10)
+      posted = stage_all(front, List.duplicate(:raid, 14), width: 4, cap: 2)
+
+      # The first four take the four nearest posts, one each, before any takes a second.
+      assert posted |> Enum.take(4) |> Enum.map(&elem(&1, 0)) == [1, 2, 3, 4]
+      assert per_post(posted) == Map.new(1..7, &{&1, 2})
+    end
+
+    test "never fewer posts than the width, nearest the humans first" do
+      assert stage_all([7, 8, 9], [:raid], width: 4, cap: 2) == [{7, :raid}]
+      assert Fleet.staging_post([], [], :raid, width: 4, cap: 2) == nil
+    end
+
+    test "a garrison takes room at a post" do
+      posted = [{1, :defense}, {1, :defense}, {2, :defense}]
+
+      assert Fleet.staging_post([1, 2, 3], posted, :raid, width: 1, cap: 2) == 2
+      assert Fleet.staging_post([1, 2, 3], [{2, :raid} | posted], :raid, width: 1, cap: 2) == 3
+    end
+
+    test "a screen waits beside a siege or conquest fleet it can cover, and the other way round" do
+      front = [1, 2, 3, 4]
+
+      assert Fleet.staging_post(front, [{1, :siege}, {2, :raid}], :screen, width: 4, cap: 2) == 1
+      assert Fleet.staging_post(front, [{1, :siege}, {1, :screen}, {2, :conquest}], :screen, width: 4, cap: 2) == 2
+      assert Fleet.staging_post(front, [{1, :raid}, {3, :screen}], :conquest, width: 4, cap: 2) == 3
+      # A partner at a full post does not draw a third fleet there.
+      assert Fleet.staging_post(front, [{1, :siege}, {1, :raid}], :screen, width: 4, cap: 2) == 2
+      # A raid has no partner to look for: the emptiest post.
+      assert Fleet.staging_post(front, [{1, :siege}], :raid, width: 4, cap: 2) == 2
+    end
+
+    test "a crowded post keeps its defenders and the fleets posted longest" do
+      posted = [
+        {1, 10, :raid, 5.0},
+        {2, 10, :raid, 1.0},
+        {3, 10, :screen, 3.0},
+        {4, 10, :defense, 9.0},
+        {5, 11, :raid, 0.0},
+        {6, 12, :defense, 0.0},
+        {7, 12, :defense, 0.0},
+        {8, 12, :siege, 0.0}
+      ]
+
+      assert Fleet.surplus(posted, 2) == MapSet.new([1, 3, 8])
+      assert Fleet.surplus(posted, 5) == MapSet.new()
+    end
+
+    test "a stack of thirteen waiting fleets at one post spreads out and stays put" do
+      roles = [
+        :raid,
+        :raid,
+        :siege,
+        :screen,
+        :siege,
+        :conquest,
+        :screen,
+        :raid,
+        :raid,
+        :screen,
+        :raid,
+        :raid,
+        :conquest
+      ]
+
+      front = [168 | Enum.to_list(1..12)]
+      books = for {role, id} <- Enum.with_index(roles), into: %{}, do: {id, %{post: 168, role: role, since: id * 1.0}}
+
+      {books, moves} = restage_until_settled(books, front, 0)
+
+      assert moves == 11
+      assert books |> Map.values() |> Enum.frequencies_by(& &1.post) |> Map.values() |> Enum.max() == 2
+      # The two posted first keep the old post.
+      assert books[0].post == 168 and books[1].post == 168
+      # Every siege and conquest fleet waits beside a screen while there are screens to go round.
+      by_post = books |> Map.values() |> Enum.group_by(& &1.post, & &1.role)
+      assert Enum.count(by_post, fn {_post, here} -> :screen in here and Enum.any?(here, &Fleet.escorted?/1) end) == 3
+    end
+
+    # The agent's restage step, run until no post is over the cap.
+    defp restage_until_settled(books, front, moves) do
+      opts = [width: 4, cap: 2]
+      surplus = Fleet.surplus(for({id, e} <- books, do: {id, e.post, e.role, e.since}), 2)
+
+      if MapSet.size(surplus) == 0 or moves > 50 do
+        {books, moves}
+      else
+        id = surplus |> Enum.sort() |> hd()
+        posted = for {other, e} <- books, other != id, do: {e.post, e.role}
+        post = Fleet.staging_post(front, posted, books[id].role, opts)
+        books = Map.put(books, id, %{books[id] | post: post, since: 100.0 + moves})
+        restage_until_settled(books, front, moves + 1)
+      end
+    end
+  end
+
+  describe "threats and the fleet response" do
+    @adjacency %{1 => [2, 4, 5], 2 => [1, 3], 3 => [2], 4 => [1], 5 => [1]}
+    @held MapSet.new([1, 2])
+    @owners %{1 => :rebel, 2 => :rebel, 3 => nil, 4 => :human, 5 => nil}
+
+    defp hostile(id, system, tiles), do: %{id: id, system: system, tiles: tiles, faction: :human}
+
+    test "a fleet inside a Rebellion system threatens it, and the largest one is the one to attack" do
+      threats = Fleet.threats([hostile(1, 2, 10), hostile(2, 2, 4)], @held, @owners, @adjacency)
+      assert threats == [%{target: 2, kind: :inside, tiles: 14, hostile: 1}]
+    end
+
+    test "a fleet next door threatens the Rebellion systems a lane away, unless it stands at home" do
+      assert Fleet.threats([hostile(1, 3, 6)], @held, @owners, @adjacency) == [
+               %{target: 2, kind: :next_door, tiles: 6, hostile: nil}
+             ]
+
+      assert Fleet.threats([hostile(1, 4, 30)], @held, @owners, @adjacency) == []
+    end
+
+    test "inside threats come first, then the biggest; scouts and colony ships are ignored" do
+      hostiles = [hostile(1, 5, 20), hostile(2, 2, 5), hostile(3, 1, 2), hostile(4, 3, 3), hostile(5, 3, 4)]
+      threats = Fleet.threats(hostiles, @held, @owners, @adjacency, min_tiles: 3)
+
+      assert Enum.map(threats, &{&1.target, &1.kind, &1.tiles}) == [{2, :inside, 5}, {1, :next_door, 20}]
+    end
+
+    test "the nearest fleets answer until they outnumber the threat" do
+      candidates = [
+        %{id: 1, ships: 8, travel: 50.0},
+        %{id: 2, ships: 10, travel: 20.0},
+        %{id: 3, ships: 18, travel: 100.0}
+      ]
+
+      assert Fleet.responders(10, 0, candidates) == [2, 1]
+      assert Fleet.responders(10, 6, candidates) == [2]
+      assert Fleet.responders(10, 15, candidates) == []
+      assert Fleet.responders(10, 0, candidates, max: 1) == [2]
+      assert Fleet.responders(10, 0, [%{id: 4, ships: 0, travel: 1.0} | candidates]) == [2, 1]
+    end
+
+    test "no fleet is thrown at a threat it cannot match" do
+      candidates = [
+        %{id: 1, ships: 8, travel: 50.0},
+        %{id: 2, ships: 10, travel: 20.0},
+        %{id: 3, ships: 18, travel: 100.0}
+      ]
+
+      assert Fleet.responders(30, 0, candidates) == [2, 1, 3]
+      assert Fleet.responders(40, 0, candidates) == []
+      assert Fleet.responders(40, 6, candidates) == [2, 1, 3]
+      assert Fleet.responders(10, 0, []) == []
+    end
+  end
+
   describe "the Warlord's fleet books" do
     defp warlord, do: Warlord.new(System.unique_integer([:positive]), :rebellion)
+
+    test "the threat clock, and a snapshot from before it" do
+      state = warlord()
+      assert Warlord.threat_check_due?(state, 10.0)
+
+      state = state |> Warlord.mark_threat_check() |> Warlord.advance(9.0)
+      refute Warlord.threat_check_due?(state, 10.0)
+      assert state |> Warlord.advance(1.0) |> Warlord.threat_check_due?(10.0)
+
+      old = Map.delete(warlord(), :fleet_threat_at)
+      assert old |> Warlord.upgrade() |> Map.has_key?(:fleet_threat_at)
+      assert old |> Warlord.upgrade() |> Warlord.threat_check_due?(10.0)
+    end
 
     test "fleets are off unless the game switches them on, and the ceiling may be zero" do
       refute Warlord.fleets_enabled?(warlord())

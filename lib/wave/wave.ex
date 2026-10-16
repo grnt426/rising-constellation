@@ -272,7 +272,10 @@ defmodule Wave do
         "conversion" => 1.0,
         "assassination" => 1.0,
         "sabotage" => 1.0,
-        "infiltrate" => 0.5
+        "infiltrate" => 0.5,
+        "loot" => 1.0,
+        "raid" => 1.0,
+        "conquest" => 1.0
       },
       "pressure_fade_ut" => 240.0,
       "pressure_falloff" => 0.7,
@@ -524,6 +527,51 @@ defmodule Wave do
       # A posted fleet that has lost this share of its ships walks back to a
       # yard and refits.
       "fleet_refit_share" => 0.35,
+      # Raid, siege, conquest and screen fleets wait at staging posts, the
+      # Rebellion systems nearest the humans: at least this many of them,
+      # more when the waiting fleets would put over `fleet_post_cap` in one
+      # system (defenders counted). A post over the cap sends its newest
+      # waiting fleets to one with room.
+      "fleet_staging_posts" => 4,
+      "fleet_post_cap" => 2,
+      # The fleet response: every interval the fleets look at the hostile
+      # fleets they can see in or next to a Rebellion system. The nearest
+      # idle posted fleets within `fleet_response_max_travel_ut` answer, up
+      # to `fleet_response_max_fleets` of them, until what stands there
+      # outnumbers the threat `fleet_response_ratio` to one; none go when
+      # they could not match it ship for ship (`fleet_response_floor`).
+      # Inside a Rebellion system they attack the largest hostile fleet; next
+      # door they stand guard. Fleets under `fleet_response_min_ships` ships
+      # are ignored. A responder goes back to its post when the threat is gone.
+      "fleet_response" => true,
+      "fleet_response_interval_ut" => 10.0,
+      "fleet_response_max_travel_ut" => 180.0,
+      "fleet_response_max_fleets" => 3,
+      "fleet_response_ratio" => 1.5,
+      "fleet_response_floor" => 1.0,
+      "fleet_response_min_ships" => 3,
+      # Sorties (Wave.Sortie): with fleets on, the raid, siege and conquest
+      # fleets set out from their staging posts to pillage, bombard and invade
+      # what the humans hold, and a screen standing beside a siege or conquest
+      # fleet walks with it. False keeps every fleet on its post.
+      "fleet_attacks" => true,
+      # How far a fleet goes for a target (three match days of travel), and
+      # how much less each sector behind the nearest one in reach draws it.
+      "fleet_sortie_max_travel_ut" => 1440.0,
+      "fleet_sortie_rear_factor" => 0.5,
+      # A fleet weighs the target it drew like a remover weighs a victim
+      # (Wave.Intel.attempt_chance/2): a defense it cannot read is a flat
+      # gamble, a readable one a logistic around an even chance.
+      "fleet_sortie_gate" => %{"unknown" => 0.2, "steepness" => 12.0, "midpoint" => 0.5},
+      # A fleet that found nothing worth setting out for looks again after
+      # this long.
+      "fleet_sortie_retry_ut" => 20.0,
+      # A fleet leaves the system it last struck alone for this long (half a
+      # match day), so one standing in a system it has just pillaged moves on.
+      "fleet_sortie_rest_ut" => 240.0,
+      # A conquest fleet does not invade the last system a player runs: taking
+      # it would put that player out of the match. False spares nobody.
+      "fleet_conquest_spare_last" => true,
 
       # --- economy ------------------------------------------------------
       # The Warlord tops the bot's stock back up to these floors each tick, so

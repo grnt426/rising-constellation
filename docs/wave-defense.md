@@ -1256,9 +1256,11 @@ and the humans once the humans reach it.
 
 The Rebellion can raise fleets. A fleet Navarch is hired for a role, given a
 design that players fielded in that role, built ship by ship in one of the
-Rebellion's shipyard systems, and posted. It does not attack yet: the fleets
-with a job outside the Rebellion's borders muster at the border and wait for
-the orders that come next (see "Not built yet" below).
+Rebellion's shipyard systems, and posted. The garrisons stay on their posts;
+the fleets with a job outside the Rebellion's borders wait at staging posts
+along the front and set out from there (see "Sorties" below, built
+2026-10-11). Any fleet standing idle on its post may be drawn to a hostile
+fleet in or next to a Rebellion system (see "The fleet response").
 
 The step is off unless a game sets the `fleets` knob to `true`.
 
@@ -1480,13 +1482,140 @@ floor.
 | Role | Where the finished fleet stands | Stance |
 |---|---|---|
 | Defense | Three in five in the Rebellion's border sectors, the rest inside (`fleet_defense_border_share` 0.6). In both, shipyard systems first, then the most productive systems; every post has one fleet before any has two | Interdiction |
-| Screen | The muster point | Fury |
-| Raid, siege, conquest | The muster point | Defender |
+| Screen | A staging post, beside a siege or conquest fleet it can cover | Fury |
+| Raid, siege, conquest | A staging post | Defender |
 
-The muster point is the Rebellion system in a border sector with the fewest
-lane hops to anything another faction holds, shipyards preferred among
-equals. A fleet thrown off its post by a lost fight walks back; one whose
-post changed hands is posted again.
+**Staging posts (2026-10-15).** Until then every raid, siege, conquest and
+screen fleet stood at one muster point, the border system nearest the humans.
+With no attack orders deployed they never left it: in i185 on 2026-10-15,
+13 of the Rebellion's 25 fleets (about 220 ships) stood at Zurka, which players
+read as the bot piling its defense into one system. Now they wait at staging
+posts and set out on their sorties from there. The staging posts are the
+Rebellion's systems ranked by lane hops to anything another
+faction holds (one BFS from all of it), border before inner among equals. At
+least `fleet_staging_posts` (4) of them are used, and more when the waiting
+fleets would put over `fleet_post_cap` (2) fleets in one system, defenders
+counted. A finished fleet takes a post under the cap first, then a siege or
+conquest fleet goes where a screen waits uncovered (and a screen where such a
+fleet waits), then the post with the fewest fleets, then the one nearer the
+humans (`Wave.Fleet.staging_post/4`).
+
+A post over the cap keeps its defenders and the waiting fleets posted
+longest; the others walk to a staging post with room (`Wave.Fleet.surplus/2`,
+event `wave_fleet_restaged`). When every post is as full, the fleet stays: a
+striker still looks for a sortie from there, anyone else looks again 120 ut
+later. This is also what spreads a stack that was posted
+under the old rule.
+
+A fleet thrown off its post by a lost fight walks back; one whose post changed
+hands is posted again.
+
+#### The fleet response (2026-10-15)
+
+A garrison intercepts what arrives at its own post, but until now nothing
+moved toward a threat. Every `fleet_response_interval_ut` (10) the fleets look
+at the hostile fleets the Rebellion can see (the Erased's hostile reading, a
+fleet being legible at visibility 2):
+
+| Threat | What counts | What the Rebellion does |
+|---|---|---|
+| Inside | A hostile fleet of `fleet_response_min_ships` (3) or more standing in a Rebellion system or dominion | Responders attack the largest hostile fleet there (`fight`), as a player would |
+| Next door | Such a fleet one lane from a Rebellion system, in a system its own faction does not hold (a fleet at home is a garrison, not a raid on its way) | Responders walk to the threatened system and stand guard; their stance does the rest |
+
+Inside threats are answered first, then the biggest. The responders are idle
+posted fleets of any role, fit to fight (under the refit share missing), within
+`fleet_response_max_travel_ut` (180) of the threatened system and not standing
+at another threatened system. The nearest go first until what stands there and
+what is on its way outnumbers the threat `fleet_response_ratio` (1.5) to one,
+at most `fleet_response_max_fleets` (3) of them. None go when even all of them
+could not match the threat ship for ship (`fleet_response_floor` 1.0): a fleet
+thrown away is worse than a raid endured (`Wave.Fleet.threats/5`,
+`Wave.Fleet.responders/4`).
+
+A responder keeps its post on the books. It goes back there when a later look
+no longer sees the threat, or when it stands idle away from the system it was
+sent to (thrown off on the way or there); a mauled responder refits. Events
+`wave_fleet_response` (target, kind, hostile, ships on both sides) and
+`wave_fleet_stood_down` (reason `threat_over` or `thrown_off`); counter
+`fleet_responses`, gauge `fleet_threats`, ledger row `order:fleet_response`.
+`fleet_response` false switches it off.
+
+#### Sorties (built 2026-10-11)
+
+User direction (2026-10-11): "just let the bot begin attacking once fleets
+are ready", with no sector-pace change to go with it. So there is no attack
+schedule: a raid, siege or conquest fleet that stands idle and fit, at its
+staging post or anywhere else, looks for a target on every pass
+(`fleet_attacks`, on by default; it only matters where `fleets` is on). The
+rules are in `Wave.Sortie` (pure) and the "sorties" part of the agent's fleet
+section. ⚑ Everything below the user's one sentence is my choice.
+
+| Role | Order | Rolls | What a success does |
+|---|---|---|---|
+| Raid | `loot` (pillage) | raid strength against the system's defense | Takes credit, technology and ideology from the owner; two buildings damaged |
+| Siege | `raid` (bombardment) | raid strength against defense | Population lost, five or six buildings damaged |
+| Conquest | `conquest` (invasion) | invasion strength against defense | The system or dominion becomes the Rebellion's |
+| Screen | walks to the same system | | Stands with the siege or conquest fleet; the engine pulls it into any battle fought there |
+
+**What a fleet may strike.** Systems and dominions another faction holds,
+within `fleet_sortie_max_travel_ut` (1,440 ut, three match days) of where
+the fleet stands, with these left out:
+
+- a system another striking fleet is already on its way to or working (the
+  engine refuses a second siege);
+- the system this fleet last struck, for `fleet_sortie_rest_ut` (240 ut): in
+  the first dev run a raid fleet standing in the system it had just pillaged
+  pillaged it twice more;
+- for a conquest fleet, anything outside the sectors the Rebellion owns or
+  borders (the engine's own rule,
+  `Instance.Galaxy.Galaxy.check_system_takeability/3`), and **a player's last
+  system** (`fleet_conquest_spare_last`): taking it would put that player out
+  of the match. On i185 today only Djullir is next to rebel space, so only
+  the two human holdings there can be invaded;
+- for any fleet, a system with nothing to roll against: a conquest fleet
+  without troops, a raid fleet without raid strength.
+
+**Choosing.** The systems the Rebellion has leaned on lately are thinned out
+first (`Wave.Pressure`: a strike adds one stack like any agent's order, and a
+system at the cap is closed to fleets too). One target is then drawn by
+weight (`Wave.Sortie.weight/2`): size, `fleet_sortie_rear_factor` (0.5) per
+sector behind the nearest one in reach, and travel time. The agitators' draw
+and this one share their factors (`Wave.Draw`).
+
+**Weighing.** The fleet then looks at the one system it drew. A system's
+defense, a siege on it and the fleets standing in it are legible at
+visibility 2, which an Erased standing there or two informers give.
+
+- Under siege already: not this one.
+- A garrison it can see with more ships than it has (its screen included):
+  not this one.
+- Otherwise it goes with the appetite a remover has for a victim
+  (`fleet_sortie_gate`, `Wave.Intel.attempt_chance/2`): a readable defense
+  gives the engine's own odds and a steep curve around an even chance; an
+  unreadable one is a flat 20% gamble.
+
+A fleet that does not go looks again after `fleet_sortie_retry_ut` (20 ut)
+if it stands on its post, and otherwise walks back to it.
+
+**Screens.** A siege or conquest fleet takes the screen standing idle and fit
+beside it, if there is one, and goes alone if there is none. The staging
+posts put a screen beside an uncovered siege or conquest fleet where they can
+(see "Posts"). The screen
+walks to the same system and stays until the fleet it covers is done; both
+are then steered in the same pass, strikers first, so a fleet that sets out
+again from where it stands takes its screen along. Raid fleets go alone.
+
+**Afterwards.** The engine makes a beaten fleet flee. A fleet that has lost
+`fleet_refit_share` of its design walks to a yard, as before. Any other
+fleet looks for its next target from where it stands, and walks back to its
+staging post when it finds none (a post that is full by then sends it to one
+with room).
+
+**What this means for the humans.** No warning period, and no ramp beyond
+the fleet ceiling itself: the first raid fleet to finish goes. Any one
+system is still bounded by pressure (a burst of five hostile orders from
+every trade together, then two a day). A player cannot be eliminated by the
+bot, but can lose every dominion and every system except the last.
 
 #### What this looks like in instance 185
 
@@ -1590,13 +1719,21 @@ fleets today is more than all of them hold together.
 `instance_event_log` kinds `wave_fleet_hired` (role, design, generation,
 ships, yard, level), `wave_fleet_built` (build time, stance),
 `wave_fleet_posted`, `wave_fleet_refit`, `wave_fleet_lost`,
-`wave_fleet_result` (fight or action, win or loss, design), `wave_design_new`,
+`wave_fleet_result` (fight or action, win or loss, design),
+`wave_fleet_sortie` (action, target, travel, ships, odds, screen),
+`wave_fleet_sortie_resolved` (what the engine reported on the way, ships
+left, where the fleet ended up), `wave_design_new`,
 `wave_design_refuzzed`, `wave_design_replaced` (each with the hull mix and the
 record). Counters `fleets_hired`, `fleet_ships_laid`, `fleets_built`,
 `fleets_posted`, `fleets_refit`, `fleets_lost`, `fleet_wins`, `fleet_losses`,
-`designs_new`, `designs_refuzzed`, `designs_replaced`; gauges `yards`,
+`designs_new`, `designs_refuzzed`, `designs_replaced`, `sorties_ordered`,
+`sorties_resolved`, `sortie_escorts`; gauges `yards`,
 `fleet_cap`, `fleet_quotas`, `human_hulls`, `capital_allowance`; the order
-ledger rows `hire:fleet`, `order:fleet_to_yard`, `order:fleet_to_post`. The
+ledger rows `hire:fleet`, `order:fleet_to_yard`, `order:fleet_to_post`,
+`order:fleet_response`, `sortie:loot`, `sortie:raid`, `sortie:conquest`,
+`sortie:escort`; since 2026-10-15 also `wave_fleet_restaged`,
+`wave_fleet_response`, `wave_fleet_stood_down`, counters `fleets_restaged`,
+`fleet_responses` and gauge `fleet_threats`. The
 status readout carries the book (`doctrine`: each identity's hull mix,
 generation, record, open window and strikes). The admin page lists each fleet
 with its role, its yard or post, and how much of its design has been laid
@@ -1613,13 +1750,16 @@ next review fuzzed both identities again.
 
 #### Not built yet
 
-- **Orders.** Raid, siege, conquest and screen fleets muster and wait, so
-  until they are sent out only the garrisons produce results for the review. The
-  targeting of section 1.3 (frontline and deep strikes, pillage or bombard
-  per sortie) is the next piece, and pairing a screen with each siege belongs
-  to it.
-- **Pulling a defender to a siege.** A garrison intercepts what arrives at its
-  own post. It does not march to a neighbour under siege.
+- **Grouped sorties.** Each striking fleet sets out on its own, with one
+  screen at most. Fleets do not gather into a wave or join an armada, a
+  screen without a siege to cover waits at its staging post, and a raid fleet
+  never chooses between pillage and bombardment: its role decides.
+- **Reading the opposition's fleets.** A fleet counts the ships it can see in
+  the target and nothing else: not what they are, and not the fleets one jump
+  away.
+- **Seeing a fleet on its way.** The response sees hostile fleets standing
+  in or next to a Rebellion system. A fleet in flight carries no destination
+  the Rebellion can read, so it is met only once it stops a lane away.
 - **Navarch slots.** The bot's cap is the base plus 50. Thirty-nine fleets,
   the colonisers and the training Navarch fit, with little room.
 - **Upkeep.** A late fleet costs 1,000 to 12,000 credits per ut. The resource

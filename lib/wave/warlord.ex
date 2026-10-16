@@ -34,7 +34,9 @@ defmodule Wave.Warlord do
        `fleet_hire_interval_ut`, while under the fleet ceiling, a Navarch is
        hired for the fleet role furthest below its share, deployed into a
        shipyard system and built there one ship per `fleet_ship_interval_ut`.
-       Finished fleets stand guard or muster at the border. See `Wave.Fleet`.
+       Finished fleets stand guard or wait at staging posts along the front,
+       strike from there (`Wave.Sortie`) and answer hostile fleets in or next to
+       rebel systems. See `Wave.Fleet`.
 
   ## Ceilings
 
@@ -154,7 +156,9 @@ defmodule Wave.Warlord do
 
     # --- added 2026-10-07 (back-filled by upgrade/1) ---
     # Fleet Navarchs: %{character_id => %{role:, design:, slots: [{tile, ship_key}],
-    #   stage: :building | :complete | :posted, yard:, post:, since:, laid:}}.
+    #   stage: :building | :complete | :posted | :sortie | :response, yard:,
+    #   post:, since:, laid:}}, plus `sortie:` and `struck:` (Wave.Sortie) and,
+    #   while responding, `response: %{target:, kind:, hostile:}` (2026-10-15).
     field(:fleets, map(), default: %{})
     # ut accumulated toward the next fleet Navarch hire.
     field(:fleet_accum, float(), default: 0.0)
@@ -182,6 +186,11 @@ defmodule Wave.Warlord do
     # %{system_id => %{stacks: float(), at: float()}}: how hard the Rebellion
     # has leaned on each system another faction holds (Wave.Pressure).
     field(:pressure, map(), default: %{})
+
+    # --- added 2026-10-15 (back-filled by upgrade/1) ---
+    # Game time of the fleets' last look at the threats to the Rebellion's
+    # systems (the fleet response).
+    field(:fleet_threat_at, float() | nil, default: nil)
   end
 
   @added_fields %{
@@ -216,7 +225,8 @@ defmodule Wave.Warlord do
     doctrine_at: nil,
     human_hulls: [],
     capital_since: nil,
-    pressure: %{}
+    pressure: %{},
+    fleet_threat_at: nil
   }
 
   def new(instance_id, bot_faction) do
@@ -678,6 +688,16 @@ defmodule Wave.Warlord do
     end
   end
 
+  @doc "True when the fleets are due another look at what threatens the Rebellion's systems."
+  def threat_check_due?(%__MODULE__{} = state, interval) when is_number(interval) do
+    case Map.get(state, :fleet_threat_at) do
+      nil -> true
+      at -> state.elapsed - at >= interval
+    end
+  end
+
+  def mark_threat_check(%__MODULE__{} = state), do: Map.put(state, :fleet_threat_at, state.elapsed)
+
   @doc "Fleets per role, over every role."
   def fleet_counts(%__MODULE__{} = state) do
     base = Map.new(Wave.Fleet.roles(), &{&1, 0})
@@ -715,6 +735,63 @@ defmodule Wave.Warlord do
 
   def forget_fleet(%__MODULE__{} = state, character_id),
     do: Map.put(state, :fleets, Map.delete(fleets(state), character_id))
+
+  # --- sorties (Wave.Sortie) -----------------------------------------------------
+
+  @doc """
+  A fleet set out. `sortie` carries `action`, `target`, `from` and, for a
+  screen, `escort_of` (the fleet it covers); the results the engine reports
+  on the way are added by `sortie_result/4`.
+  """
+  def sortie_ordered(%__MODULE__{} = state, character_id, sortie) when is_map(sortie),
+    do: fleet_stage(state, character_id, :sortie, %{sortie: Map.merge(%{escort_of: nil, results: []}, sortie)})
+
+  @doc "Keep what the engine reported about a fleet on a sortie (a fight, the strike itself)."
+  def sortie_result(%__MODULE__{} = state, character_id, kind, result) do
+    case Map.get(fleets(state), character_id) do
+      %{stage: :sortie, sortie: %{} = sortie} = entry ->
+        results = Enum.take([%{kind: kind, result: result} | Map.get(sortie, :results, [])], 6)
+        Map.put(state, :fleets, Map.put(fleets(state), character_id, %{entry | sortie: %{sortie | results: results}}))
+
+      _ ->
+        state
+    end
+  end
+
+  @doc """
+  A sortie is over: the fleet is back on its post's books, wherever it stands.
+  Returns `{state, payload}` for the behavior log, payload nil when the fleet
+  was on no sortie.
+  """
+  def sortie_closed(%__MODULE__{} = state, character_id) do
+    case Map.get(fleets(state), character_id) do
+      %{stage: :sortie, sortie: %{} = sortie} = entry ->
+        payload = %{
+          day: match_day(state),
+          role: entry.role,
+          design: entry.design,
+          action: Map.get(sortie, :action),
+          target: Map.get(sortie, :target),
+          from: Map.get(sortie, :from),
+          escort_of: Map.get(sortie, :escort_of),
+          odds: Map.get(sortie, :odds),
+          results: sortie |> Map.get(:results, []) |> Enum.reverse(),
+          total_ut: round1(state.elapsed - Map.get(entry, :since, state.elapsed))
+        }
+
+        # A striker remembers what it struck (Wave.Sortie.struck?/4); a
+        # screen struck nothing.
+        struck =
+          if Map.get(sortie, :escort_of) == nil,
+            do: %{target: Map.get(sortie, :target), at: state.elapsed},
+            else: Map.get(entry, :struck)
+
+        {fleet_stage(state, character_id, :posted, %{sortie: nil, struck: struck}), payload}
+
+      _ ->
+        {state, nil}
+    end
+  end
 
   @doc "Move a fleet to `stage`, merging `changes` into its entry and restarting its clock."
   def fleet_stage(%__MODULE__{} = state, character_id, stage, changes \\ %{}) do
@@ -888,11 +965,16 @@ defmodule Wave.Warlord do
          stage: entry.stage,
          yard: entry.yard,
          post: entry.post,
+         response: Map.get(entry, :response),
+         sortie: entry |> Map.get(:sortie) |> sortie_view(),
          ships: length(entry.slots),
          laid: entry.laid
        }}
     end)
   end
+
+  defp sortie_view(%{} = sortie), do: Map.take(sortie, [:action, :target, :escort_of])
+  defp sortie_view(_sortie), do: nil
 
   # --- Siderian hiring ----------------------------------------------------------
 

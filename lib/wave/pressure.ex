@@ -18,9 +18,9 @@ defmodule Wave.Pressure do
   ## Stacks
 
   Every order against a system another faction holds adds to that system's
-  stacks: `pressure_weights`, 1 for a destabilization, a seduction, a removal
-  or a sabotage, half that for an infiltration, which the owner never sees
-  unless it fails. A stack wears off in `pressure_fade_ut`, one after the
+  stacks: `pressure_weights`, 1 for a destabilization, a seduction, a removal,
+  a sabotage or a fleet's strike (pillage, bombardment, invasion), half that
+  for an infiltration, which the owner never sees unless it fails. A stack wears off in `pressure_fade_ut`, one after the
   other, so a system that took five orders in a burst is back to nothing five
   fades later.
 
@@ -43,7 +43,10 @@ defmodule Wave.Pressure do
     "conversion" => 1.0,
     "assassination" => 1.0,
     "sabotage" => 1.0,
-    "infiltrate" => 0.5
+    "infiltrate" => 0.5,
+    "loot" => 1.0,
+    "raid" => 1.0,
+    "conquest" => 1.0
   }
 
   @doc "What an order of this `action` adds to its system's stacks. Unlisted actions add nothing."
