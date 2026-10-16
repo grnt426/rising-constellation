@@ -1700,7 +1700,7 @@
         "name": "Coffers of the Realm"
       },
       "destroyers_blueprint": {
-        "description": "A race: research the Destroyer patent (the first capital ship). Score is the time left when it completes; ties break on patents researched, then banked technology.",
+        "description": "A race: research Armoring, the patent that unlocks the Destroyer (the first capital ship). Every patent before it, up to Space Hyperstructures, is already yours, and Open Science halves the price. Score is the time left when it completes; ties break on patents researched, then banked technology.",
         "name": "The Destroyer's Blueprint"
       },
       "fleet_in_being_armada": {

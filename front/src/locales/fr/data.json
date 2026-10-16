@@ -1700,7 +1700,7 @@
         "name": "Coffres du royaume"
       },
       "destroyers_blueprint": {
-        "description": "Une course : recherchez le brevet du Destroyer (le premier vaisseau capital). Le score est le temps restant à son achèvement ; les égalités se départagent aux brevets recherchés, puis à la technologie en réserve.",
+        "description": "Une course : recherchez Blindage, le brevet qui débloque le Destroyer (le premier vaisseau capital). Tous les brevets qui le précèdent, jusqu'aux Hyperstructures spatiales, vous sont déjà acquis, et la Science ouverte divise son prix par deux. Le score est le temps restant à son achèvement ; les égalités se départagent aux brevets recherchés, puis à la technologie en réserve.",
         "name": "Les plans du Destroyer"
       },
       "fleet_in_being_armada": {

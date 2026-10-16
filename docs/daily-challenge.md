@@ -81,7 +81,8 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
 - **Race family** — race specs are shape-dispatched
   (`Daily.Objective.race_progress/2`): `%{system_income: %{...}}` (Charter of
   Prosperity), `%{patent: key, cost: n}` (**The Destroyer's Blueprint** —
-  `:capital_1`, the Destroyer's internal key, 80k tech behind shipyard 4; DNF
+  `:capital_1`, the Destroyer's internal key, 80k base tech behind shipyard 4,
+  the rest of its line granted (see the rework below); DNF
   ties break on patents researched + banked tech), and `%{army: %{metric: n}}`
   (**Fleet in Being: Raiders / Vanguard / Armada** — a SINGLE fleet reaching
   50 raid / 50 invasion / 500 upkeep; best-fleet ratio is the DNF tiebreak).
@@ -134,6 +135,23 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   `race_completed?` checks membership; the DNF tiebreak is total system
   production. Verified live end-to-end (cast → latch → race completes,
   idempotent).
+- **The Destroyer's Blueprint rework (2026-10-16)** — the race shipped
+  unwinnable. `capital_1` ends an 11-patent line (citadel → shipyard_1 →
+  merge_fighter_1 → shipyard_2 → merge_fighter_2 → merge_corvette_1 →
+  shipyard_3 → merge_fighter_3 → merge_corvette_2 → shipyard_4 →
+  capital_1) worth 460,350 base technology, and each patent owned adds 5% to
+  the next, so the line costs at least 625,765. The `80k` in the race spec
+  was the last link alone. Real-engine simulation (a tech-maximizing bot,
+  calibrated at a median 87% of the best human Archives of Ages score per
+  day) banked 87k-209k across all 14 generated Destroyer systems, and no
+  system or mutator combination tested reached the full line. The day now
+  grants the line through shipyard_4 (`grants`), pins Open Science
+  (`pinned_mutators`: a pinned boon takes one of the two boon slots), and
+  keeps technology-income and patent-cost banes off the day
+  (`banned_axes`). Granted patents no longer count toward the 5% markup on
+  any day (`Player.priced_patent_count/1`; the client gets the granted list
+  as `granted_patents` in the global channel's instance info). Simulated,
+  that finishes on every system tested, about 15-25 minutes in.
 - **Package days + The Bequest** — an objective may carry `package_mutators`;
   the generator pins those instead of rolling 2 boons + 1 bane (the scripted
   setup IS the day). First package: **The Bequest** — start with 100,000,000

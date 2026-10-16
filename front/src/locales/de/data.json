@@ -1233,7 +1233,7 @@
         "name": "Schatzkammer des Reichs"
       },
       "destroyers_blueprint": {
-        "description": "Ein Wettlauf: Erforsche das Destroyer-Patent (das erste Großkampfschiff). Der Score ist die verbleibende Zeit beim Abschluss; Gleichstände entscheiden erforschte Patente, dann die Technologiereserve.",
+        "description": "Ein Wettlauf: Erforsche Armoring, das Patent, das den Destroyer freischaltet (das erste Großkampfschiff). Alle Patente davor bis Space Hyperstructures gehören dir bereits, und Offene Wissenschaft halbiert den Preis. Der Score ist die verbleibende Zeit beim Abschluss; Gleichstände entscheiden erforschte Patente, dann die Technologiereserve.",
         "name": "Der Bauplan des Destroyers"
       },
       "fleet_in_being_armada": {

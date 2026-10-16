@@ -177,11 +177,12 @@ defmodule Instance.Player.Player do
     state
   end
 
-  # A daily objective can hand the player a research line up front
-  # (Monumental: the Monolith's patents, which cost more technology than a
-  # run earns). Each granted patent comes with its ancestors, oldest first.
-  # Empty outside such a day.
-  defp granted_patents(instance_id) do
+  @doc """
+  Patents a daily objective hands the player up front (Monumental: the
+  Monolith's line; The Destroyer's Blueprint: the chain up to the fourth
+  shipyard), each with its ancestors, oldest first. Empty outside such a day.
+  """
+  def granted_patents(instance_id) do
     instance_id
     |> Instance.Mutators.daily_objective()
     |> Daily.Objective.granted_patents()
@@ -301,7 +302,11 @@ defmodule Instance.Player.Player do
       end)
     end
 
-    %{state | stellar_systems: replace.(state.stellar_systems, systems), dominions: replace.(state.dominions, dominions)}
+    %{
+      state
+      | stellar_systems: replace.(state.stellar_systems, systems),
+        dominions: replace.(state.dominions, dominions)
+    }
     |> compute_bonus()
   end
 
@@ -505,6 +510,16 @@ defmodule Instance.Player.Player do
     end
   end
 
+  @doc """
+  How many patents raise the price of the next one: every patent held except
+  those a daily objective granted. A granted line is a head start, so it must
+  not make the rest of the day's research dearer.
+  """
+  def priced_patent_count(%Player.Player{} = state) do
+    granted = granted_patents(state.instance_id)
+    Enum.count(state.patents, &(&1 not in granted))
+  end
+
   def purchase_patent(%Player.Player{} = state, patent_key) do
     try do
       patent = Data.Querier.one(Data.Game.Patent, state.instance_id, patent_key)
@@ -521,7 +536,7 @@ defmodule Instance.Player.Player do
       # on_cost mutators (Open Science / Lost Sciences) scale the tech price;
       # 1.0 in vanilla games so the cost is unchanged.
       cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :patent)
-      cost = patent.cost * (1 + length(state.patents) * constant.patent_level_price_increase) * cost_mult
+      cost = patent.cost * (1 + priced_patent_count(state) * constant.patent_level_price_increase) * cost_mult
 
       if cost > state.technology.value, do: throw(:not_enough_technology)
 

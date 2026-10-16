@@ -123,6 +123,15 @@ defmodule Daily.Objective do
       description:
         "A race: push a single system to 800 credit, 50 technology and 40 ideology income at once. Score is the time left when you get there; ties break on progress."
     },
+    # The Destroyer (capital_1) ends an 11-patent line worth 460,350 base
+    # technology (625,765 with the per-patent markup), several times what a
+    # 30-minute run banks (about 90k-210k in simulation; 145k-179k for the
+    # best Archives of Ages scores). So the line up to the fourth shipyard is
+    # granted, granted patents don't raise prices
+    # (Player.priced_patent_count/1), Open Science halves the price, and no
+    # bane may cut technology income or raise patent prices. Simulated, a
+    # strong player then finishes on every generated system, about 15-25
+    # minutes in.
     %{
       key: :destroyers_blueprint,
       name: "The Destroyer's Blueprint",
@@ -131,8 +140,11 @@ defmodule Daily.Objective do
       mode: :race,
       stat_field: nil,
       race: %{patent: :capital_1, cost: 80_000},
+      grants: %{patents: [:shipyard_4]},
+      pinned_mutators: [:open_science],
+      banned_axes: [:technology_income, :patent_cost],
       description:
-        "A race: research the Destroyer patent (the first capital ship). Score is the time left when it completes; ties break on patents researched, then banked technology."
+        "A race: research Armoring, the patent that unlocks the Destroyer (the first capital ship). Every patent before it, up to Space Hyperstructures, is already yours, and Open Science halves the price. Score is the time left when it completes; ties break on patents researched, then banked technology."
     },
     %{
       key: :fleet_in_being_raiders,
@@ -160,7 +172,8 @@ defmodule Daily.Objective do
     # generated system must hold for the goal to be possible at all (see
     # required_bodies/1 — the generator adds what the rolls left out), and
     # `grants` the research the player starts with (granted_patents/1; each
-    # patent comes with its ancestors).
+    # patent comes with its ancestors, and none of them raises later patent
+    # prices).
     %{
       key: :monumental,
       name: "Monumental",
@@ -306,6 +319,24 @@ defmodule Daily.Objective do
   def granted_patents(%{grants: %{patents: patents}}) when is_list(patents), do: patents
   def granted_patents(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: granted_patents(get(key))
   def granted_patents(_), do: []
+
+  @doc """
+  Mutators the day always carries (`pinned_mutators: [...]`), as catalog
+  keys. Unlike `package_mutators` they don't replace the roll: each pinned
+  boon takes one of the two boon slots (see `Daily.Generator`).
+  """
+  def pinned_mutators(%{pinned_mutators: keys}) when is_list(keys), do: keys
+  def pinned_mutators(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: pinned_mutators(get(key))
+  def pinned_mutators(_), do: []
+
+  @doc """
+  Mutator axes the day's bane may not pull on (`banned_axes: [...]`): banes
+  that would undercut the goal itself, such as a technology-income cut on a
+  research race.
+  """
+  def banned_axes(%{banned_axes: axes}) when is_list(axes), do: axes
+  def banned_axes(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: banned_axes(get(key))
+  def banned_axes(_), do: []
 
   @doc """
   Score + tiebreak for a player against an objective, as
