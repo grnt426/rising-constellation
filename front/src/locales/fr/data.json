@@ -1700,7 +1700,7 @@
         "name": "Coffres du royaume"
       },
       "destroyers_blueprint": {
-        "description": "Une course : recherchez le brevet du Destroyer (le premier vaisseau capital). Le score est le temps restant à son achèvement ; les égalités se départagent aux brevets recherchés, puis à la technologie en réserve.",
+        "description": "Une course : recherchez Blindage, le brevet qui débloque le Destroyer (le premier vaisseau capital). Les premiers brevets de sa lignée, jusqu'aux Grues de précision, vous sont déjà acquis ; chaque brevet suivant coûte un cinquième de son prix, et la Science ouverte le divise encore par deux. Le score est le temps restant à son achèvement ; les égalités se départagent aux brevets recherchés, puis à la technologie en réserve.",
         "name": "Les plans du Destroyer"
       },
       "fleet_in_being_armada": {
@@ -1736,7 +1736,7 @@
         "name": "Ruée vers les terres"
       },
       "monumental": {
-        "description": "Une course : érigez le Monolithe sur la planète stérile de votre système. Ses brevets vous sont déjà acquis. Le score est le temps restant à sa construction ; les égalités se départagent à l'avancement de votre économie.",
+        "description": "Une course : érigez le Monolithe sur la planète stérile de votre système. Les premiers brevets de sa lignée, jusqu'aux Hologrammes, vous sont déjà acquis, et Architecture monumentale, le brevet du Monolithe, coûte un quart de son prix. Le score est le temps restant à sa construction ; les égalités se départagent à l'avancement de votre économie.",
         "name": "Monumental"
       },
       "rising_creed": {

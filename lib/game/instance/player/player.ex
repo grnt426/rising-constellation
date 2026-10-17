@@ -177,11 +177,12 @@ defmodule Instance.Player.Player do
     state
   end
 
-  # A daily objective can hand the player a research line up front
-  # (Monumental: the Monolith's patents, which cost more technology than a
-  # run earns). Each granted patent comes with its ancestors, oldest first.
-  # Empty outside such a day.
-  defp granted_patents(instance_id) do
+  @doc """
+  Patents a daily objective hands the player up front (Monumental: the
+  Monolith's line; The Destroyer's Blueprint: the chain up to the fourth
+  shipyard), each with its ancestors, oldest first. Empty outside such a day.
+  """
+  def granted_patents(instance_id) do
     instance_id
     |> Instance.Mutators.daily_objective()
     |> Daily.Objective.granted_patents()
@@ -301,7 +302,11 @@ defmodule Instance.Player.Player do
       end)
     end
 
-    %{state | stellar_systems: replace.(state.stellar_systems, systems), dominions: replace.(state.dominions, dominions)}
+    %{
+      state
+      | stellar_systems: replace.(state.stellar_systems, systems),
+        dominions: replace.(state.dominions, dominions)
+    }
     |> compute_bonus()
   end
 
@@ -505,6 +510,49 @@ defmodule Instance.Player.Player do
     end
   end
 
+  @doc """
+  Granted patents that don't raise later prices: the day's whole granted
+  line when its objective marks the grant `markup_free` (The Destroyer's
+  Blueprint, whose line is a head start that must not make the rest of the
+  day's research dearer), otherwise none.
+  """
+  def markup_free_patents(instance_id) do
+    if instance_id |> Instance.Mutators.daily_objective() |> Daily.Objective.markup_free_grants?(),
+      do: granted_patents(instance_id),
+      else: []
+  end
+
+  @doc "How many held patents raise the price of the next one (see markup_free_patents/1)."
+  def priced_patent_count(%Player.Player{} = state) do
+    free = markup_free_patents(state.instance_id)
+    Enum.count(state.patents, &(&1 not in free))
+  end
+
+  @doc """
+  Price factors a daily objective puts on single patents
+  (`patent_discounts`), as `%{patent_key => factor}`. Empty outside such a
+  day.
+  """
+  def patent_discounts(instance_id) do
+    instance_id
+    |> Instance.Mutators.daily_objective()
+    |> Daily.Objective.patent_discounts()
+  end
+
+  @doc """
+  What `patent` costs this player right now, in technology: the base price,
+  plus 5% per patent held (markup_free_patents/1 aside), scaled by the
+  on_cost mutators (Open Science / Lost Sciences) and the day's discount on
+  that patent. Every factor is 1.0 in a vanilla game.
+  """
+  def patent_price(%Player.Player{} = state, patent) do
+    constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+    cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :patent)
+    discount = Map.get(patent_discounts(state.instance_id), patent.key, 1.0)
+
+    patent.cost * (1 + priced_patent_count(state) * constant.patent_level_price_increase) * cost_mult * discount
+  end
+
   def purchase_patent(%Player.Player{} = state, patent_key) do
     try do
       patent = Data.Querier.one(Data.Game.Patent, state.instance_id, patent_key)
@@ -516,12 +564,7 @@ defmodule Instance.Player.Player do
         unless Enum.any?(state.patents, fn p -> p == patent.ancestor end), do: throw(:patent_locked)
       end
 
-      constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
-
-      # on_cost mutators (Open Science / Lost Sciences) scale the tech price;
-      # 1.0 in vanilla games so the cost is unchanged.
-      cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :patent)
-      cost = patent.cost * (1 + length(state.patents) * constant.patent_level_price_increase) * cost_mult
+      cost = patent_price(state, patent)
 
       if cost > state.technology.value, do: throw(:not_enough_technology)
 

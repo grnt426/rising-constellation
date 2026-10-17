@@ -81,7 +81,8 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
 - **Race family** — race specs are shape-dispatched
   (`Daily.Objective.race_progress/2`): `%{system_income: %{...}}` (Charter of
   Prosperity), `%{patent: key, cost: n}` (**The Destroyer's Blueprint** —
-  `:capital_1`, the Destroyer's internal key, 80k tech behind shipyard 4; DNF
+  `:capital_1`, the Destroyer's internal key, 80k base tech behind shipyard 4,
+  the rest of its line granted (see the rework below); DNF
   ties break on patents researched + banked tech), and `%{army: %{metric: n}}`
   (**Fleet in Being: Raiders / Vanguard / Armada** — a SINGLE fleet reaching
   50 raid / 50 invasion / 500 upkeep; best-fleet ratio is the DNF tiebreak).
@@ -120,11 +121,13 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   planet, rolled from the seeded generator), and `grants: %{patents: [...]}`,
   research the player starts with, ancestors included (`Player.new/4`). The
   Monolith's line costs about 165,000 technology against a best recorded
-  30-minute stock of 145,000, so it is granted and the race is the build:
-  9,000 credits and 130 production for the dome infrastructure, then 160,000
-  credits and 20,000 production, from a start of 300,000 credits and about
-  130 production. That is roughly two minutes for a player who goes straight
-  for it. Building completion has no
+  30-minute stock of 145,000, so it was first granted whole and the race was
+  the build: 9,000 credits and 130 production for the dome infrastructure,
+  then 160,000 credits and 20,000 production, from a start of 300,000
+  credits and about 130 production. Simulated, that took 1.6-3.9 minutes on
+  all 21 Monumental dates through 2027-09, which left no research in the
+  race, so it was reworked again (see the 2026-10-16 entry below). Building
+  completion has no
   player-visible signal, so one was added following the `:ship_built`
   pattern: when a tracked wonder (`@wonder_keys` in `StellarSystem`) finishes
   in a player-owned system, `next_tick` tags the change set `{:wonder_built,
@@ -134,6 +137,56 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   `race_completed?` checks membership; the DNF tiebreak is total system
   production. Verified live end-to-end (cast → latch → race completes,
   idempotent).
+- **The Destroyer's Blueprint rework (2026-10-16)** — the race shipped
+  unwinnable. `capital_1` ends an 11-patent line (citadel → shipyard_1 →
+  merge_fighter_1 → shipyard_2 → merge_fighter_2 → merge_corvette_1 →
+  shipyard_3 → merge_fighter_3 → merge_corvette_2 → shipyard_4 →
+  capital_1) worth 460,350 base technology, and each patent owned adds 5% to
+  the next, so the line costs at least 625,765. The `80k` in the race spec
+  was the last link alone. Real-engine simulation (a tech-maximizing bot,
+  calibrated at a median 87% of the best human Archives of Ages score per
+  day) banked 87k-209k across all 14 generated Destroyer systems, and no
+  system or mutator combination tested reached the full line. A first fix
+  granted the line through shipyard_4; the user ruled that handing over
+  whole lines takes the challenge away, so both research races now grant
+  only cheap starters and discount what is left:
+  - **Destroyer**: grants through shipyard_2 (`grants`, `markup_free: true`
+    so they don't raise later prices), sells the other seven patents at a
+    fifth (`patent_discounts`), pins Open Science (`pinned_mutators`: a
+    pinned boon takes one of the two boon slots) and keeps
+    technology-income and patent-cost banes off the day (`banned_axes`).
+    Discounting only the 220k merge_fighter_3 failed every day, even at
+    zero: the rest of the line still cost more than a run earns.
+    Simulated as configured: all 14 Destroyer days finished, 16-25
+    minutes in (median 19.6).
+  - **Monumental**: grants citadel through dome_happiness (they still count
+    toward the markup), sells dome_ideo at a quarter and bans the same
+    banes. Without the ban, 18 of 21 dates finished; the misses had rolled
+    Lost Sciences or Luddite Backlash. As configured, all 21 finished,
+    13-25 minutes in (median 18.7), once the home-planet bug below was
+    fixed.
+- **Tileless home planets (2026-10-16)** — `StellarSystem.ensure_habitable_planet/3`
+  guarantees every daily system a habitable planet. It used to relabel the
+  top-level body with the most tiles, and when a system rolled only gas
+  giants and asteroid belts that body had no tiles: the home planet could
+  hold no infrastructure, no housing and no buildings (2026-12-22 Monumental
+  was unwinnable for that alone). A system with nothing to build on now
+  gets a habitable planet rolled from the seeded generator
+  (`StellarBody.new_of_kind/4`), and systems that had a habitable planet,
+  or a barren one to relabel, keep exactly what they rolled. A sweep of
+  every daily from 2026-06-20 to 2027-09-30 under sequential generation
+  (as production runs it: 2 cores, so `generation_concurrency/0` is 1)
+  found 19 broken dates, 9 with an unplayable home and 10 sector days with
+  a dud colony or conquest target; the fix changes exactly those 19.
+  Multi-system days (sector days, Headhunter) only reproduce under
+  sequential generation: on a machine with more cores the concurrent
+  fan-out reorders the shared seeded draws, unless
+  `RC_DETERMINISTIC_GENERATION` is set.
+
+  `patent_discounts` is read by `Player.patent_price/2`, the one price both
+  the purchase and the client use: the global channel's instance info
+  carries `patent_discounts` and `markup_free_patents`, and the patent card
+  multiplies in its own discount.
 - **Package days + The Bequest** — an objective may carry `package_mutators`;
   the generator pins those instead of rolling 2 boons + 1 bane (the scripted
   setup IS the day). First package: **The Bequest** — start with 100,000,000

@@ -183,8 +183,12 @@ export default {
     purchasedPatents() { return this.$store.state.game.player.patents; },
     purchasedPatentsNumber() { return this.purchasedPatents.length; },
     patentCostMultiplier() { return this.$store.state.game.instanceInfo.patent_cost_multiplier || 1; },
+    // Same count the server prices with (Player.priced_patent_count/1):
+    // some dailies grant patents that don't raise later prices.
     costFactor() {
-      return this.purchasedPatentsNumber * this.constant.patent_level_price_increase;
+      const free = this.$store.state.game.instanceInfo.markup_free_patents || [];
+      const priced = this.purchasedPatents.filter((p) => !free.includes(p)).length;
+      return priced * this.constant.patent_level_price_increase;
     },
     tabs() {
       return Array.from(new Set(this.dataPatents.map((d) => d.class)))

@@ -1233,7 +1233,7 @@
         "name": "Schatzkammer des Reichs"
       },
       "destroyers_blueprint": {
-        "description": "Ein Wettlauf: Erforsche das Destroyer-Patent (das erste Großkampfschiff). Der Score ist die verbleibende Zeit beim Abschluss; Gleichstände entscheiden erforschte Patente, dann die Technologiereserve.",
+        "description": "Ein Wettlauf: Erforsche Armoring, das Patent, das den Destroyer freischaltet (das erste Großkampfschiff). Die ersten Patente seiner Linie bis Precision Cranes gehören dir bereits; jedes weitere kostet ein Fünftel seines Preises, und Offene Wissenschaft halbiert ihn noch einmal. Der Score ist die verbleibende Zeit beim Abschluss; Gleichstände entscheiden erforschte Patente, dann die Technologiereserve.",
         "name": "Der Bauplan des Destroyers"
       },
       "fleet_in_being_armada": {
@@ -1269,7 +1269,7 @@
         "name": "Landnahme"
       },
       "monumental": {
-        "description": "Ein Wettlauf: Errichte den Monolithen auf dem kargen Planeten deines Systems. Seine Patente besitzt du bereits. Der Score ist die verbleibende Zeit bei Fertigstellung; Gleichstände entscheidet der Stand deiner Wirtschaft.",
+        "description": "Ein Wettlauf: Errichte den Monolithen auf dem kargen Planeten deines Systems. Die ersten Patente seiner Linie bis Holograms gehören dir bereits, und Monumental Architecture, das Patent des Monolithen, kostet ein Viertel seines Preises. Der Score ist die verbleibende Zeit bei Fertigstellung; Gleichstände entscheidet der Stand deiner Wirtschaft.",
         "name": "Monumental"
       },
       "rising_creed": {

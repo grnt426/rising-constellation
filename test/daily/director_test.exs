@@ -151,7 +151,7 @@ defmodule Daily.DirectorTest do
     # 2026-10-13 is the Monumental day that shipped impossible: its seed rolls
     # no barren world. Past dates never change objective (Daily.Rotation), so
     # it stays a fixture for the case where the world has to be added.
-    test "the system has a barren world and the Monolith can be ordered from the start" do
+    test "the system has a barren world and the Monolith waits on its discounted patent" do
       profile = create_profile("monumental")
       date = "2026-10-13"
       assert Daily.definition_for(date).objective.key == :monumental
@@ -173,15 +173,18 @@ defmodule Daily.DirectorTest do
       assert barren == List.last(system.bodies)
       assert Enum.any?(system.bodies, &(&1.type == :habitable_planet))
 
-      # the Monolith's patent line, oldest first
-      assert List.last(player.patents) == :dome_ideo
-      assert :infra_dome_1 in player.patents
+      # the starters of the Monolith's line, oldest first; its own patent is
+      # researched at a quarter of the price (no Open Science that day; the
+      # four granted patents count toward the markup)
+      assert player.patents == [:citadel, :infra_dome_1, :dome_pop, :dome_happiness]
+      dome_ideo = Data.Querier.one(Data.Game.Patent, iid, :dome_ideo)
+      assert_in_delta Instance.Player.Player.patent_price(player, dome_ideo), 150_000 * 1.2 * 0.25, 0.01
 
       # infrastructure on the barren world, then the Monolith
       assert %Instance.Player.Player{} =
                Game.call(iid, :player, profile.id, {:order_building, home.id, "build", {barren.uid, 1, :infra_dome, 1}})
 
-      assert {:error, :no_building_without_infra} =
+      assert {:error, :patent_not_unlocked} =
                Game.call(
                  iid,
                  :player,
@@ -191,6 +194,10 @@ defmodule Daily.DirectorTest do
 
       # the Floating Gardens stay locked: only the Monolith's line is granted
       refute :open_ideo in player.patents
+
+      # this grant is not markup-free: the line still raises later prices
+      assert Instance.Player.Player.markup_free_patents(iid) == []
+      assert Instance.Player.Player.priced_patent_count(player) == length(player.patents)
     end
   end
 

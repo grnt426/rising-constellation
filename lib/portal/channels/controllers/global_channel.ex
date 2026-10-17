@@ -68,7 +68,14 @@ defmodule Portal.Controllers.GlobalChannel do
               # Game modifiers that scale patent prices (Open Science,
               # Lost Sciences): the patent panel and cards multiply the
               # price they show by this, like Player.purchase_patent/2.
-              patent_cost_multiplier: Instance.Mutators.cost_multiplier(instance_id, :patent)
+              patent_cost_multiplier: Instance.Mutators.cost_multiplier(instance_id, :patent),
+              # Granted patents that don't raise later prices (The
+              # Destroyer's Blueprint; Player.markup_free_patents/1), which
+              # the patent panel leaves out of its price factor.
+              markup_free_patents: Instance.Player.Player.markup_free_patents(instance_id),
+              # Per-patent price factors some dailies set (%{key => factor});
+              # each patent card multiplies its price by its own entry.
+              patent_discounts: Instance.Player.Player.patent_discounts(instance_id)
             }
 
             payload = %{

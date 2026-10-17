@@ -92,15 +92,19 @@ defmodule Daily.Generator do
 
     # Package days (The Bequest, ...): the objective pins its own mutator set
     # — the scripted setup IS the day's identity — instead of the usual roll
-    # of 2 boons + 1 bane.
+    # of 2 boons + 1 bane. Other objectives may pin a boon into the roll and
+    # keep some banes off the day (The Destroyer's Blueprint: Open Science,
+    # and no cut to technology income or patent prices).
     mutator_keys =
       case Map.get(Daily.Objective.get(objective), :package_mutators) do
         pins when is_list(pins) and pins != [] ->
           pins
 
         _ ->
-          {positives, negative} = pick_mutators(bytes, include_unimplemented)
-          positives ++ [negative]
+          pinned = Daily.Objective.pinned_mutators(objective)
+          banned_axes = Daily.Objective.banned_axes(objective)
+          {positives, negative} = pick_mutators(bytes, include_unimplemented, pinned, banned_axes)
+          pinned ++ positives ++ [negative]
       end
 
     objective_def = Daily.Objective.get(objective)
@@ -125,7 +129,16 @@ defmodule Daily.Generator do
     sectors =
       [player_sector] ++
         if puppet_faction,
-          do: [build_sector(puppet_faction, puppet_sector_name(sector_name), puppet_systems, %{systems: length(puppet_systems), npc: :uninhabited}, 1, @puppet_center)],
+          do: [
+            build_sector(
+              puppet_faction,
+              puppet_sector_name(sector_name),
+              puppet_systems,
+              %{systems: length(puppet_systems), npc: :uninhabited},
+              1,
+              @puppet_center
+            )
+          ],
           else: []
 
     all_systems = systems ++ puppet_systems
@@ -187,27 +200,40 @@ defmodule Daily.Generator do
   defp int16(bytes, offset), do: at(bytes, offset) * 256 + at(bytes, offset + 1) + 1
 
   # Roll two distinct boons and one bane, without replacement. The bane may
-  # never share an `axis` with a rolled boon: a day that both boosts and
-  # nerfs the same lever (say, tech income) reads as having nothing
-  # interesting to offer. Same-polarity stacking stays legal — contradiction
-  # is filtered, not synergy. (Objective-vs-mutator collisions are NOT
-  # filtered; a rare bane on the scored resource is a deliberately hard day.)
-  defp pick_mutators(bytes, include_unimplemented) do
-    positives = mutator_pool(:positive, include_unimplemented)
-    negatives = mutator_pool(:negative, include_unimplemented)
+  # never share an `axis` with a boon: a day that both boosts and nerfs the
+  # same lever (say, tech income) reads as having nothing interesting to
+  # offer. Same-polarity stacking stays legal — contradiction is filtered,
+  # not synergy. (Objective-vs-mutator collisions are NOT filtered, except
+  # where an objective names `banned_axes`; a rare bane on the scored
+  # resource is otherwise a deliberately hard day.)
+  #
+  # Boons the objective pins take boon slots, so a day with one pinned boon
+  # rolls one more. With nothing pinned or banned this draws exactly what it
+  # always did, so existing days keep their mutators.
+  defp pick_mutators(bytes, include_unimplemented, pinned, banned_axes) do
+    pinned_boons = Enum.filter(pinned, &(Mutator.get(&1).polarity == :positive))
+    positives = mutator_pool(:positive, include_unimplemented) |> Enum.reject(&(&1.key in pinned))
+    negatives = mutator_pool(:negative, include_unimplemented) |> Enum.reject(&(&1.key in pinned))
 
-    {p1, rest} = take(positives, at(bytes, 8))
-    {p2, _} = take(rest, at(bytes, 9))
+    rolled =
+      [at(bytes, 8), at(bytes, 9)]
+      |> Enum.take(max(2 - length(pinned_boons), 0))
+      |> Enum.reduce({[], positives}, fn byte, {picked, pool} ->
+        {boon, rest} = take(pool, byte)
+        {picked ++ [boon], rest}
+      end)
+      |> elem(0)
 
-    boon_axes = [Map.get(p1, :axis), Map.get(p2, :axis)]
-    eligible_negatives = Enum.reject(negatives, &(Map.get(&1, :axis) in boon_axes))
+    boon_axes = Enum.map(pinned, &Map.get(Mutator.get(&1), :axis)) ++ Enum.map(rolled, &Map.get(&1, :axis))
+    allowed = Enum.reject(negatives, &(Map.get(&1, :axis) in banned_axes))
+    eligible_negatives = Enum.reject(allowed, &(Map.get(&1, :axis) in boon_axes))
     # Safety net only — with banes spread across many axes the filtered pool
     # can't empty today, but a future catalog shouldn't crash the daily.
-    eligible_negatives = if eligible_negatives == [], do: negatives, else: eligible_negatives
+    eligible_negatives = if eligible_negatives == [], do: allowed, else: eligible_negatives
 
     {n1, _} = take(eligible_negatives, at(bytes, 10))
 
-    {[p1.key, p2.key], n1.key}
+    {Enum.map(rolled, & &1.key), n1.key}
   end
 
   defp mutator_pool(polarity, true), do: Mutator.daily_by_polarity(polarity)
@@ -266,6 +292,7 @@ defmodule Daily.Generator do
 
   defp system_position(i, count, center) do
     angle = 2 * :math.pi() * (i - 1) / count
+
     %{
       "x" => Float.round(center + @sector_radius * :math.cos(angle), 2),
       "y" => Float.round(center + @sector_radius * :math.sin(angle), 2)

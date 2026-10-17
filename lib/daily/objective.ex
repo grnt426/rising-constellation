@@ -31,6 +31,13 @@ defmodule Daily.Objective do
   the live player at score time (see `Daily.Boot.record_for/2`).
   """
 
+  # The Destroyer's line past the granted starters, each patent at a fifth of
+  # its price (see the objective below).
+  @destroyer_line_discounts Map.new(
+                              ~w(merge_fighter_2 merge_corvette_1 shipyard_3 merge_fighter_3 merge_corvette_2 shipyard_4 capital_1)a,
+                              &{&1, 0.2}
+                            )
+
   @catalog [
     %{
       key: :coffers_of_the_realm,
@@ -123,6 +130,17 @@ defmodule Daily.Objective do
       description:
         "A race: push a single system to 800 credit, 50 technology and 40 ideology income at once. Score is the time left when you get there; ties break on progress."
     },
+    # The Destroyer (capital_1) ends an 11-patent line worth 460,350 base
+    # technology (625,765 with the per-patent markup), several times what a
+    # 30-minute run banks (about 90k-210k in simulation; 145k-179k for the
+    # best Archives of Ages scores). Handing over the line took the challenge
+    # away, so the day grants only the cheap starters (through shipyard_2,
+    # without raising later prices: `markup_free`), prices the rest of the
+    # line at a fifth (`patent_discounts`), pins Open Science and keeps
+    # technology-income and patent-cost banes away. Discounting only the
+    # 220k merge_fighter_3 was not enough: the rest of the line still cost
+    # more than a run earns. Simulated as configured, it finished on all 14
+    # generated Destroyer days, 16-25 minutes in (median 19.6).
     %{
       key: :destroyers_blueprint,
       name: "The Destroyer's Blueprint",
@@ -131,8 +149,12 @@ defmodule Daily.Objective do
       mode: :race,
       stat_field: nil,
       race: %{patent: :capital_1, cost: 80_000},
+      grants: %{patents: [:shipyard_2], markup_free: true},
+      patent_discounts: @destroyer_line_discounts,
+      pinned_mutators: [:open_science],
+      banned_axes: [:technology_income, :patent_cost],
       description:
-        "A race: research the Destroyer patent (the first capital ship). Score is the time left when it completes; ties break on patents researched, then banked technology."
+        "A race: research Armoring, the patent that unlocks the Destroyer (the first capital ship). The first patents of its line, up to Precision Cranes, are already yours; every patent after them costs a fifth of its price, and Open Science halves that again. Score is the time left when it completes; ties break on patents researched, then banked technology."
     },
     %{
       key: :fleet_in_being_raiders,
@@ -160,7 +182,8 @@ defmodule Daily.Objective do
     # generated system must hold for the goal to be possible at all (see
     # required_bodies/1 — the generator adds what the rolls left out), and
     # `grants` the research the player starts with (granted_patents/1; each
-    # patent comes with its ancestors).
+    # patent comes with its ancestors). Granted patents raise later prices
+    # like researched ones unless the grant says `markup_free: true`.
     %{
       key: :monumental,
       name: "Monumental",
@@ -170,16 +193,22 @@ defmodule Daily.Objective do
       stat_field: nil,
       # The Monolith (monument_dome): a barren-world building, so the day
       # guarantees a barren world. Its patent line costs about 165,000
-      # technology, more than a whole run earns, so the line is granted and
-      # the race is the build itself. The Floating Gardens (monument_open)
-      # are a different building and do not count. Completion is latched onto
-      # the player by the wonder-built signal (see
-      # StellarSystem.Agent.cast_hook).
+      # technology, more than a whole run earns, nearly all of it in the
+      # Monolith's own patent (dome_ideo, 150,000). Granting the whole line
+      # left a two-minute build with no research in it, so the day grants the
+      # four cheap starters, sells dome_ideo at a quarter of its price and
+      # keeps technology-income and patent-cost banes away. Simulated as
+      # configured, it finished on all 21 Monumental days through 2027-09,
+      # 13-25 minutes in (median 18.7). The Floating Gardens (monument_open) are a
+      # different building and do not count. Completion is latched onto the
+      # player by the wonder-built signal (see StellarSystem.Agent.cast_hook).
       race: %{wonder: :monument_dome},
       requires: %{bodies: [:sterile_planet]},
-      grants: %{patents: [:dome_ideo]},
+      grants: %{patents: [:dome_happiness]},
+      patent_discounts: %{dome_ideo: 0.25},
+      banned_axes: [:technology_income, :patent_cost],
       description:
-        "A race: raise the Monolith on your system's barren world. Its patents are already yours. Score is the time left when it's built; ties break on how far along your economy is."
+        "A race: raise the Monolith on your system's barren world. The first patents of its line, up to Holograms, are already yours, and Monumental Architecture, the Monolith's own patent, costs a quarter of its price. Score is the time left when it's built; ties break on how far along your economy is."
     },
     %{
       key: :fleet_in_being_armada,
@@ -306,6 +335,46 @@ defmodule Daily.Objective do
   def granted_patents(%{grants: %{patents: patents}}) when is_list(patents), do: patents
   def granted_patents(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: granted_patents(get(key))
   def granted_patents(_), do: []
+
+  @doc """
+  Price factors the day puts on single patents (`patent_discounts: %{key =>
+  factor}`), applied by `Instance.Player.Player.patent_price/2`. Empty for
+  objectives without any.
+  """
+  def patent_discounts(%{patent_discounts: discounts}) when is_map(discounts), do: discounts
+  def patent_discounts(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: patent_discounts(get(key))
+  def patent_discounts(_), do: %{}
+
+  @doc """
+  Whether the day's granted patents stay out of the 5%-per-patent price
+  increase (`grants: %{markup_free: true}`). Off unless the objective says
+  so: only The Destroyer's Blueprint does, pending player feedback on other
+  days with grants.
+  """
+  def markup_free_grants?(%{grants: %{markup_free: true}}), do: true
+
+  def markup_free_grants?(key) when (is_atom(key) and not is_nil(key)) or is_binary(key),
+    do: markup_free_grants?(get(key))
+
+  def markup_free_grants?(_), do: false
+
+  @doc """
+  Mutators the day always carries (`pinned_mutators: [...]`), as catalog
+  keys. Unlike `package_mutators` they don't replace the roll: each pinned
+  boon takes one of the two boon slots (see `Daily.Generator`).
+  """
+  def pinned_mutators(%{pinned_mutators: keys}) when is_list(keys), do: keys
+  def pinned_mutators(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: pinned_mutators(get(key))
+  def pinned_mutators(_), do: []
+
+  @doc """
+  Mutator axes the day's bane may not pull on (`banned_axes: [...]`): banes
+  that would undercut the goal itself, such as a technology-income cut on a
+  research race.
+  """
+  def banned_axes(%{banned_axes: axes}) when is_list(axes), do: axes
+  def banned_axes(key) when (is_atom(key) and not is_nil(key)) or is_binary(key), do: banned_axes(get(key))
+  def banned_axes(_), do: []
 
   @doc """
   Score + tiebreak for a player against an objective, as
