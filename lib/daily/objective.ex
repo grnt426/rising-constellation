@@ -198,9 +198,8 @@ defmodule Daily.Objective do
       # left a two-minute build with no research in it, so the day grants the
       # four cheap starters, sells dome_ideo at a quarter of its price and
       # keeps technology-income and patent-cost banes away. Simulated as
-      # configured, it finished on 20 of 21 Monumental days through 2027-09,
-      # 13-25 minutes in (median 18.7); the miss (2026-12-22) has a home
-      # planet with no tiles. The Floating Gardens (monument_open) are a
+      # configured, it finished on all 21 Monumental days through 2027-09,
+      # 13-25 minutes in (median 18.7). The Floating Gardens (monument_open) are a
       # different building and do not count. Completion is latched onto the
       # player by the wonder-built signal (see StellarSystem.Agent.cast_hook).
       race: %{wonder: :monument_dome},

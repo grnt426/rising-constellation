@@ -122,11 +122,11 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> Enum.map(fn i -> StellarSystem.StellarBody.new(i, name, instance_id, :primary) end)
 
     # A daily's lone system must be colonizable, so guarantee a habitable
-    # planet — convert the largest body if the rolls produced none. Then add
-    # whatever the day's objective cannot be done without.
+    # planet with tiles (ensure_habitable_planet/3). Then add whatever the
+    # day's objective cannot be done without.
     bodies =
       if Instance.Mutators.daily?(instance_id),
-        do: bodies |> ensure_habitable_planet() |> ensure_required_bodies(instance_id, name),
+        do: bodies |> ensure_habitable_planet(instance_id, name) |> ensure_required_bodies(instance_id, name),
         else: bodies
 
     # Stage 6 #1.5 — per-sector neutral distribution. `opts` comes from
@@ -1729,19 +1729,30 @@ defmodule Instance.StellarSystem.StellarSystem do
     }
   end
 
-  # Daily generation guarantee: every daily system must have at least one
-  # habitable planet so `open_system/1` can colonize it. If the rolls produced
-  # none, promote the largest body (most tiles — i.e. the most planet-like) to
-  # a habitable planet, keeping its rolled factors and tiles.
-  defp ensure_habitable_planet(bodies) do
-    if Enum.any?(bodies, &(&1.type == :habitable_planet)) do
-      bodies
-    else
-      target = Enum.max_by(bodies, &length(&1.tiles))
+  # Daily generation guarantee: every daily system must have a habitable
+  # planet with room to build, so `open_system/1` can colonize it. If the
+  # rolls produced none, promote the largest body (most tiles — i.e. the most
+  # planet-like) to a habitable planet, keeping its rolled factors and tiles.
+  # If nothing rolled has tiles at all (only gas giants and asteroid belts),
+  # add a habitable planet rolled from the seeded generator instead:
+  # promoting a tileless giant left the player a home with nowhere to build
+  # (the 2026-12-22 daily). Systems that had a habitable planet, or a barren
+  # one to promote, keep exactly the bodies they rolled.
+  defp ensure_habitable_planet(bodies, instance_id, system_name) do
+    target = Enum.max_by(bodies, &length(&1.tiles), fn -> nil end)
 
-      Enum.map(bodies, fn body ->
-        if body.uid == target.uid, do: %{body | type: :habitable_planet}, else: body
-      end)
+    cond do
+      Enum.any?(bodies, &(&1.type == :habitable_planet)) ->
+        bodies
+
+      target != nil and target.tiles != [] ->
+        Enum.map(bodies, fn body ->
+          if body.uid == target.uid, do: %{body | type: :habitable_planet}, else: body
+        end)
+
+      true ->
+        bodies ++
+          [StellarSystem.StellarBody.new_of_kind(length(bodies) + 1, system_name, instance_id, :habitable_planet)]
     end
   end
 

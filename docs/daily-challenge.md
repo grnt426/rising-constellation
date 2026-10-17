@@ -162,10 +162,26 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   - **Monumental**: grants citadel through dome_happiness (they still count
     toward the markup), sells dome_ideo at a quarter and bans the same
     banes. Without the ban, 18 of 21 dates finished; the misses had rolled
-    Lost Sciences or Luddite Backlash. As configured, 20 of 21 finished,
-    13-25 minutes in (median 18.7). The miss, 2026-12-22, is a generation
-    bug: `ensure_habitable_planet` relabelled a tileless gas giant as the
-    home planet, so nothing can be built there.
+    Lost Sciences or Luddite Backlash. As configured, all 21 finished,
+    13-25 minutes in (median 18.7), once the home-planet bug below was
+    fixed.
+- **Tileless home planets (2026-10-16)** — `StellarSystem.ensure_habitable_planet/3`
+  guarantees every daily system a habitable planet. It used to relabel the
+  top-level body with the most tiles, and when a system rolled only gas
+  giants and asteroid belts that body had no tiles: the home planet could
+  hold no infrastructure, no housing and no buildings (2026-12-22 Monumental
+  was unwinnable for that alone). A system with nothing to build on now
+  gets a habitable planet rolled from the seeded generator
+  (`StellarBody.new_of_kind/4`), and systems that had a habitable planet,
+  or a barren one to relabel, keep exactly what they rolled. A sweep of
+  every daily from 2026-06-20 to 2027-09-30 under sequential generation
+  (as production runs it: 2 cores, so `generation_concurrency/0` is 1)
+  found 19 broken dates, 9 with an unplayable home and 10 sector days with
+  a dud colony or conquest target; the fix changes exactly those 19.
+  Multi-system days (sector days, Headhunter) only reproduce under
+  sequential generation: on a machine with more cores the concurrent
+  fan-out reorders the shared seeded draws, unless
+  `RC_DETERMINISTIC_GENERATION` is set.
 
   `patent_discounts` is read by `Player.patent_price/2`, the one price both
   the purchase and the client use: the global channel's instance info
