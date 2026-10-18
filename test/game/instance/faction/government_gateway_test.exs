@@ -6,7 +6,7 @@ defmodule Instance.Faction.GovernmentGatewayTest do
   @moduledoc """
   Engine tests for gateway pairing and the portal-transit lock
   (docs/faction-buildings.md): link/unlink lifecycle and billing, the
-  reserve → begin_jump → wind_down → free protocol, interruption
+  reserve → begin_jump → arrive (free) protocol, interruption
   release semantics per phase, the unpowered pause, capture teardown,
   and the orphan sweep.
   """
@@ -199,7 +199,7 @@ defmodule Instance.Faction.GovernmentGatewayTest do
   end
 
   describe "transit lock protocol" do
-    test "reserve → begin_jump → wind_down → timer frees the pair" do
+    test "reserve → begin_jump → arrival frees the pair at once" do
       ctx = ctx()
       government = linked_government(ctx)
 
@@ -213,8 +213,24 @@ defmodule Instance.Faction.GovernmentGatewayTest do
       assert {:ok, government} = Government.gateway_begin_jump(government, 42)
       assert link(government).transit.phase == :jumping
 
-      assert {:ok, government} = Government.gateway_begin_wind_down(government, 42, ctx)
-      assert link(government).transit == %{character_id: 42, phase: :wind_down, remaining: 4}
+      # the traveler's fatigue is its own — the next agent may charge now
+      assert {:ok, government, %{transit: nil}} = Government.gateway_arrive(government, 42)
+      assert link(government).transit == nil
+      assert {:ok, _government, 100} = Government.gateway_reserve(government, 200, 77)
+
+      # a second arrival report (or one for a torn-down link) finds nothing
+      assert {:error, :not_found} = Government.gateway_arrive(government, 42)
+    end
+
+    test "a wind-down restored from an older snapshot still drains on its clock" do
+      ctx = ctx()
+      government = linked_government(ctx)
+      {:ok, government, _} = Government.gateway_reserve(government, 100, 42)
+      [link] = government.gateway_links
+      wind_down = %{link | transit: %{character_id: 42, phase: :wind_down, remaining: 4}}
+      government = %{government | gateway_links: [wind_down]}
+
+      assert Government.next_deadline(government) == 4
 
       {government, events} = Government.advance(government, 2, ctx)
       assert link(government).transit.remaining == 2
@@ -223,8 +239,6 @@ defmodule Instance.Faction.GovernmentGatewayTest do
       {government, events} = Government.advance(government, 2, ctx)
       assert link(government).transit == nil
       assert Enum.any?(events, &(&1.type == :gateway_ready))
-
-      assert {:ok, _government, 100} = Government.gateway_reserve(government, 200, 77)
     end
 
     test "reserving from either end returns the opposite endpoint" do
@@ -233,7 +247,7 @@ defmodule Instance.Faction.GovernmentGatewayTest do
       assert {:ok, _government, 100} = Government.gateway_reserve(government, 200, 42)
     end
 
-    test "release frees ONLY a charging transit; wind-down runs its own clock out" do
+    test "release frees ONLY a charging transit" do
       ctx = ctx()
       government = linked_government(ctx)
 
@@ -245,14 +259,12 @@ defmodule Instance.Faction.GovernmentGatewayTest do
       # begin_jump after release must refuse — the capture-race backstop
       assert {:error, :not_reserved} = Government.gateway_begin_jump(government, 42)
 
-      # a wind-down does not release on interruption (traveler death at
-      # the arrival system leaves the pair cooling down regardless)
+      # a jump does not release on interruption — it lands regardless
       {:ok, government, _} = Government.gateway_reserve(government, 100, 42)
       {:ok, government} = Government.gateway_begin_jump(government, 42)
-      {:ok, government} = Government.gateway_begin_wind_down(government, 42, ctx)
       {government, released?} = Government.gateway_release(government, 42)
       refute released?
-      assert link(government).transit.phase == :wind_down
+      assert link(government).transit.phase == :jumping
     end
 
     test "reservation refused while unpowered or with a disabled endpoint" do
@@ -299,7 +311,7 @@ defmodule Instance.Faction.GovernmentGatewayTest do
       assert {:error, :station_unpowered} = Government.gateway_reserve(government, 100, 42)
     end
 
-    test "a dry treasury leaves a mid-jump traveler and a wind-down alone" do
+    test "a dry treasury leaves a mid-jump traveler alone" do
       ctx = ctx()
       government = linked_government(ctx)
       {:ok, government, _} = Government.gateway_reserve(government, 100, 42)
@@ -312,12 +324,9 @@ defmodule Instance.Faction.GovernmentGatewayTest do
       assert link(government).transit.phase == :jumping
       refute Enum.any?(events, &(&1.type == :gateway_charge_aborted))
 
-      # the traveler still lands, and the pair cools down unpowered
-      {:ok, government} = Government.gateway_begin_wind_down(government, 42, ctx)
-      {government, events} = Government.advance(government, 4, ctx)
-
+      # the traveler still lands, which frees the pair unpowered too
+      {:ok, government, _link} = Government.gateway_arrive(government, 42)
       assert link(government).transit == nil
-      assert Enum.any?(events, &(&1.type == :gateway_ready))
     end
   end
 

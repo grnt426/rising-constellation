@@ -685,13 +685,16 @@ defmodule Instance.Faction.Agent do
   end
 
   @decorate tick()
-  def on_call({:gateway_begin_wind_down, character_id}, _, state) do
+  def on_call({:gateway_arrived, character_id}, _, state) do
     gateway_state_call(state, fn government ->
-      ctx = Government.build_ctx(state.data)
+      case Government.gateway_arrive(government, character_id) do
+        {:ok, government, link} ->
+          # the pair is free again — refresh the endpoint stamps (`busy`)
+          stamp_gateway_link(state, link)
+          {:ok, government, :ok}
 
-      case Government.gateway_begin_wind_down(government, character_id, ctx) do
-        {:ok, government} -> {:ok, government, :ok}
-        {:error, reason} -> {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
       end
     end)
   end
@@ -1604,7 +1607,8 @@ defmodule Instance.Faction.Agent do
     government_player_event(state, "gateway_unlinked", %{})
   end
 
-  # Wind-down over — refresh the endpoint stamps (their `busy` flag).
+  # A wind-down restored from an older snapshot ran out — refresh the
+  # endpoint stamps (their `busy` flag).
   defp settle_government_event(state, %{type: :gateway_ready} = event) do
     stamp_gateway_link(state, event.link)
   end

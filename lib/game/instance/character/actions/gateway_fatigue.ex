@@ -7,9 +7,8 @@ defmodule Instance.Character.Actions.GatewayFatigue do
   changes stay open — `{:update_reaction}` never gated on
   `action_status`, deliberately left that way.
 
-  The gateway pair's wind-down runs on the government's own clock for
-  the same duration — killing the fatigued traveler does NOT free the
-  gateway early.
+  Fatigue is the traveler's alone: the gateway pair freed itself on
+  arrival, so the next agent can start charging while this one rests.
 
   Engine-injected only — a client can never queue this directly.
   """

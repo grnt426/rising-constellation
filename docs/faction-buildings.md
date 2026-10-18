@@ -166,8 +166,9 @@ faction agent on every link event.
 
 Link records: `%{id, endpoints: [%{system_id, building_id} ×2],
 status: :linking | :linked | :unlinking, remaining, transit}` where
-`transit` is `nil | %{character_id, phase: :charging | :jumping |
-:wind_down, remaining}`.
+`transit` is `nil | %{character_id, phase: :charging | :jumping,
+remaining}` (`:wind_down` survives only in snapshots from before
+arrival freed the pair; the tick drains it on its old clock).
 
 - **Link** (Military rep, overreach applies): both gateways `:built`,
   neither already in a link. Forms over `gateway_link_time`, billed
@@ -183,16 +184,18 @@ status: :linking | :linked | :unlinking, remaining, transit}` where
   → charge-finish asks `{:gateway_begin_jump}` (the capture-race
   backstop) → `gateway_jump` (removed from the system, `system: nil` =
   untargetable; queue-clearing a running jump is refused — it would
-  strand the traveler) → arrival + `{:gateway_begin_wind_down}` →
-  `gateway_fatigue` (present, targetable, starts nothing, can't be
-  recalled; fleet stance changes stay open). The pair stays locked for
-  a government-side wind-down equal to the fatigue window — killing
-  the arrived traveler does NOT shorten it. A `:charging` transit
-  bills +250c +50t per ut.
+  strand the traveler) → arrival + `{:gateway_arrived}`, which frees
+  the pair at once → `gateway_fatigue` (present, targetable, starts
+  nothing, can't be recalled; fleet stance changes stay open). The
+  fatigue is the traveler's alone: the next agent may start charging
+  while the first rests (user ruling 2026-10-18 — locking the pair
+  through the fatigue capped it at 2 jumps a day; freeing it on
+  arrival makes the cycle 8h, 3 a day). A `:charging` transit bills
+  +250c +50t per ut.
 - **A power-down stops the gateway**: no new reservation
   (`:station_unpowered`), and a traveler caught charging is stood down
   in place with the pair freed (`:gateway_charge_aborted`). A traveler
-  already mid-jump lands, and a wind-down runs its clock out.
+  already mid-jump lands.
 - **Interruption releases the lock** (only a `:charging` transit ever
   releases): orders cleared, flee, fight death, assassination (both
   the kill branch and the fleet-survives-under-default-agent branch),
@@ -209,10 +212,10 @@ status: :linking | :linked | :unlinking, remaining, transit}` where
   `Jump.arrival_interception/2`, so a hostile picket camping the exit
   gateway engages the arriving fleet under the standard defender-stance
   matrix. A traveler that dies or flees in the arrival battle takes no
-  fatigue; the gateway pair winds down regardless.
+  fatigue; the gateway pair is free from the moment it lands.
 
-Testing: `test/game/instance/faction/government_gateway_test.exs` (15
-engine tests) + `bin/gateway-e2e.ps1` — a 21-check live scenario
+Testing: `test/game/instance/faction/government_gateway_test.exs` (18
+engine tests) + `bin/gateway-e2e.ps1` — a 22-check live scenario
 (fixture: POST /api/harness/dev/gateway-fixture) covering the full
 transit, per-phase interaction windows, busy locks on both ends,
 cancellation on clear/kill, guards, and unlink/demolition. Dev
@@ -231,7 +234,10 @@ harness: gov-debug ops `gateway_link`/`gateway_unlink`, POST
   perform no actions; fleets may still change stances — no gate on
   `update_reaction`). The gateway pair is locked for the whole
   sequence plus a wind-down equal to the fatigue window.
-- No unlink/demolish while any agent is charging/travelling/fatigued,
+  *Superseded 2026-10-18 (user): the pair frees on arrival, no
+  wind-down; only the traveler stays fatigued.*
+- No unlink/demolish while any agent is charging/travelling (fatigue
+  no longer holds the pair, see above),
   while a link is forming, or while unlinking.
 
 Implementation notes for that phase: model as a new character action

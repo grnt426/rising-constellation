@@ -29,11 +29,11 @@ defmodule Instance.Character.Actions.GatewayJump do
 
     character = Character.enter_system(character, target, position)
 
-    # The gateway pair stays locked for the wind-down window regardless
-    # of what the arrival runs into below — the transit happened. A link
-    # torn down mid-jump (endpoint captured) simply has no record left;
-    # the traveler still lands, so ignore the result.
-    _ = Game.call(instance_id, :faction, character.owner.faction_id, {:gateway_begin_wind_down, character.id})
+    # The transit happened, so the pair is free for the next traveler
+    # whatever the arrival runs into below. A link torn down mid-jump
+    # (endpoint captured) simply has no record left; the traveler still
+    # lands, so ignore the result.
+    _ = Game.call(instance_id, :faction, character.owner.faction_id, {:gateway_arrived, character.id})
 
     # Arrival interception: exactly the usual system-entry mechanics —
     # the SAME decision function a normal jump finish uses (admirals

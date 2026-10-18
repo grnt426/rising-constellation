@@ -509,7 +509,7 @@
       "gateway_jump": "Portal jump",
       "gateway_jump_hint": "The agent is in transit between the two systems and cannot be targeted.",
       "gateway_fatigue": "Arrival fatigue",
-      "gateway_fatigue_hint": "After arriving, the agent can start no action. Fleets can still change stance. The pair reopens once the fatigue has passed.",
+      "gateway_fatigue_hint": "After arriving, the agent can start no action. Fleets can still change stance. The Gateway is free for the next agent as soon as this one arrives.",
       "link_time": "Link forms in",
       "link_time_hint": "Linking two built Gateways of the faction takes this long. A Gateway holds one link.",
       "link_cost": "Link cost",

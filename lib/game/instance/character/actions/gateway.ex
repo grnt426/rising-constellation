@@ -8,8 +8,8 @@ defmodule Instance.Character.Actions.Gateway do
 
   The faction government holds the transit lock for the gateway pair;
   every path that interrupts a traveler must release it. The engine
-  only frees a `:charging` lock (a jump lands no matter what, and a
-  wind-down runs out its own clock even if the arrived traveler dies),
+  only frees a `:charging` lock (a jump lands no matter what, and
+  arrival frees the pair itself),
   so over-calling `release_if_interrupted/1` is always safe — mirror of
   `MakeDominion.unmark_if_interrupted/1`, same call-site discipline.
   """
