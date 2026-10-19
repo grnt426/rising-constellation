@@ -215,7 +215,7 @@ arrival freed the pair; the tick drains it on its old clock).
   fatigue; the gateway pair is free from the moment it lands.
 
 Testing: `test/game/instance/faction/government_gateway_test.exs` (18
-engine tests) + `bin/gateway-e2e.ps1` — a 22-check live scenario
+engine tests) + `bin/gateway-e2e.ps1` — a 30-check live scenario
 (fixture: POST /api/harness/dev/gateway-fixture) covering the full
 transit, per-phase interaction windows, busy locks on both ends,
 cancellation on clear/kill, guards, and unlink/demolition. Dev
