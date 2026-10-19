@@ -659,8 +659,9 @@ position, clears its local membership, and casts
 survivors' maps through the normal detach path. Every trigger (and
 every membership update skipped over an unreachable member) logs at
 warning level tagged `[armada]` — grep production logs for that tag to
-find affected players. Armada+gateway support remains explicitly
-unfinished (`:armada_no_gateway`).
+find affected players. (Armada gateway transit, unfinished at the
+time, landed with §8.6; a `:gateway_jumping` lead counts as carrying
+its members like a `:moving` one.)
 
 **Visible formations (2026-08-20, user feedback — supersedes the
 owner-only visuals of §2/§4.5):** armada GROUPING is now public in the
@@ -715,9 +716,9 @@ rows; cards keep a glyph-only membership mark (no number).
   so foreign viewers can't even be leaked to by accident. The
   `{:update_character}` cast → `player_player` broadcast path keeps
   the roster fresh after every membership change.
-- **Gateways** (master-merge interaction): gateway travel has no
-  attach fan-out, so armada members are refused gateway actions
-  (`:armada_no_gateway`) — support is future work.
+- **Gateways** (master-merge interaction): gateway travel had no
+  attach fan-out, so armada members were refused gateway actions
+  (`:armada_no_gateway`). Supported since 2026-10-19, see §8.6.
 - **E2E**: `e2e/tests/armada-flow.spec.js` drives the real SPA +
   server: form (named from the pool) → double-form rejected → join to
   3 → 4th rejected `armada_full` → fan badges + formation arc in the
@@ -729,6 +730,69 @@ rows; cards keep a glyph-only membership mark (no number).
   `e2e/tests/armada-construction.spec.js` covers the shipyard block
   from both sides (§8.1 rule 4): a building member holds the armada,
   and a queued jump refuses ship orders sent right behind it.
+
+### 8.6 The lead, routed orders and gateways (2026-10-19, user feedback)
+
+Live testing reported five problems: armadas could not use a gateway;
+clicking a moving armada on the galaxy map did not select its lead; the
+lead had no clear mark; the other members had no way to reach it; and
+orders had to be given to the lead by hand. The changes:
+
+1. **A stored lead.** The armada map carries `lead_id` again (§3.1's
+   field, with a new rule). It starts as the forming Navarch, the one
+   selected when Form Armada was pressed. It moves to whichever member
+   the player gives orders while the armada rests
+   (`ArmadaImpl.take_lead/3`, run after an accepted add or edit of
+   actions); that is still §8.1 rule 4's "first to enqueue leads",
+   now remembered after the orders are done. A lead that leaves hands
+   the lead to the lowest surviving member id. Maps without the field
+   fall back to the forming Navarch, then the lowest id
+   (`Armada.lead_id/1`, mirrored by `armadaUtil.leadId`). The client
+   treats a member with orders underway as the lead whatever is stored,
+   which covers the one path that does not record it: the flee-lead of
+   §8.1 rule 5 enqueues straight on the character agent, mid-battle,
+   where a membership write could deadlock.
+2. **Riders do not lead.** The lead rule now ignores `:attached`
+   members. Before, once a jump had started, the members riding with
+   the lead counted as busy, and the lead itself was refused every
+   order (`:armada_led_by_other`) until arrival.
+3. **Orders go to the lead.** An order given to a member while another
+   member leads with orders underway joins the lead's plan: the map's
+   `orderedCharacter()` (every order path ends in `addCharacterAction`)
+   asks `armadaUtil.orderRecipient`, routes from the lead's virtual
+   position, and a toast names the lead. At rest the ordered member
+   carries the order out itself and takes the lead, so a member's own
+   fleet still raids or colonizes with its own ships. The server keeps
+   refusing a non-lead's own enqueue; the routing is the client's.
+4. **The map.** A moving armada is drawn as its lead's icon, and a
+   click on it selects the lead. Two things got in the way. The icon
+   lost the hover to the system under it, which is most of a short hop
+   (moving fleet icons now beat systems; system icons still come
+   first). And the riders' name tags stayed frozen and clickable over
+   the departure system: they are hidden while riding, and the
+   Character block's hover now skips anything invisible (the raycaster
+   ignores `visible`, so a tag hidden by the labels toggle used to take
+   clicks too). A click that still reaches a rider selects its lead.
+5. **The marks.** A crown (`armada-lead` icon) marks the lead: an
+   inverted pip on its cards and agents-list row (members keep the
+   layers glyph), a pip on its system-view icon (fan, legacy, mobile),
+   and "Led by X" or "Armada lead" under the selection panel's armada
+   line. Members' panels get a crown button that selects the lead.
+6. **Gateways.** `:armada_no_gateway` is gone; the armada portals as
+   one traveler and the transit lock is the lead's alone. The lead
+   charges while the members wait idle in the system, targetable, and
+   fight beside it as anywhere else. The charge's finish attaches them
+   (`Jump.attach_armada_members/2`); `GatewayJump.finish`
+   materializes them before the arrival interception, which uses the
+   armada's most aggressive stance. Only the lead is fatigued; the
+   members land idle but the lead rule holds their orders until the
+   fatigue ends. A gateway charge is a departure for the docking and
+   ship-order blocks, and the watchdog accepts a `:gateway_jumping`
+   lead as it does a `:moving` one.
+
+Pinned by `armada_scenarios_test.exs` (stored lead, hand-off, riders,
+gateway transit and picketed exit), `front/src/utils/__tests__/armada.test.mjs`,
+`e2e/tests/armada-lead.spec.js`, and round R1b of `bin/gateway-e2e.ps1`.
 
 ---
 

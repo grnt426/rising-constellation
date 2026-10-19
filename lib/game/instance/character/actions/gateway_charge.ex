@@ -16,6 +16,7 @@ defmodule Instance.Character.Actions.GatewayCharge do
   alias Instance.Character.ActionQueue
   alias Instance.Character.Character
   alias Instance.Character.Actions.Gateway
+  alias Instance.Character.Actions.Jump
   alias Instance.Character.Spy
 
   def pre_validate(character, %{"data" => data}) do
@@ -89,6 +90,12 @@ defmodule Instance.Character.Actions.GatewayCharge do
           # the last known (source) position
           |> Map.put(:action_status, :gateway_jumping)
           |> Gateway.inject(:gateway_jump, action.data, c.gateway_jump_time)
+
+        # An armada goes through as one traveler (docs/armadas.md §8.6):
+        # the members waited out the charge in the system and leave it
+        # now, attached to the lead exactly as for a jump. The transit
+        # lock is the lead's alone.
+        Jump.attach_armada_members(character, action.data["source"])
 
         {MapSet.new([:player_update]), [], character}
 

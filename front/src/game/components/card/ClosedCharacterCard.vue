@@ -44,8 +44,10 @@
         </span>
         <span
           v-if="armadaSize"
-          class="armada">
-          <svgicon name="layers" />
+          class="armada"
+          :class="{ 'is-lead': isArmadaLead }"
+          v-tooltip="isArmadaLead ? $t('galaxy.selection.view.armada_is_lead') : $t('galaxy.selection.view.armada_member')">
+          <svgicon :name="isArmadaLead ? 'armada-lead' : 'layers'" />
         </span>
       </div>
       <div class="card-header-content">
@@ -103,6 +105,7 @@
 </template>
 
 <script>
+import armadaUtil from '@/utils/armada';
 import CardMixin from '@/game/mixins/CardMixin';
 import Counter from '@/game/components/generic/Counter.vue';
 import { liveRemaining } from '@/game/clock';
@@ -137,7 +140,9 @@ export default {
       return `${building}: ${this.trainingText}${hint}`;
     },
     ariaLabel() {
-      return agentListLabel(this, this.character, { group: this.group, armadaSize: this.armadaSize });
+      return agentListLabel(this, this.character, {
+        group: this.group, armadaSize: this.armadaSize, armadaLead: this.isArmadaLead,
+      });
     },
     army_tile_count() { return this.$store.state.game.data.constant[0].army_tile_count; },
     speedFactor() {
@@ -159,6 +164,13 @@ export default {
       return this.character.armada && Array.isArray(this.character.armada.member_ids)
         ? this.character.armada.member_ids.length
         : 0;
+    },
+    // the crown marks the armada's lead (utils/armada.js leadId)
+    isArmadaLead() {
+      if (!this.armadaSize) return false;
+      const { game } = this.$store.state;
+      const roster = game && game.player ? game.player.characters : [];
+      return armadaUtil.leadId(this.character.armada, roster) === this.character.id;
     },
   },
   methods: {

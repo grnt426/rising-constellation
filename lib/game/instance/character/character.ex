@@ -20,6 +20,10 @@ defmodule Instance.Character.Character do
   # also what wakes it up to self-check.
   @armada_watch_interval 3
 
+  # What an armada's lead is doing while it carries attached members: a
+  # jump, or the wormhole leg of a gateway transit.
+  @carrying_statuses [:moving, :gateway_jumping]
+
   def jason(), do: [except: [:instance_id, :second_specialization, :bonuses, :armada_watch_wait]]
 
   typedstruct enforce: true do
@@ -1174,9 +1178,10 @@ defmodule Instance.Character.Character do
   # member would be stranded in limbo forever.
   #
   # The invariant checked: an attached member always has a live
-  # co-member that (a) still lists it in its armada and (b) is :moving —
-  # the lead mid-jump. One failed check is forgiven (the attach hook
-  # runs milliseconds before the lead's own :moving state write lands);
+  # co-member that (a) still lists it in its armada and (b) is :moving or
+  # :gateway_jumping — the lead mid-jump or in a gateway's wormhole. One
+  # failed check is forgiven (the attach hook runs milliseconds before
+  # the lead's own state write lands);
   # two consecutive failures trigger self-recovery: materialize into the
   # system at the recorded position, clear the local membership, and
   # hand the owning Player.Agent the detach so the survivors' maps mend.
@@ -1233,7 +1238,7 @@ defmodule Instance.Character.Character do
     |> Enum.any?(fn member_id ->
       case Game.call(instance_id, :character, member_id, :get_state) do
         {:ok, other} ->
-          character_id in Character.Armada.member_ids(other) and other.action_status == :moving
+          character_id in Character.Armada.member_ids(other) and other.action_status in @carrying_statuses
 
         _ ->
           false

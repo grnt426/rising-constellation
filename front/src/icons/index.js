@@ -1,6 +1,7 @@
 /* eslint-disable */
 require('./action')
 require('./agent')
+require('./armada-lead')
 require('./bookmark')
 require('./building')
 require('./caret-down')

@@ -25,7 +25,7 @@ defmodule Instance.Player.Character do
     field(:army_invasion, float() | nil, default: nil)
     field(:army_size, %{} | nil)
     field(:is_discovered, boolean() | nil)
-    # Armada membership (%{id, name, member_ids}) — owner-only surface;
+    # Armada membership (%{id, name, member_ids, lead_id}) — owner-only surface;
     # the system/faction payloads never carry it. default keeps
     # pre-armada snapshots restorable.
     field(:armada, map() | nil, default: nil)

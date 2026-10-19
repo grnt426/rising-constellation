@@ -16,6 +16,12 @@
       <span class="number">
         {{ character.level }}
       </span>
+      <span
+        v-if="isArmadaLead"
+        class="lead-pip"
+        v-tooltip="$t('galaxy.selection.view.armada_is_lead')">
+        <svgicon name="armada-lead" />
+      </span>
     </div>
 
     <div
@@ -102,6 +108,7 @@
 
 <script>
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
+import armadaUtil from '@/utils/armada';
 
 export default {
   name: 'agent-badge',
@@ -125,6 +132,10 @@ export default {
     selectedCharacter() { return this.$store.state.game.selectedCharacter; },
     isOwn() { return this.character.owner.id === this.player.id; },
     isSelected() { return this.selectedCharacter && this.selectedCharacter.id === this.character.id; },
+    // own armada lead: crowned (utils/armada.js leadId; the lead is owner-only)
+    isArmadaLead() {
+      return this.isOwn && armadaUtil.leadOf(this.player.characters, this.character.id) === this.character.id;
+    },
     hoveredOverview() {
       const action = this.actions.find((a) => this.hoveredAction === `${this.character.id}-${a.name}`);
       return action ? action.overview : null;

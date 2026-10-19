@@ -35,8 +35,10 @@
         </span>
         <span
           v-if="armadaSize"
-          class="armada">
-          <svgicon name="layers" />
+          class="armada"
+          :class="{ 'is-lead': isArmadaLead }"
+          v-tooltip="isArmadaLead ? $t('galaxy.selection.view.armada_is_lead') : $t('galaxy.selection.view.armada_member')">
+          <svgicon :name="isArmadaLead ? 'armada-lead' : 'layers'" />
         </span>
       </div>
       <div class="card-header-content">
@@ -450,6 +452,7 @@
 </template>
 
 <script>
+import armadaUtil from '@/utils/armada';
 import CardMixin from '@/game/mixins/CardMixin';
 import HelpButton from '@/game/components/generic/HelpButton.vue';
 import { agentCardSummary, agentTypeName, fleetStats } from '@/game/a11y/describe';
@@ -632,6 +635,13 @@ export default {
       return this.character.armada && Array.isArray(this.character.armada.member_ids)
         ? this.character.armada.member_ids.length
         : 0;
+    },
+    // the crown marks the armada's lead (utils/armada.js leadId)
+    isArmadaLead() {
+      if (!this.armadaSize) return false;
+      const { game } = this.$store.state;
+      const roster = game && game.player ? game.player.characters : [];
+      return armadaUtil.leadId(this.character.armada, roster) === this.character.id;
     },
     group() {
       if (this.character.status === 'on_board') {

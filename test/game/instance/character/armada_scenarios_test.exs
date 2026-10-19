@@ -332,6 +332,17 @@ defmodule Character.ArmadaScenariosTest do
       assert Armada.get(live(ctx.iid, 3)) == nil
     end
 
+    test "a departing lead hands the lead to the lowest surviving member", ctx do
+      armada = Armada.new(1, nil, [1, 2, 3])
+      for id <- [1, 2, 3], do: real_char(ctx.iid, id, armada: armada)
+
+      :ok = ArmadaImpl.detach_by_map(ctx.iid, armada, 1)
+
+      assert Map.get(live(ctx.iid, 1), :armada) == nil
+      assert %{member_ids: [2, 3], lead_id: 2} = live(ctx.iid, 2).armada
+      assert %{member_ids: [2, 3], lead_id: 2} = live(ctx.iid, 3).armada
+    end
+
     test "detach tolerates a member whose agent is already gone", ctx do
       armada = Armada.new(5, nil, [5, 6, 7])
       # 7 is never spawned — its process died with the character
@@ -417,6 +428,63 @@ defmodule Character.ArmadaScenariosTest do
       assert {:error, :armada_led_by_other} == ArmadaImpl.check_enqueue(ctx.iid, 2, jump)
       # the lead may keep appending
       assert :ok == ArmadaImpl.check_enqueue(ctx.iid, 1, jump)
+    end
+
+    # Once the lead's jump starts, the others ride :attached — busy by
+    # the predicate, but leading nothing. They used to count as "another
+    # Navarch leading", which refused every order to the real lead for
+    # the rest of the flight.
+    test "the lead may add orders mid-flight while the members ride attached", ctx do
+      out = [%{"type" => "jump", "data" => %{"source" => 10, "target" => 11}}]
+      back = [%{"type" => "jump", "data" => %{"source" => 11, "target" => 10}}]
+
+      assert :ok == Game.call(ctx.iid, :character, 1, {:add_actions, out})
+
+      for {id, status} <- [{1, :moving}, {2, :attached}] do
+        Game.cast(ctx.iid, :character, id, {:update_state, %{live(ctx.iid, id) | action_status: status, system: nil}})
+      end
+
+      assert :ok == ArmadaImpl.check_enqueue(ctx.iid, 1, back)
+      # the rider itself still cannot steer
+      assert {:error, :armada_led_by_other} == ArmadaImpl.check_enqueue(ctx.iid, 2, back)
+    end
+
+    test "the member that takes orders at rest becomes the stored lead", ctx do
+      jump = [%{"type" => "jump", "data" => %{"source" => 10, "target" => 11}}]
+
+      # formation names the forming Navarch
+      assert Armada.lead_id(live(ctx.iid, 1).armada) == 1
+
+      # member 2 is ordered while the armada rests: it leads from now on,
+      # on every member's copy
+      assert :ok == ArmadaImpl.check_enqueue(ctx.iid, 2, jump)
+      assert :ok == Game.call(ctx.iid, :character, 2, {:add_actions, jump})
+      assert :ok == ArmadaImpl.take_lead(ctx.iid, 2, live(ctx.iid, 2).armada)
+
+      assert Armada.lead_id(live(ctx.iid, 1).armada) == 2
+      assert Armada.lead_id(live(ctx.iid, 2).armada) == 2
+
+      # a Navarch outside any armada has nothing to record
+      assert :ok == ArmadaImpl.take_lead(ctx.iid, 3, nil)
+    end
+
+    test "a gateway charge is an armada order like a jump", ctx do
+      charge = [%{"type" => "gateway_charge", "data" => %{"source" => 10, "target" => 11}}]
+
+      # the lead may portal the armada (the v1 :armada_no_gateway ban is gone)
+      assert :ok == ArmadaImpl.check_enqueue(ctx.iid, 1, charge)
+
+      # a docking member holds a gateway departure as it holds a jump
+      docking = %{live(ctx.iid, 2) | action_status: :docking}
+      Game.cast(ctx.iid, :character, 2, {:update_state, docking})
+      assert {:error, :armada_member_docking} == ArmadaImpl.check_enqueue(ctx.iid, 1, charge)
+    end
+
+    test "once a gateway charge is queued, no member may start building", ctx do
+      charge = [%{"type" => "gateway_charge", "data" => %{"source" => 10, "target" => 11}}]
+
+      assert :ok == Game.call(ctx.iid, :character, 1, {:add_actions, charge})
+      assert {:error, :armada_busy} == ArmadaImpl.check_order_ship(ctx.iid, 2)
     end
 
     test "a docking member blocks armada departures but not in-system orders", ctx do
@@ -588,8 +656,7 @@ defmodule Character.ArmadaScenariosTest do
         FleetScenario.spawn_fake_stellar_system(self(),
           instance_id: ctx.iid,
           system_id: 10,
-          characters:
-            system_chars([{1, :phoenix, 100}, {2, :phoenix, 100}, {3, :phoenix, 100}, {4, :phoenix, 100}])
+          characters: system_chars([{1, :phoenix, 100}, {2, :phoenix, 100}, {3, :phoenix, 100}, {4, :phoenix, 100}])
         )
 
       {arriver, _} = fake_char(ctx.iid, 20, faction: :crow, owner_id: 200)
@@ -617,8 +684,7 @@ defmodule Character.ArmadaScenariosTest do
         FleetScenario.spawn_fake_stellar_system(self(),
           instance_id: ctx.iid,
           system_id: 10,
-          characters:
-            system_chars([{1, :phoenix, 100}, {2, :phoenix, 100}, {3, :phoenix, 100}, {4, :phoenix, 100}])
+          characters: system_chars([{1, :phoenix, 100}, {2, :phoenix, 100}, {3, :phoenix, 100}, {4, :phoenix, 100}])
         )
 
       {arriver, _} = fake_char(ctx.iid, 20, faction: :crow, owner_id: 200)
@@ -743,9 +809,7 @@ defmodule Character.ArmadaScenariosTest do
   describe "attached-state watchdog (stale-member recovery)" do
     setup do
       ctx =
-        base_setup(
-          galaxy: [stellar_systems: [%{id: 10, position: %Spatial.Position{x: 10.0, y: 0.0}}]]
-        )
+        base_setup(galaxy: [stellar_systems: [%{id: 10, position: %Spatial.Position{x: 10.0, y: 0.0}}]])
 
       # recovery runs enter_system, which touches the spatial tree
       FleetScenario.spawn_spatial(self(), instance_id: ctx.iid)
@@ -982,6 +1046,110 @@ defmodule Character.ArmadaScenariosTest do
 
       # one battle, both armada members in it (the Prudent member too —
       # it was pulled in by armada expansion, not by its stance)
+      assert Enum.sort(callback_ids(ctx.p1)) == [1, 2]
+      assert callback_ids(ctx.p2) == [30]
+    end
+
+    # The lead's charge runs at the source with the members idle beside
+    # it; the charge's finish takes the whole armada into the wormhole
+    # and the jump's finish lands it at the exit gateway.
+    defp gateway_action(type) do
+      %Action{
+        type: type,
+        data: %{"source" => 10, "target" => 11},
+        total_time: 5,
+        remaining_time: 5,
+        started_at: nil,
+        cumulated_pauses: nil
+      }
+    end
+
+    defp charging(%{actions: actions} = character) do
+      actions = ActionQueue.inject_front(actions, gateway_action(:gateway_charge))
+      %{character | actions: actions, action_status: :gateway_charging}
+    end
+
+    test "a gateway transit carries the armada through the portal", ctx do
+      armada = Armada.new(1, "The Iron Tide", [1, 2, 3])
+      {lead, _} = real_char(ctx.iid, 1, armada: armada)
+      real_char(ctx.iid, 2, armada: armada)
+      real_char(ctx.iid, 3, armada: armada)
+
+      {_s10, s10_pid} =
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: ctx.iid,
+          system_id: 10,
+          characters: system_chars([{1, :phoenix, 100}, {2, :phoenix, 100}, {3, :phoenix, 100}])
+        )
+
+      {_s11, s11_pid} =
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: ctx.iid,
+          system_id: 11,
+          position: %Spatial.Position{x: 11.0, y: 0.0}
+        )
+
+      # charge finish: the lead enters the wormhole, the members go with it
+      {_, _, lead} = Instance.Character.Actions.GatewayCharge.finish(charging(lead), gateway_action(:gateway_charge))
+      assert lead.action_status == :gateway_jumping
+      assert lead.system == nil
+
+      for id <- [2, 3] do
+        member = live(ctx.iid, id)
+        assert member.action_status == :attached
+        assert member.system == nil
+      end
+
+      {:ok, s10} = GenServer.call(s10_pid, :get_state)
+      assert s10.characters == []
+
+      # mid-wormhole, the watchdog's probe recognizes the carrying lead
+      Game.cast(ctx.iid, :character, 1, {:update_state, lead})
+      assert Instance.Character.Character.attachment_healthy?(2, ctx.iid, armada)
+
+      # arrival: everyone at the exit gateway, the lead fatigued, the
+      # members idle (held by the lead rule while the fatigue runs)
+      {_, _, lead} = Instance.Character.Actions.GatewayJump.finish(lead, gateway_action(:gateway_jump))
+      assert lead.system == 11
+      assert lead.action_status == :gateway_fatigue
+
+      for id <- [2, 3] do
+        member = live(ctx.iid, id)
+        assert member.action_status == :idle
+        assert member.system == 11
+        assert member.actions.virtual_position == 11
+      end
+
+      {:ok, s11} = GenServer.call(s11_pid, :get_state)
+      assert Enum.sort(Enum.map(s11.characters, & &1.id)) == [1, 2, 3]
+    end
+
+    test "an armada landing at a picketed gateway fights as one battle", ctx do
+      armada = Armada.new(1, nil, [1, 2])
+      {lead, _} = real_char(ctx.iid, 1, armada: armada, reaction: :defend)
+      real_char(ctx.iid, 2, armada: armada, reaction: :fight_back)
+
+      {_s10, _} =
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: ctx.iid,
+          system_id: 10,
+          characters: system_chars([{1, :phoenix, 100}, {2, :phoenix, 100}])
+        )
+
+      # an Interdiction picket camps the exit gateway
+      fake_char(ctx.iid, 30, faction: :crow, owner_id: 200, system: 11, reaction: :attack_enemies)
+
+      {_s11, _} =
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: ctx.iid,
+          system_id: 11,
+          position: %Spatial.Position{x: 11.0, y: 0.0},
+          characters: system_chars([{30, :crow, 200}])
+        )
+
+      {_, _, lead} = Instance.Character.Actions.GatewayCharge.finish(charging(lead), gateway_action(:gateway_charge))
+      Instance.Character.Actions.GatewayJump.finish(lead, gateway_action(:gateway_jump))
+
       assert Enum.sort(callback_ids(ctx.p1)) == [1, 2]
       assert callback_ids(ctx.p2) == [30]
     end

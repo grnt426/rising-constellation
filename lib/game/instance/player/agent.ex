@@ -1028,6 +1028,7 @@ defmodule Instance.Player.Agent do
          true <- not character.on_sold,
          :ok <- ArmadaImpl.check_enqueue(state.instance_id, character_id, actions),
          :ok <- Game.call(state.instance_id, :character, character_id, {:add_actions, actions}) do
+      ArmadaImpl.take_lead(state.instance_id, character_id, Map.get(character, :armada))
       {:reply, :ok, state}
     else
       false ->
@@ -1054,6 +1055,7 @@ defmodule Instance.Player.Agent do
          true <- not character.on_sold,
          :ok <- ArmadaImpl.check_enqueue(state.instance_id, character_id, tail),
          :ok <- Game.call(state.instance_id, :character, character_id, {:edit_actions, keep_uid, tail}) do
+      if tail != [], do: ArmadaImpl.take_lead(state.instance_id, character_id, Map.get(character, :armada))
       {:reply, :ok, state}
     else
       false -> {:reply, {:error, :character_not_found}, state}

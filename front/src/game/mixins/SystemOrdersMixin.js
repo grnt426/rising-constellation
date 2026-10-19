@@ -1,4 +1,5 @@
 import actionValidation from '@/utils/actionValidation';
+import armadaUtil from '@/utils/armada';
 
 // The orders the selected agent can be given in the open system: on the
 // system itself (`actions`: colonize, conquer, raid, loot, infiltrate,
@@ -86,8 +87,10 @@ export default {
         actions.push(this.gatewayAction);
       }
 
-      // move action
-      if (this.selectedCharacter.actions && this.selectedCharacter.actions.virtual_position !== this.system.id) {
+      // move action — from where the order will start: an armada member's
+      // orders join its busy lead's plan (map.js orderedCharacter)
+      const ordered = armadaUtil.orderRecipient(this.characters, this.selectedCharacter.id) || this.selectedCharacter;
+      if (ordered.actions && ordered.actions.virtual_position !== this.system.id) {
         actions.push({ status: 'available', icon: 'jump', name: 'move', reasons: '' });
       }
 

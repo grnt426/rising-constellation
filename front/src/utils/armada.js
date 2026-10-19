@@ -1,7 +1,7 @@
 // Armada helpers. GROUPING is public information: every system
 // character summary carries `armada_id`, so all viewers see which
 // visible Navarchs stand in formation (2026-08-20 design change). The
-// full armada map — {id, name, member_ids} — still rides only the
+// full armada map — {id, name, member_ids, lead_id} — still rides only the
 // OWNER's roster payload (player.characters) and feeds the selection
 // panel and the form/join validators. All helpers are null-safe
 // against pre-armada payloads.
@@ -26,6 +26,45 @@ export default {
     return !!(rosterCharacter.actions
       && rosterCharacter.actions.queue
       && rosterCharacter.actions.queue.length > 0);
+  },
+  // The lead: the member that carries out the armada's orders and flies
+  // it (docs/armadas.md §8.6). A member with orders underway leads by
+  // the server's rule (an attached member only rides along); at rest,
+  // the stored lead_id, which follows whoever was last given orders.
+  // Old maps without lead_id fall back like Armada.lead_id/1 does.
+  leadId(armada, playerCharacters) {
+    if (!armada || !Array.isArray(armada.member_ids) || !armada.member_ids.length) return null;
+    const ids = armada.member_ids;
+    const roster = playerCharacters || [];
+
+    const acting = ids.find((id) => {
+      const member = roster.find((c) => c.id === id);
+      return member && member.action_status !== 'attached' && this.isBusy(member);
+    });
+    if (acting != null) return acting;
+    if (armada.lead_id != null && ids.includes(armada.lead_id)) return armada.lead_id;
+    if (ids.includes(armada.id)) return armada.id;
+    return ids.slice().sort((a, b) => a - b)[0];
+  },
+  // The lead of one of the viewer's own characters' armada, or null.
+  leadOf(playerCharacters, characterId) {
+    return this.leadId(this.ofCharacter(playerCharacters, characterId), playerCharacters);
+  },
+  // Who an order given to `characterId` goes to: while another member
+  // leads the armada with orders underway, the server takes orders from
+  // that lead only, so the order joins the lead's plan (returned as its
+  // roster entry). Null when the character takes the order itself — no
+  // armada, it leads, or the armada rests (the ordered member then takes
+  // the lead).
+  orderRecipient(playerCharacters, characterId) {
+    const armada = this.ofCharacter(playerCharacters, characterId);
+    if (!armada) return null;
+
+    const leadId = this.leadId(armada, playerCharacters);
+    if (leadId == null || leadId === characterId) return null;
+
+    const lead = (playerCharacters || []).find((c) => c.id === leadId);
+    return lead && lead.action_status !== 'attached' && this.isBusy(lead) ? lead : null;
   },
   // Stable adjacency sort: members of the same armada become adjacent
   // at the position of the group's first occurrence; everyone else

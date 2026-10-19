@@ -49,7 +49,6 @@
       "armada_led_by_other": "Another Navarch is leading the armada — only the lead can receive orders",
       "armada_member_docking": "The armada cannot depart while a member is in the docking bay",
       "armada_needs_two_characters": "An armada needs two different Navarchs",
-      "armada_no_gateway": "An armada cannot travel through a gateway — break it first",
       "armada_not_colocated": "Both Navarchs must be in the same system",
       "armada_not_found": "That Navarch is not in an armada",
       "armada_requires_government": "Armadas are only available in games with the Faction Government feature",
