@@ -132,8 +132,9 @@ test.beforeAll(async ({ playwright, baseURL }) => {
     { credit: 500000, technology: 20000, ideology: 5000 },
     // Opt into the slim-sync beta: this whole spec exercises the
     // player_production delta protocol. legacy-sync.spec.js covers the
-    // fallback protocol for accounts without the flag.
-    ['slim_sync'],
+    // fallback protocol for accounts without the flag. (The list is the
+    // account's exact beta set: mobile_ui stays at its default, on.)
+    ['slim_sync', 'mobile_ui'],
   );
   instanceId = fixture.instance_id;
   homeSystemId = fixture.system.id;

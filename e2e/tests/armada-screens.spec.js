@@ -108,6 +108,8 @@ test('capture the armada grouping matrix on both displays', async ({ browser, re
   await api.login(ADMIN.email, ADMIN.password);
   await api.login(PLAYER.email, PLAYER.password);
 
-  await driveViews(browser, api, baseURL, ['agent_fan_display'], 'fan');
-  await driveViews(browser, api, baseURL, [], 'legacy');
+  // each list is the account's exact beta set afterwards: mobile_ui stays
+  // at its default (on) for the specs that run after this one
+  await driveViews(browser, api, baseURL, ['agent_fan_display', 'mobile_ui'], 'fan');
+  await driveViews(browser, api, baseURL, ['mobile_ui'], 'legacy');
 });

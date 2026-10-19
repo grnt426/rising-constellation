@@ -72,7 +72,9 @@ class Api {
   // up starting resources so tests can walk the patent tree / afford
   // fleets without playing out the opening economy.
   // `features` (array of beta-feature keys) makes the account's feature
-  // set exactly that list — pass [] to force-disable all betas.
+  // set exactly that list, and it outlives the fixture: list 'mobile_ui'
+  // (on by default) unless the spec means to turn it off, so the next
+  // spec still gets the default phone layout.
   // `ownAdmirals` (default 1) places extra own navarchs — armada flows
   // need 2-4 co-located. `armadaLayout` ({own: [2,2], friendly: [2],
   // hostile: [3]}) pre-forms armadas: own groups consume the caller's

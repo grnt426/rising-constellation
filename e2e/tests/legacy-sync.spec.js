@@ -23,12 +23,13 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   await api.login(ADMIN.email, ADMIN.password);
   await api.login(PLAYER.email, PLAYER.password);
 
-  // features: [] force-disables every beta flag on the account —
-  // including slim_sync a previous spec may have enabled.
+  // The list is the account's exact beta set: slim_sync off even when a
+  // previous spec enabled it, and mobile_ui at its default (on) for the
+  // specs that run after this one.
   const fixture = await api.createAgentFixture(
     PLAYER.email,
     { credit: 500000, technology: 20000, ideology: 5000 },
-    [],
+    ['mobile_ui'],
   );
   instanceId = fixture.instance_id;
   homeSystemId = fixture.system.id;
