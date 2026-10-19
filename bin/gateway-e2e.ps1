@@ -7,8 +7,8 @@
 #   R1  happy transit: charge -> jump (untargetable) -> fatigue at B;
 #       busy-lock on both ends; unlink/demolish refused while in use;
 #       jump queue-clear refused; stance change OK during fatigue;
-#       recall refused during fatigue; wind-down frees the pair on its
-#       own clock.
+#       recall refused during fatigue; arrival frees the pair, so a
+#       second agent charges while the first is still fatigued.
 #   R2  orders cleared mid-charge -> lock released immediately.
 #   R2b treasury dry at the upkeep settlement, mid-charge -> stations
 #       unpowered, agent stood down, lock released; refill -> powered
@@ -202,11 +202,15 @@ Pass "R1 fleet stance change allowed during fatigue"
 CharOpExpectError $p2 "deactivate" @{ character_id = $admiral1 } "character_must_be_idle|character_not_at_home" "R1 recall refused during fatigue"
 
 $status = GovStatus
-if ($status.gateway_links[0].transit.phase -ne "wind_down") { Fail "gateway should be winding down" }
-GovAdvance 10
-$status = GovStatus
-if ($null -ne $status.gateway_links[0].transit) { Fail "wind-down did not free the pair" }
-Pass "R1 wind-down expired -- gateway pair free again"
+if ($null -ne $status.gateway_links[0].transit) { Fail "arrival should free the gateway pair" }
+Pass "R1 arrival freed the gateway pair -- no wind-down"
+
+# the next agent may charge while the traveler is still fatigued
+CharOp $p2 "add_actions" @{ character_id = $admiral2; actions = @(@{ type = "gateway_charge"; data = @{ source = $sysA; target = $sysB } }) } | Out-Null
+WaitFor "admiral2 charging" 20 { (CharStatus $admiral2).action_status -eq "gateway_charging" }
+CharOp $p2 "clear_actions" @{ character_id = $admiral2; index = 0 } | Out-Null
+WaitFor "admiral2 stood down" 10 { $null -eq (GovStatus).gateway_links[0].transit }
+Pass "R1 second agent charged right after the first arrived"
 
 WaitFor "admiral1 recovered" 20 { (CharStatus $admiral1).action_status -eq "idle" }
 Pass "R1 fatigue over -- agent free to act"

@@ -113,7 +113,8 @@ defmodule Instance.Faction.Government do
     # use is same-faction, so one serialized agent removes any need for
     # cross-system locking. [%{id, endpoints: [%{system_id, building_id} ×2],
     # status: :linking | :linked | :unlinking, remaining, transit: nil |
-    # %{character_id, phase: :charging | :jumping | :wind_down, remaining}}]
+    # %{character_id, phase: :charging | :jumping, remaining}}]
+    # (:wind_down only in snapshots from before arrival freed the pair)
     field(:gateway_links, [map()], default: [])
     field(:gateway_counter, integer(), default: 1)
   end
@@ -281,7 +282,7 @@ defmodule Instance.Faction.Government do
     ballot_deadlines = Enum.map(government.ballots, & &1.cooldown.value)
     term_deadline = if government.term, do: [government.term.value], else: []
 
-    # link formation/unlink timers and gateway wind-downs are watched
+    # link formation/unlink timers (and legacy gateway wind-downs) are watched
     # countdowns too — players stare at them just like election closes
     gateway_deadlines =
       government
@@ -1903,8 +1904,7 @@ defmodule Instance.Faction.Government do
   # An unpowered gateway charges nobody: the traveler stands down and
   # the pair is free again. Runs on every unpowered tick, not
   # only the flip, so a lock restored from an older snapshot goes too.
-  # A :jumping traveler lands regardless (aborting would strand it) and
-  # a wind-down runs its own clock out.
+  # A :jumping traveler lands regardless (aborting would strand it).
   defp abort_charging_transits(%Government{} = government) do
     {links, events} =
       government
@@ -2121,12 +2121,17 @@ defmodule Instance.Faction.Government do
     end
   end
 
-  @doc "Arrival: the gateway pair stays locked for a wind-down equal to the fatigue window."
-  def gateway_begin_wind_down(%Government{} = government, character_id, ctx) do
+  @doc """
+  Arrival: the traveler is through, so the pair is free for the next
+  one at once. The traveler's own portal fatigue runs on the character;
+  the gateway does not wait it out (user ruling 2026-10-18: a pair that
+  sat locked through the fatigue managed only 2 jumps a day, 3 now).
+  """
+  def gateway_arrive(%Government{} = government, character_id) do
     case find_transit_link(government, character_id) do
       %{transit: transit} = link when transit != nil ->
-        transit = %{transit | phase: :wind_down, remaining: ctx.constants.gateway_fatigue_time}
-        {:ok, put_link(government, %{link | transit: transit})}
+        link = %{link | transit: nil}
+        {:ok, put_link(government, link), link}
 
       _ ->
         {:error, :not_found}
@@ -2136,8 +2141,7 @@ defmodule Instance.Faction.Government do
   @doc """
   Free the lock after the traveler's charge was interrupted (killed,
   seduced, orders cleared, capture). Only a :charging transit releases —
-  a wind-down runs its own timer out regardless of what happens to the
-  arrived traveler, and a :jumping one lands no matter what.
+  a :jumping one lands no matter what, and arrival frees the pair.
   """
   def gateway_release(%Government{} = government, character_id) do
     case find_transit_link(government, character_id) do
@@ -2173,7 +2177,7 @@ defmodule Instance.Faction.Government do
   end
 
   # Link/unlink formation ticks down while the stations are powered
-  # (the treasury fuels the process); a wind-down runs regardless. The
+  # (the treasury fuels the process); a legacy wind-down runs regardless. The
   # orphan sweep frees locks whose traveler process died without any
   # release hook firing — the backstop behind the explicit hooks.
   defp tick_gateway_links(%Government{} = government, elapsed_time, ctx) do
@@ -2221,6 +2225,8 @@ defmodule Instance.Faction.Government do
       else: {%{link | remaining: remaining}, []}
   end
 
+  # Arrival no longer winds the pair down; this drains :wind_down locks
+  # restored from snapshots taken before that change.
   defp tick_gateway_link(%{status: :linked, transit: %{phase: :wind_down} = transit} = link, elapsed_time, _powered) do
     remaining = (transit.remaining || 0) - elapsed_time
 

@@ -509,7 +509,7 @@
       "gateway_jump": "Saut par portail",
       "gateway_jump_hint": "L'agent est en transit entre les deux systèmes et ne peut pas être ciblé.",
       "gateway_fatigue": "Fatigue d'arrivée",
-      "gateway_fatigue_hint": "À l'arrivée, l'agent ne peut lancer aucune action. Les flottes peuvent encore changer de posture. La paire rouvre une fois la fatigue passée.",
+      "gateway_fatigue_hint": "À l'arrivée, l'agent ne peut lancer aucune action. Les flottes peuvent encore changer de posture. Le portail est libre pour l'agent suivant dès l'arrivée de celui-ci.",
       "link_time": "Liaison établie en",
       "link_time_hint": "Lier deux portails construits de la faction prend ce temps. Un portail ne porte qu'une liaison.",
       "link_cost": "Coût de liaison",
