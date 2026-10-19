@@ -16,6 +16,7 @@ import createGraph from 'ngraph.graph';
 
 import config from '@/config';
 import store from '@/store';
+import armadaUtil from '@/utils/armada';
 import Block from './block';
 import { disposeObject } from '../three-utils';
 import { glyphRadii, glyphScale } from '../system-glyph';
@@ -219,9 +220,17 @@ export default class Character extends Block {
       }
     });
 
+    // A Navarch riding in a moving armada has no position of its own
+    // (it travels as its lead's icon), so its tag would sit frozen where
+    // the armada left, over the departure system.
+    const riding = new Set(store.state.game.player.characters
+      .filter((c) => c.action_status === 'attached')
+      .map((c) => c.name));
+
     // only show character names we are using
     Object.keys(this.names).forEach((name) => {
-      this.names[name].visible = store.state.game.mapOptions.showCharacterLabel && namesInUse.includes(name);
+      this.names[name].visible = store.state.game.mapOptions.showCharacterLabel
+        && namesInUse.includes(name) && !riding.has(name);
     });
 
     const characterGroup = this.getGroupByName('characters-on-map');
@@ -401,13 +410,17 @@ export default class Character extends Block {
     this.line.geometry.computeBoundingSphere();
   }
 
+  // The agent whose route a hover previews: the one an order would go
+  // to (an armada member's orders join its busy lead's plan).
   getSelected() {
-    return store.state.game.player.characters.find((c) => c.id === store.state.game.selectedCharacter.id);
+    const roster = store.state.game.player.characters;
+    const { id } = store.state.game.selectedCharacter;
+    return armadaUtil.orderRecipient(roster, id) || roster.find((c) => c.id === id);
   }
 
   getPosition(character) {
     return character.actions.virtual_position === null
-      ? store.state.game.selectedCharacter.system : character.actions.virtual_position;
+      ? character.system : character.actions.virtual_position;
   }
 
   computePath(fromSystemId, toSystemId) {

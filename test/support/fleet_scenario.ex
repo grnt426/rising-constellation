@@ -629,6 +629,7 @@ defmodule Test.FleetScenario do
       owner: Keyword.get(opts, :owner, nil),
       characters: [],
       siege: Keyword.get(opts, :siege, nil),
+      position: Keyword.get(opts, :position, nil),
       instance_id: Keyword.get(opts, :instance_id)
     })
   end
@@ -675,6 +676,10 @@ defmodule Test.FleetScenario do
 
     @impl true
     def handle_call(:get_state, _from, system), do: {:reply, {:ok, system}, system}
+
+    # Gateway arrival places the traveler at the exit system's position.
+    @impl true
+    def handle_call(:get_position, _from, system), do: {:reply, {:ok, system.position}, system}
 
     # Test-only setter: replace the `characters` list on this fake
     # stellar_system. Useful for "what if a character left between
@@ -861,6 +866,17 @@ defmodule Test.FleetScenario do
     @impl true
     def handle_call({:drop_explorer, _system_id, _player_name}, _from, state),
       do: {:reply, :already_dropped, state}
+
+    # Gateway transit: the charge-finish permission gate and the arrival
+    # release. The fake grants the jump and records nothing — the lock
+    # bookkeeping is the government's, pinned by government_gateway_test.
+    @impl true
+    def handle_call({:gateway_begin_jump, _character_id}, _from, state),
+      do: {:reply, :ok, state}
+
+    @impl true
+    def handle_call({:gateway_arrived, _character_id}, _from, state),
+      do: {:reply, :ok, state}
   end
 
   defmodule FakePlayer do

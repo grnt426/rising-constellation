@@ -161,7 +161,8 @@ defmodule Portal.GovDebugController do
             queue: queue_types,
             reaction: character.army && character.army.reaction,
             level: character.level,
-            experience: character.experience && character.experience.value
+            experience: character.experience && character.experience.value,
+            armada: Map.get(character, :armada)
           })
 
         {:error, reason} ->
@@ -178,8 +179,9 @@ defmodule Portal.GovDebugController do
   #    "actions": [{"type": "gateway_charge", "data": {...}}]}
   # Relays whitelisted CHARACTER-level player ops — the exact calls the
   # player channel makes, minus the socket. Includes the hostile-removal
-  # simulators (assassinate/deactivate) the gateway e2e asserts against.
-  @char_ops ~w(add_actions clear_actions update_reaction assassinate deactivate)
+  # simulators (assassinate/deactivate) the gateway e2e asserts against,
+  # and armada form/break for its armada transit round.
+  @char_ops ~w(add_actions clear_actions update_reaction assassinate deactivate form_armada break_armada)
 
   def char_op(conn, %{"iid" => iid, "pid" => pid, "op" => op} = params) do
     with :ok <- dev_only(),
@@ -221,6 +223,13 @@ defmodule Portal.GovDebugController do
 
   defp build_char_op("deactivate", %{"character_id" => cid}) when is_integer(cid),
     do: {:ok, {:deactivate_character, cid}}
+
+  defp build_char_op("form_armada", %{"character_id" => cid, "other_character_id" => other})
+       when is_integer(cid) and is_integer(other),
+       do: {:ok, {:form_armada, cid, other}}
+
+  defp build_char_op("break_armada", %{"character_id" => cid}) when is_integer(cid),
+    do: {:ok, {:break_armada, cid}}
 
   defp build_char_op(_op, _params), do: {:error, :invalid_params}
 

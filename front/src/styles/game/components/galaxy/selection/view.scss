@@ -84,6 +84,25 @@
     text-transform: uppercase;
     background: $grey-light;
     box-shadow: inset 0 0 0 1px $grey-darker;
+
+    // who leads: the crown is the same mark the lead's cards wear
+    .selection-armada-lead {
+      display: block;
+      margin-top: 2px;
+      opacity: .75;
+
+      &.is-self {
+        opacity: 1;
+        font-weight: bold;
+      }
+
+      .svg-icon {
+        width: 11px;
+        height: 11px;
+        margin-right: 2px;
+        vertical-align: -1px;
+      }
+    }
   }
 
   .selection-data {

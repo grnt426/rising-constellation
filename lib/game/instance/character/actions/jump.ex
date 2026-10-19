@@ -69,21 +69,23 @@ defmodule Instance.Character.Actions.Jump do
 
     if character.type == :admiral do
       Spatial.update(character, action)
-      attach_armada_members(character, action)
+      attach_armada_members(character, action.data["source"])
     end
 
     {MapSet.new([:player_update]), [], character}
   end
 
-  # Attached transit (docs/armadas.md §3.3): the armada moves as one
-  # body — the lead executes the jump, every other member leaves the
-  # source system with it and carries no motion state (and no spatial
-  # entry, hence no radar blip) until materialization. A member that
-  # cannot attach (dead, detached in the meantime) is skipped here;
-  # membership cleanup belongs to the Player.Agent detach paths.
-  defp attach_armada_members(%Character{} = character, %Action{} = action) do
+  @doc """
+  Attached transit (docs/armadas.md §3.3): the armada moves as one
+  body — the lead executes the jump (or the gateway transit), every
+  other member leaves `source` with it and carries no motion state (and
+  no spatial entry, hence no radar blip) until materialization. A
+  member that cannot attach (dead, detached in the meantime) is skipped
+  here; membership cleanup belongs to the Player.Agent detach paths.
+  """
+  def attach_armada_members(%Character{} = character, source) do
     Enum.each(Armada.other_member_ids(character), fn member_id ->
-      Game.call(character.instance_id, :character, member_id, {:armada_attach, action.data["source"]})
+      Game.call(character.instance_id, :character, member_id, {:armada_attach, source})
     end)
   end
 
@@ -101,7 +103,7 @@ defmodule Instance.Character.Actions.Jump do
     # the destination BEFORE the interception pass, so the whole armada
     # fights the (single) arrival battle together — a picket can never
     # engage a partial armada (docs/armadas.md §3.4).
-    companions = materialize_armada_members(character, action)
+    companions = materialize_armada_members(character, action.data["target"], action.data["target_position"])
 
     # check interception — a two-pass check (Fight.check_interception/4):
     #
@@ -217,13 +219,16 @@ defmodule Instance.Character.Actions.Jump do
   def arrival_engagement(:defend), do: :busy
   def arrival_engagement(_other), do: :none
 
-  # Flip every attached member into the destination system. Returns the
-  # materialized member states so the interception pass can compute the
-  # armada's effective stance. A member that cannot materialize (dead,
-  # detached mid-flight) is skipped; detach paths own the cleanup.
-  defp materialize_armada_members(%Character{type: :admiral} = character, %Action{} = action) do
+  @doc """
+  Flip every attached member into the destination system (a jump's or a
+  gateway transit's arrival). Returns the materialized member states so
+  the interception pass can compute the armada's effective stance. A
+  member that cannot materialize (dead, detached mid-flight) is skipped;
+  detach paths own the cleanup.
+  """
+  def materialize_armada_members(%Character{type: :admiral} = character, target, position) do
     Enum.reduce(Armada.other_member_ids(character), [], fn member_id, acc ->
-      call = {:armada_materialize, action.data["target"], action.data["target_position"]}
+      call = {:armada_materialize, target, position}
 
       case Game.call(character.instance_id, :character, member_id, call) do
         {:ok, member} -> [member | acc]
@@ -232,7 +237,7 @@ defmodule Instance.Character.Actions.Jump do
     end)
   end
 
-  defp materialize_armada_members(%Character{}, %Action{}), do: []
+  def materialize_armada_members(%Character{}, _target, _position), do: []
 
   defp drop_explorer(%Character{} = character, %Action{} = action, c) do
     call = {:drop_explorer, action.data["target"], character.owner.name}

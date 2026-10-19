@@ -4,7 +4,7 @@ defmodule Instance.Character.Armada do
   validation, stance priorities, and battle-side ordering.
 
   The armada itself is NOT a process. Its state is a plain map —
-  `%{id: integer, name: String.t() | nil, member_ids: [integer]}` —
+  `%{id: integer, name: String.t() | nil, member_ids: [integer], lead_id: integer}` —
   duplicated on every member's `%Character{}` under the `:armada` key
   and kept in sync by the owning `Player.Agent` (single writer; see
   `Instance.Player.ArmadaImpl`). Reads go through `Map.get` and writes
@@ -37,10 +37,36 @@ defmodule Instance.Character.Armada do
   def max_size, do: @max_size
 
   def new(id, name, member_ids),
-    do: %{id: id, name: name, member_ids: Enum.sort(member_ids)}
+    do: new(id, name, member_ids, id)
+
+  def new(id, name, member_ids, lead_id),
+    do: %{id: id, name: name, member_ids: Enum.sort(member_ids), lead_id: lead_id}
 
   @doc "The armada map of a character, or nil. Snapshot-tolerant read."
   def get(character), do: Map.get(character, :armada)
+
+  @doc """
+  The armada's lead: the Navarch that carries out the armada's orders
+  and flies it (docs/armadas.md §8.6). Stored as `lead_id`, set to the
+  forming Navarch and moved to whichever member takes orders while the
+  armada is at rest. Maps that predate the field, or whose lead has
+  left, fall back to the forming Navarch, then the lowest member id.
+  """
+  def lead_id(nil), do: nil
+
+  def lead_id(armada) do
+    member_ids = Map.get(armada, :member_ids, [])
+    stored = Map.get(armada, :lead_id)
+    formed_by = Map.get(armada, :id)
+
+    cond do
+      stored != nil and stored in member_ids -> stored
+      formed_by != nil and formed_by in member_ids -> formed_by
+      true -> member_ids |> Enum.sort() |> List.first()
+    end
+  end
+
+  def with_lead(armada, lead_id), do: Map.put(armada, :lead_id, lead_id)
 
   def member?(character), do: get(character) != nil
 

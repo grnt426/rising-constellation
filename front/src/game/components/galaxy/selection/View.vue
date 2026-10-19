@@ -53,6 +53,14 @@
               :aria-label="`${$t('galaxy.selection.view.action_recall')}: ${$t('galaxy.selection.view.action_disabled')}`"
               v-tooltip="$t('galaxy.selection.view.action_disabled')" />
             <svgicon
+              name="armada-lead"
+              v-if="armadaLead && armadaLead.id !== character.id"
+              class="selection-select-lead"
+              v-press
+              :aria-label="selectLeadLabel"
+              v-tooltip="selectLeadLabel"
+              @click="selectLead" />
+            <svgicon
               name="unlock"
               v-if="armada && canBreakArmada"
               v-press
@@ -73,6 +81,15 @@
           v-if="armada"
           class="selection-status-armada">
           {{ armadaLabel }}
+          <span
+            v-if="armadaLead"
+            class="selection-armada-lead"
+            :class="{ 'is-self': armadaLead.id === character.id }">
+            <svgicon name="armada-lead" />
+            {{ armadaLead.id === character.id
+              ? $t('galaxy.selection.view.armada_is_lead')
+              : $t('galaxy.selection.view.armada_lead', { name: armadaLead.name }) }}
+          </span>
         </div>
 
         <!-- desktop only (phones use MobileSelectedAgent → ActionQueue) -->
@@ -112,6 +129,7 @@
 <script>
 import { TimelineLite, Expo } from 'gsap';
 
+import armadaUtil from '@/utils/armada';
 import CharacterCard from '@/game/components/card/CharacterCard.vue';
 import AgentPlan from '@/game/components/galaxy/selection/AgentPlan.vue';
 
@@ -134,9 +152,19 @@ export default {
     ordersLabel() {
       return this.$t('a11y.orders.open') + this.$store.getters['portal/hotkeyHint']('agent_orders');
     },
-    // the full character fetch carries the armada map (owner-only)
+    // the full character fetch carries the armada map (owner-only); the
+    // roster's copy is the fresher one (every membership or lead change
+    // refreshes it)
     armada() {
-      return this.character.armada || null;
+      return armadaUtil.ofCharacter(this.playerCharacters, this.character.id) || this.character.armada || null;
+    },
+    // roster entry of the armada's lead (docs/armadas.md §8.6)
+    armadaLead() {
+      const leadId = armadaUtil.leadId(this.armada, this.playerCharacters);
+      return leadId != null ? this.playerCharacters.find((c) => c.id === leadId) || null : null;
+    },
+    selectLeadLabel() {
+      return this.$t('galaxy.selection.view.action_select_lead', { name: this.armadaLead.name });
     },
     armadaLabel() {
       const name = this.armada.name || this.$t('galaxy.selection.view.armada_unnamed');
@@ -197,6 +225,9 @@ export default {
     },
     centerToPosition() {
       this.$root.$emit('map:centerToCharacter', this.character);
+    },
+    selectLead() {
+      this.$store.dispatch('game/selectCharacter', { vm: this, id: this.armadaLead.id });
     },
     breakArmada() {
       this.$socket.player.push('break_armada', {

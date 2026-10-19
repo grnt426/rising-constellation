@@ -73,7 +73,7 @@ export function fleetSentence(vm, stats) {
 
 // One line for an agent in a list: who, what they're doing, and the
 // few flags the closed card shows as icons.
-export function agentListLabel(vm, character, { group = null, armadaSize = 0 } = {}) {
+export function agentListLabel(vm, character, { group = null, armadaSize = 0, armadaLead = false } = {}) {
   const parts = [
     vm.$t('a11y.agent.identity', {
       type: agentTypeName(vm, character.type),
@@ -102,7 +102,7 @@ export function agentListLabel(vm, character, { group = null, armadaSize = 0 } =
     if (filled) parts.push(vm.$tc('a11y.fleet.ships_short', filled, { n: filled }));
   }
   if (character.type === 'spy' && character.is_discovered) parts.push(vm.$t('a11y.agent.exposed'));
-  if (armadaSize) parts.push(vm.$t('a11y.agent.in_armada', { n: armadaSize }));
+  if (armadaSize) parts.push(vm.$t(armadaLead ? 'a11y.agent.leads_armada' : 'a11y.agent.in_armada', { n: armadaSize }));
   if (group) parts.push(vm.$t('a11y.agent.hotkey_group', { group }));
 
   return parts.join(', ');

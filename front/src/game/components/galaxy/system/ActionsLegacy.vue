@@ -73,6 +73,11 @@
             <div class="mobile-agent-icon">
               <svgicon :name="`agent/${character.type}`" />
               <span class="number">{{ character.level }}</span>
+              <span
+                v-if="isArmadaLead(character)"
+                class="lead-pip">
+                <svgicon name="armada-lead" />
+              </span>
             </div>
             <div class="mobile-agent-name">
               <div class="name">{{ character.name }}</div>
@@ -220,6 +225,12 @@
             <svgicon :name="`agent/${character.type}`" />
             <span class="number">
               {{ character.level }}
+            </span>
+            <span
+              v-if="isArmadaLead(character)"
+              class="lead-pip"
+              v-tooltip="$t('galaxy.selection.view.armada_is_lead')">
+              <svgicon name="armada-lead" />
             </span>
           </div>
           <div
@@ -382,6 +393,11 @@ export default {
     },
   },
   methods: {
+    // own armada lead: crowned (utils/armada.js leadId; the lead is owner-only)
+    isArmadaLead(character) {
+      return character.owner.id === this.player.id
+        && armadaUtil.leadOf(this.player.characters, character.id) === character.id;
+    },
     // Shift+click on another faction's agent reports it in the faction's
     // Spotted chat channel instead of opening its card.
     clickCharacter(character, event) {

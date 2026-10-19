@@ -16,6 +16,7 @@ import config from '@/config';
 import eventBus from '@/plugins/event-bus';
 import { mapProbe } from '@/game/debug/collector';
 import { reportFleet } from '@/game/components/chat/reportSighting';
+import armadaUtil from '@/utils/armada';
 import { loadFonts, materialsFactory, colorsFactory } from './three-utils';
 import DestinationPulse from './destination-pulse';
 import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject, Ruler, Gateway, SystemGlyphs } from './blocks';
@@ -43,6 +44,16 @@ const MULTI_MOVE_FLASH_MS = 1400;
 const MULTI_MOVE_CHAIN_MS = 10000;
 
 let currentlyHoveredObject;
+
+// The raycaster ignores `visible`. An agent's name tag hidden by the
+// labels toggle, or the tag of a Navarch riding in a moving armada,
+// would otherwise still take the click meant for what is drawn there.
+function shownInScene(object) {
+  for (let o = object; o; o = o.parent) {
+    if (!o.visible) return false;
+  }
+  return true;
+}
 
 export default class Map {
   constructor({ scene, camera, renderer, $root, vm, data, fov, $socket, $toasted }) {
@@ -799,7 +810,7 @@ export default class Map {
           const characterId = clickedObject.data;
 
           if (button === 'left') {
-            store.dispatch('game/selectCharacter', { vm: this.vm, id: characterId });
+            store.dispatch('game/selectCharacter', { vm: this.vm, id: this.clickTarget(characterId) });
           }
         } else if (clickedObject.type === 'detected_object') {
           // Shift+click on another faction's fleet reports it in the
@@ -852,7 +863,7 @@ export default class Map {
     }
 
     const system = this.hoveredSystem();
-    const character = store.state.game.selectedCharacter;
+    const character = this.orderedCharacter();
     if (!system || !character || !character.actions) return;
 
     if (last && now - last.at > MULTI_MOVE_CHAIN_MS) this.multiMoveChain = null;
@@ -1041,10 +1052,15 @@ export default class Map {
     // Sector) when the cursor isn't over an icon works because the
     // standard intersection path clears currentlyHoveredObject on
     // miss, so the next type's check starts clean.
+    //
+    // A moving fleet's icon also beats the system under it: leaving or
+    // nearing a system, the small icon sits inside the system's much
+    // larger click area, and a click aimed at the fleet (an armada, to
+    // select its lead) opened the system instead.
     const types = [
       { block: 'SystemIcons', group: 'icons-near' },
-      { block: 'System', group: 'systems-near' },
       { block: 'Character', group: 'characters-on-map' },
+      { block: 'System', group: 'systems-near' },
       { block: 'Character', group: 'character-names-on-map' },
       // Radar blips (other factions' fleets): hoverable so one can be
       // reported to the faction with Shift+click. After systems and own
@@ -1098,7 +1114,8 @@ export default class Map {
         const intersection = this.hovercaster
           .intersectObjects(groups, true)
           .filter(({ object }) => object.userData?.hoverable
-            && (!type.reportableOnly || object.userData.reportable));
+            && (!type.reportableOnly || object.userData.reportable)
+            && (type.block !== 'Character' || shownInScene(object)));
 
         if (intersection.length > 0) {
           const intersecting = 0;
@@ -1194,18 +1211,43 @@ export default class Map {
     }));
   }
 
+  // The agent an order from the selection goes to: the selected agent,
+  // or — while another Navarch of its armada leads with orders underway
+  // — that lead, whose plan the order joins (the server takes no orders
+  // from the other members then). Roster entry or the selection itself;
+  // both carry `id`, `system` and `actions`.
+  orderedCharacter() {
+    const selected = store.state.game.selectedCharacter;
+    if (!selected) return null;
+    return armadaUtil.orderRecipient(store.state.game.player.characters, selected.id) || selected;
+  }
+
+  // A click on an own agent on the map. A Navarch riding in a moving
+  // armada has no icon of its own (the armada travels as its lead's),
+  // so a click that reaches it selects the lead that carries it.
+  clickTarget(characterId) {
+    const roster = store.state.game.player.characters;
+    const own = roster.find((c) => c.id === characterId);
+    if (!own || own.action_status !== 'attached') return characterId;
+
+    const leadId = armadaUtil.leadOf(roster, characterId);
+    return leadId != null ? leadId : characterId;
+  }
+
   addCharacterAction(action, metadata = {}) {
-    if (!store.state.game.selectedCharacter) {
+    const ordered = this.orderedCharacter();
+    if (!ordered) {
       return;
     }
 
     const { character, system, from, onError } = metadata;
     const characterBlock = this.getBlockByName('Character');
+    const selected = store.state.game.selectedCharacter;
 
     const actions = [];
     // `from`: where the caller knows the queue will end, ahead of the store
-    let virtualPosition = from != null ? from : store.state.game.selectedCharacter.actions.virtual_position;
-    const characterId = store.state.game.selectedCharacter.id;
+    let virtualPosition = from != null ? from : ordered.actions.virtual_position;
+    const characterId = ordered.id;
     const itinerary = characterBlock.computePath(virtualPosition, system.id);
 
     if (itinerary.length) {
@@ -1253,6 +1295,11 @@ export default class Map {
     this.$socket.player.push('add_character_actions', {
       character_id: characterId,
       actions,
+    }).receive('ok', () => {
+      // say where an order given to an armada member went
+      if (characterId !== selected.id) {
+        this.vm.$toasted.info(this.vm.$t('galaxy.selection.view.armada_order_to_lead', { name: ordered.name }));
+      }
     }).receive('error', (err) => {
       if (onError) onError(err);
       this.vm.$toastError(err.reason);

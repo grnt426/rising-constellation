@@ -13,6 +13,7 @@ defmodule Instance.Character.Actions.GatewayJump do
   alias Instance.Character.Action
   alias Instance.Character.Character
   alias Instance.Character.Actions.Gateway
+  alias Instance.Character.Actions.Jump
 
   def pre_validate(_character, _action), do: throw(:not_queueable)
 
@@ -35,12 +36,18 @@ defmodule Instance.Character.Actions.GatewayJump do
     # lands, so ignore the result.
     _ = Game.call(instance_id, :faction, character.owner.faction_id, {:gateway_arrived, character.id})
 
+    # An armada lands together: its attached members materialize at the
+    # exit gateway before the interception pass, as on a jump arrival, so
+    # the whole armada fights the one arrival battle.
+    companions = Jump.materialize_armada_members(character, target, position)
+
     # Arrival interception: exactly the usual system-entry mechanics —
     # the SAME decision function a normal jump finish uses (admirals
-    # only; the defender-stance filter keys off the arriver's stance).
-    # A picket camping the exit gateway catches the arrival.
+    # only; the defender-stance filter keys off the arriving armada's
+    # most aggressive stance). A picket camping the exit gateway catches
+    # the arrival.
     {character, interception_notifs, leaving_or_dead?} =
-      Instance.Character.Actions.Jump.arrival_interception(character, action)
+      Jump.arrival_interception(character, action, companions)
 
     # A traveler that died (or fled) in the arrival battle takes no
     # fatigue — there is nobody left standing at the gateway to tire.

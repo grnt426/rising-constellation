@@ -49,7 +49,6 @@
       "armada_led_by_other": "Un autre navarque dirige l'armada — seul le meneur peut recevoir des ordres",
       "armada_member_docking": "L'armada ne peut pas partir pendant qu'un membre est en cale sèche",
       "armada_needs_two_characters": "Une armada nécessite deux navarques différents",
-      "armada_no_gateway": "Une armada ne peut pas emprunter un portail — dissolvez-la d'abord",
       "armada_not_colocated": "Les deux navarques doivent être dans le même système",
       "armada_not_found": "Ce navarque n'est pas dans une armada",
       "armada_requires_government": "Les armadas ne sont disponibles que dans les parties avec gouvernement de faction",

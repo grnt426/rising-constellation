@@ -9,6 +9,10 @@
 #       jump queue-clear refused; stance change OK during fatigue;
 #       recall refused during fatigue; arrival frees the pair, so a
 #       second agent charges while the first is still fatigued.
+#   R1b an armada goes through as one traveler: members wait out the
+#       lead's charge in the system, ride attached through the wormhole,
+#       land with the lead; the lead alone is fatigued, and holds the
+#       members' orders until it is over.
 #   R2  orders cleared mid-charge -> lock released immediately.
 #   R2b treasury dry at the upkeep settlement, mid-charge -> stations
 #       unpowered, agent stood down, lock released; refill -> powered
@@ -214,6 +218,44 @@ Pass "R1 second agent charged right after the first arrived"
 
 WaitFor "admiral1 recovered" 20 { (CharStatus $admiral1).action_status -eq "idle" }
 Pass "R1 fatigue over -- agent free to act"
+
+# ---- R1b: an armada portals as one traveler (docs/armadas.md 8.6).
+# admiral2 joins admiral1 at B first, alone; the armada then portals
+# back to A.
+CharOp $p2 "add_actions" @{ character_id = $admiral2; actions = @(@{ type = "gateway_charge"; data = @{ source = $sysA; target = $sysB } }) } | Out-Null
+WaitFor "admiral2 rested at B" 90 { $s = CharStatus $admiral2; $s.system -eq $sysB -and $s.action_status -eq "idle" }
+
+CharOp $p2 "form_armada" @{ character_id = $admiral1; other_character_id = $admiral2 } | Out-Null
+$armada = (CharStatus $admiral2).armada
+if ($null -eq $armada -or $armada.lead_id -ne $admiral1) { Fail "R1b armada did not form with admiral1 as lead" }
+Pass "R1b armada formed at B -- admiral1 leads"
+
+CharOp $p2 "add_actions" @{ character_id = $admiral1; actions = @(@{ type = "gateway_charge"; data = @{ source = $sysB; target = $sysA } }) } | Out-Null
+WaitFor "armada lead charging" 20 { (CharStatus $admiral1).action_status -eq "gateway_charging" }
+$member = CharStatus $admiral2
+if ($member.system -ne $sysB -or $member.action_status -ne "idle") { Fail "R1b member should wait out the charge in B, got $($member.action_status) in $($member.system)" }
+Pass "R1b lead charging, member waiting beside it in B"
+
+WaitFor "armada in the wormhole" 30 { (CharStatus $admiral1).action_status -eq "gateway_jumping" }
+WaitFor "member attached" 5 { $s = CharStatus $admiral2; $s.action_status -eq "attached" -and $null -eq $s.system }
+Pass "R1b portal jump -- member rides attached, out of every system"
+
+WaitFor "armada landed at A" 30 { (CharStatus $admiral1).system -eq $sysA }
+$lead = CharStatus $admiral1
+$member = CharStatus $admiral2
+if ($lead.action_status -ne "gateway_fatigue") { Fail "R1b lead should be fatigued, got $($lead.action_status)" }
+if ($member.system -ne $sysA -or $member.action_status -ne "idle") { Fail "R1b member should land idle at A, got $($member.action_status) in $($member.system)" }
+if ($null -ne (GovStatus).gateway_links[0].transit) { Fail "R1b arrival should free the gateway pair" }
+Pass "R1b arrival -- lead fatigued, member idle beside it at A, pair freed"
+
+CharOpExpectError $p2 "add_actions" @{ character_id = $admiral2; actions = @(@{ type = "gateway_charge"; data = @{ source = $sysA; target = $sysB } }) } "armada_led_by_other" "R1b member orders held while the lead is fatigued"
+
+WaitFor "armada lead recovered" 20 { (CharStatus $admiral1).action_status -eq "idle" }
+CharOp $p2 "break_armada" @{ character_id = $admiral1 } | Out-Null
+if ($null -ne (CharStatus $admiral2).armada) { Fail "R1b armada did not dissolve" }
+# recall admiral1 home (A is p2's): R5 needs the speaker alone at A
+CharOp $p2 "deactivate" @{ character_id = $admiral1 } | Out-Null
+Pass "R1b armada dissolved at A, admiral1 recalled"
 
 # ---- R2: orders cleared mid-charge release the lock
 CharOp $p2 "add_actions" @{ character_id = $speaker; actions = @(@{ type = "gateway_charge"; data = @{ source = $sysA; target = $sysB } }) } | Out-Null

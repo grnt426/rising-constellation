@@ -85,8 +85,9 @@ defmodule Instance.Player.ArmadaImpl do
   @doc """
   The lead rule (test class 4): once any Navarch of an armada has
   orders underway, that Navarch is the armada's lead and no other
-  member may enqueue anything until the armada is idle again. Also
-  blocks departures while any member is building ships (a docking
+  member may enqueue anything until the armada is idle again (the client
+  routes such orders to the lead instead). Also blocks departures, by
+  jump or gateway, while any member is building ships (a docking
   member cannot leave with the armada); `check_order_ship/2` holds the
   same line from the other side.
   """
@@ -106,12 +107,13 @@ defmodule Instance.Player.ArmadaImpl do
 
   @doc """
   The other side of the departure block in `check_enqueue/3`: once any
-  member has a jump queued, the armada is leaving and no member may
-  start building ships. The lead's `Jump.start` pulls every member out
-  of the system whatever it is doing, so a ship ordered between the
-  jump being accepted and its start would be built for a fleet in
-  transit — and if it completed before arrival, it would idle the
-  attached member, which then never materializes.
+  member has a jump (or a gateway charge) queued, the armada is leaving
+  and no member may start building ships. The lead's `Jump.start` (or
+  its charge's finish) pulls every member out of the system whatever it
+  is doing, so a ship ordered between the departure being accepted and
+  its start would be built for a fleet in transit — and if it completed
+  before arrival, it would idle the attached member, which then never
+  materializes.
 
   Ship orders and enqueues both run in the owning `Player.Agent` and
   both read the live characters, so whichever of the two comes second
@@ -128,6 +130,29 @@ defmodule Instance.Player.ArmadaImpl do
       # let the normal order path surface unreachable characters
       _ ->
         :ok
+    end
+  end
+
+  @doc """
+  Record `character_id` as its armada's lead once its orders were
+  accepted (docs/armadas.md §8.6). The enqueue gate only lets a member
+  through while nobody else is busy, so the member that just took
+  orders IS the armada's lead; storing it keeps the lead marker, the
+  "select lead" shortcut and the client's order routing on it after
+  the armada comes to rest. `roster_armada` is the player's cached
+  copy, which spares the live lookup for a member already leading and
+  for every Navarch outside an armada.
+  """
+  def take_lead(_instance_id, _character_id, nil), do: :ok
+
+  def take_lead(instance_id, character_id, roster_armada) do
+    with false <- Armada.lead_id(roster_armada) == character_id,
+         {:ok, character} <- get_live(instance_id, character_id),
+         %{} = armada <- Armada.get(character),
+         false <- Armada.lead_id(armada) == character_id do
+      apply_membership(instance_id, armada.member_ids, Armada.with_lead(armada, character_id))
+    else
+      _ -> :ok
     end
   end
 
@@ -161,7 +186,11 @@ defmodule Instance.Player.ArmadaImpl do
     if length(remaining) < Armada.min_size() do
       apply_membership(instance_id, Map.get(armada, :member_ids, []), nil)
     else
-      :ok = apply_membership(instance_id, remaining, %{armada | member_ids: remaining})
+      # a departing lead hands the lead on (Armada.lead_id/1's fallback)
+      survivors = %{armada | member_ids: remaining}
+      survivors = Armada.with_lead(survivors, Armada.lead_id(survivors))
+
+      :ok = apply_membership(instance_id, remaining, survivors)
       apply_membership(instance_id, [character_id], nil)
     end
   end
@@ -203,16 +232,12 @@ defmodule Instance.Player.ArmadaImpl do
     others = fetch_states(instance_id, Map.get(armada, :member_ids, []) -- [character.id])
 
     cond do
-      # gateway travel is a separate action chain with no attach
-      # fan-out — an armada lead using it would leave its members
-      # behind and break co-location. Unsupported inside armadas (v1).
-      has_gateway?(actions) ->
-        {:error, :armada_no_gateway}
-
-      Enum.any?(others, &Armada.busy?/1) ->
+      # a member riding :attached is busy but leads nothing — mid-flight,
+      # the lead it rides with must still be able to add orders
+      Enum.any?(others, &(Armada.busy?(&1) and &1.action_status != :attached)) ->
         {:error, :armada_led_by_other}
 
-      has_jump?(actions) and Enum.any?([character | others], &departure_blocked?/1) ->
+      departs?(actions) and Enum.any?([character | others], &departure_blocked?/1) ->
         {:error, :armada_member_docking}
 
       true ->
@@ -228,17 +253,16 @@ defmodule Instance.Player.ArmadaImpl do
       else: :ok
   end
 
-  defp has_jump?(actions),
-    do: Enum.any?(actions, fn action -> action["type"] == "jump" end)
+  # Orders that take the armada out of its system: a jump, or a gateway
+  # charge, whose finish carries every member through the portal.
+  defp departs?(actions),
+    do: Enum.any?(actions, fn action -> action["type"] in ["jump", "gateway_charge"] end)
 
-  # a jump accepted into the queue: waiting to start, or under way
+  # a departure accepted into the queue: waiting to start, or under way
   defp jump_queued?(character) do
     character.actions != nil and
-      Enum.any?(Queue.to_list(character.actions.queue), fn action -> action.type == :jump end)
+      Enum.any?(Queue.to_list(character.actions.queue), fn action -> action.type in [:jump, :gateway_charge] end)
   end
-
-  defp has_gateway?(actions),
-    do: Enum.any?(actions, fn action -> action["type"] in ["gateway_charge", "gateway_jump", "gateway_fatigue"] end)
 
   defp departure_blocked?(character) do
     character.action_status == :docking or

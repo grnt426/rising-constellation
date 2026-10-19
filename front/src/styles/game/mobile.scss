@@ -1215,6 +1215,27 @@
       color: $white;
     }
 
+    // own armada's lead (see actions.scss .lead-pip)
+    .lead-pip {
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      width: 14px;
+      height: 14px;
+      line-height: 12px;
+      text-align: center;
+      border-radius: 7px;
+
+      background: $white;
+      border: 1px solid $black;
+
+      .svg-icon {
+        width: 9px;
+        height: 9px;
+        color: $black;
+        vertical-align: middle;
+      }
+    }
   }
 
   .mobile-agent-name {

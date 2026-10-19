@@ -59,6 +59,27 @@
     border-radius: 100%;
   }
 
+  // own armada's lead: a crown pip top-left, opposite the level
+  .lead-pip {
+    position: absolute;
+    top: -4px; left: -4px;
+    display: inline-block;
+    width: 18px; height: 18px;
+    line-height: 16px;
+    text-align: center;
+
+    background: $white;
+    border: solid 1px $black;
+    border-radius: 100%;
+  }
+
+  .lead-pip .svg-icon,
+  &.is-active .lead-pip .svg-icon {
+    width: 11px; height: 11px;
+    border-radius: 0;
+    color: $black;
+    vertical-align: middle;
+  }
 
   .generic-circle-progress-container {
     position: absolute;
