@@ -113,7 +113,9 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   await api.login(ADMIN.email, ADMIN.password);
   await api.login(PLAYER.email, PLAYER.password);
 
-  const fixture = await api.createAgentFixture(PLAYER.email);
+  // the phone step needs the mobile_ui beta (on by default, but another
+  // spec may have turned it off): this list is the account's exact set
+  const fixture = await api.createAgentFixture(PLAYER.email, null, ['mobile_ui']);
   instanceId = fixture.instance_id;
   homeSystemId = fixture.system.id;
 });

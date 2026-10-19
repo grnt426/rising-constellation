@@ -208,7 +208,8 @@
       <div
         v-for="({ character, actions }, idx) in orderedSystemCharacters"
         class="action-item"
-        :key="character.id">
+        :key="character.id"
+        :data-character-id="character.id">
         <div
           :class="[
             `force-${getTheme(character.owner.faction)}`,

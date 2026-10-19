@@ -1,7 +1,8 @@
 <template>
   <div
     class="agent-badge"
-    :class="`force-${theme}`">
+    :class="`force-${theme}`"
+    :data-character-id="character.id">
     <div
       class="round-icon is-active has-hover"
       :class="{

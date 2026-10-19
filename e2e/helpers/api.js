@@ -43,10 +43,16 @@ class Api {
       return cached.token;
     }
 
-    const res = await this.request.post(`${this.baseURL}/api/auth/identity/callback`, {
-      data: { account: { email, password } },
+    // Not through `this.request`: a login also signs the session cookie
+    // in, the shared request context would keep the last one, and /api
+    // reads that cookie before the Bearer header — every later call would
+    // act as whoever logged in last, not as the email it names.
+    const res = await fetch(`${this.baseURL}/api/auth/identity/callback`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ account: { email, password } }),
     });
-    if (!res.ok()) throw new Error(`login ${email} failed: ${res.status()} ${await res.text()}`);
+    if (!res.ok) throw new Error(`login ${email} failed: ${res.status} ${await res.text()}`);
     const body = await res.json();
     const token = body.access_token || body.token;
     this.tokens.set(email, token);
@@ -66,7 +72,9 @@ class Api {
   // up starting resources so tests can walk the patent tree / afford
   // fleets without playing out the opening economy.
   // `features` (array of beta-feature keys) makes the account's feature
-  // set exactly that list — pass [] to force-disable all betas.
+  // set exactly that list, and it outlives the fixture: list 'mobile_ui'
+  // (on by default) unless the spec means to turn it off, so the next
+  // spec still gets the default phone layout.
   // `ownAdmirals` (default 1) places extra own navarchs — armada flows
   // need 2-4 co-located. `armadaLayout` ({own: [2,2], friendly: [2],
   // hostile: [3]}) pre-forms armadas: own groups consume the caller's

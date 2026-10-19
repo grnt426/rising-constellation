@@ -110,6 +110,27 @@ function systemsInView(page, skip = []) {
   }, skip);
 }
 
+// A spot where a tap lands on nothing: on the map itself, no panel over
+// it, and no system or marker the map would pick there (its own pick, as
+// a tap runs it). A random galaxy can put a system anywhere, so start at
+// the left edge, mid-height, and look further out from there.
+function emptySpot(page) {
+  return page.evaluate(() => {
+    const m = window.__rcMap;
+    const canvas = m.renderer.domElement;
+    const spots = [];
+    for (let x = 20; x <= 370; x += 25) {
+      for (let y = 160; y <= 570; y += 25) spots.push({ x, y });
+    }
+    spots.sort((p, q) => Math.hypot(p.x - 20, p.y - 330) - Math.hypot(q.x - 20, q.y - 330));
+    return spots.find(({ x, y }) => {
+      if (document.elementFromPoint(x, y) !== canvas) return false;
+      m.updateHoverAt(x, y);
+      return m.hoveredSystem() === null;
+    }) || null;
+  });
+}
+
 // At least `n` of them: random galaxies can be sparse around the agent,
 // so zoom out a step at a time until there are (systems stay tappable up
 // to z 200, where the map switches to its far view).
@@ -134,7 +155,14 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   api = new Api(request, baseURL);
   await api.login(ADMIN.email, ADMIN.password);
   await api.login(PLAYER.email, PLAYER.password);
-  const fixture = await api.createAgentFixture(PLAYER.email, { credit: 100000, technology: 1000, ideology: 1000 });
+  // The phone layout is the mobile_ui beta, on by default: pin it, since
+  // the fixture's list is the account's exact beta set and another spec
+  // may have turned it off.
+  const fixture = await api.createAgentFixture(
+    PLAYER.email,
+    { credit: 100000, technology: 1000, ideology: 1000 },
+    ['mobile_ui'],
+  );
   instanceId = fixture.instance_id;
   homeSystemId = fixture.system.id;
 });
@@ -370,15 +398,17 @@ test('phone: plan beside the card, multi-move, long-press action wheel', async (
 
   await test.step('multi-move: a tap on nothing changes nothing; a double-tap ends it', async () => {
     const before = describeStops(await serverQueue(page, admiral));
+    const nothing = await emptySpot(page);
+    expect(nothing, 'a spot on the map with nothing under it').not.toBeNull();
     await page.waitForTimeout(500);
-    await tapAt(20, 330);
+    await tapAt(nothing.x, nothing.y);
     await page.waitForTimeout(600);
     expect(await game(page, 'multiMove')).toBe(true);
     expect(await game(page, 'selected')).toBe(true);
 
-    await tapAt(20, 330);
+    await tapAt(nothing.x, nothing.y);
     await page.waitForTimeout(120);
-    await tapAt(20, 330);
+    await tapAt(nothing.x, nothing.y);
     await expect.poll(() => game(page, 'multiMove')).toBe(false);
     await expect(page.locator('[data-multi-move-banner]')).toHaveCount(0);
     expect(await game(page, 'selected')).toBe(true);

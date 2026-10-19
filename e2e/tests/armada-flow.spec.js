@@ -46,7 +46,9 @@ test('armada: form, join, cap, lead rule, stance ban, transit, break', async ({ 
   const fixture = await api.createAgentFixture(
     PLAYER.email,
     { credit: 100000, technology: 500, ideology: 500 },
-    ['agent_fan_display'],
+    // the account's exact beta set afterwards: the fan, other betas at
+    // their defaults (mobile_ui on) for the specs that run after this one
+    ['agent_fan_display', 'mobile_ui'],
     4,
   );
   const instanceId = fixture.instance_id;
