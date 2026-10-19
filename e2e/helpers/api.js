@@ -43,10 +43,16 @@ class Api {
       return cached.token;
     }
 
-    const res = await this.request.post(`${this.baseURL}/api/auth/identity/callback`, {
-      data: { account: { email, password } },
+    // Not through `this.request`: a login also signs the session cookie
+    // in, the shared request context would keep the last one, and /api
+    // reads that cookie before the Bearer header — every later call would
+    // act as whoever logged in last, not as the email it names.
+    const res = await fetch(`${this.baseURL}/api/auth/identity/callback`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ account: { email, password } }),
     });
-    if (!res.ok()) throw new Error(`login ${email} failed: ${res.status()} ${await res.text()}`);
+    if (!res.ok) throw new Error(`login ${email} failed: ${res.status} ${await res.text()}`);
     const body = await res.json();
     const token = body.access_token || body.token;
     this.tokens.set(email, token);

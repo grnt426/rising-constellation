@@ -6,8 +6,9 @@
 //   - planting a Claim flag posts in Claims once; the flag leads back to
 //     its post; removing the flag marks the post as released;
 //   - Shift+click on an enemy agent in a system reports it in Spotted as a
-//     LIVE chip, once; nothing of the agent's identity beyond what the
-//     system view shows reaches the client;
+//     LIVE chip, once (first in the fan display, then again from the
+//     legacy arc, which is the default layout); nothing of the agent's
+//     identity beyond what the system view shows reaches the client;
 //   - when that agent flies off, its chip turns "last known" by itself;
 //   - the fleet it flies off in shows on the S.L.S.D. with its next stop
 //     (and nothing else of who it is), can be reported as heading there,
@@ -82,6 +83,35 @@ function shot(page, name, clip = { x: 0, y: 0, width: 460, height: 420 }) {
 
 const exactly = (text) => new RegExp(`^\\s*${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
 
+// Centre the galaxy map on a system, camera at rest there. The map drops
+// a centring asked for while its camera is still moving: wait for it to
+// be still, then for it to arrive.
+async function centerOn(page, systemId) {
+  await page.waitForFunction(() => window.__rcMap && !window.__rcMap.moving);
+  await page.evaluate((id) => {
+    document.querySelector('#app').__vue__.$root.$emit('map:centerToSystem', id);
+  }, systemId);
+  await page.waitForFunction((id) => {
+    const map = window.__rcMap;
+    const { position } = map.data.systems.find((s) => s.id === id);
+    const { target } = map.controls;
+    return !map.moving && Math.hypot(target.x - position.x, target.y - position.y) < 0.01;
+  }, systemId);
+}
+
+// Put blips on the S.L.S.D., client-side only, and wait for the map's own
+// frame loop to have drawn them.
+async function drawBlips(page, blips) {
+  await page.evaluate((list) => window.__rcMap.data.updateDetectedObjects(list), blips);
+  await page.waitForFunction((list) => {
+    const block = window.__rcMap.blocks.find((b) => b.name === 'DetectedObject');
+    const group = block && block.getGroupByName('detected-objects');
+    return group && group.visible && group.children.length === list.length
+      && group.children.every(({ gameObject: { data } }, i) => data.faction === list[i].faction
+        && data.position.x === list[i].position.x && data.position.y === list[i].position.y);
+  }, blips);
+}
+
 // ---- world ------------------------------------------------------------
 
 test.beforeAll(async ({ playwright, baseURL }) => {
@@ -91,7 +121,10 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   await api.login(PLAYER.email, PLAYER.password);
   await api.login(ENEMY.email, ENEMY.password);
 
-  const fixture = await api.createAgentFixture(PLAYER.email);
+  // The system view's agent layout is an account's beta choice and
+  // outlives the fixture (other specs turn the fan on): pin it, keeping
+  // every other beta at its default.
+  const fixture = await api.createAgentFixture(PLAYER.email, null, ['agent_fan_display', 'mobile_ui']);
   instanceId = fixture.instance_id;
   homeSystemId = fixture.system.id;
 });
@@ -180,26 +213,39 @@ test('chat channels, claim posts and sightings that go stale', async ({ page, co
     // space next to home, client-side only. The server knows of no fleet
     // there, so the report must come back "no longer on the S.L.S.D." —
     // which proves the whole pointer path up to the server and back.
-    await page.evaluate((id) => {
-      document.querySelector('#app').__vue__.$root.$emit('map:centerToSystem', id);
-    }, homeSystemId);
-    await page.waitForTimeout(1200);
+    //
+    // The map answers the pointer only on the galaxy view (an open system
+    // view pauses its hover), and the blip is aimed at from where its
+    // camera rests.
+    expect(await page.evaluate(() => {
+      const { selectedSystem } = document.querySelector('#app').__vue__.$store.state.game;
+      return selectedSystem ? selectedSystem.id : null;
+    }), 'no system view open over the galaxy map').toBeNull();
+    await centerOn(page, homeSystemId);
 
-    const spot = await page.evaluate((id) => {
+    const setup = await page.evaluate((id) => {
       const map = window.__rcMap;
+      const canvas = map.renderer.domElement;
       const home = map.data.systems.find((s) => s.id === id);
-      // The direction around home with the most room to the nearest
-      // system. Half-step angles: never on the screen-centre crosshair's
-      // arms (home is centred), which are page elements above the canvas.
+      const toScreen = (x, y) => {
+        const v = map.controls.target.clone().set(x, y, 0).project(map.camera);
+        return { x: ((v.x + 1) / 2) * window.innerWidth, y: ((1 - v.y) / 2) * window.innerHeight };
+      };
+      // Directions around home, the most room to the nearest system
+      // first, where a click lands on the map itself rather than on a
+      // panel over it. Half-step angles: never on the screen-centre
+      // crosshair's arms (home is centred), which are page elements above
+      // the canvas.
       const candidates = Array.from({ length: 16 }, (_, i) => {
         const a = ((i + 0.5) / 16) * 2 * Math.PI;
         const x = home.position.x + Math.cos(a) * 1.6;
         const y = home.position.y + Math.sin(a) * 1.6;
         const room = Math.min(...map.data.systems.map((s) => Math.hypot(s.position.x - x, s.position.y - y)));
-        return { x, y, room };
-      }).sort((p, q) => q.room - p.room);
-      const { x, y } = candidates[0];
-      // …and flying to the system nearest home
+        return { x, y, room, screen: toScreen(x, y) };
+      })
+        .filter(({ room, screen }) => room > 0.8 && document.elementFromPoint(screen.x, screen.y) === canvas)
+        .sort((p, q) => q.room - p.room);
+      // …flying to the system nearest home
       const dist = (s) => Math.hypot(s.position.x - home.position.x, s.position.y - home.position.y);
       const target = map.data.systems.filter((s) => s.id !== home.id).sort((a, b) => dist(a) - dist(b))[0];
 
@@ -207,10 +253,6 @@ test('chat channels, claim posts and sightings that go stale', async ({ page, co
       // of the player's own faction is not one to report.
       const own = document.querySelector('#app').__vue__.$store.state.game.playerFaction;
       const foreign = ['myrmezir', 'cardan'].find((key) => key !== own);
-
-      map.data.updateDetectedObjects([
-        { faction: foreign, position: { x, y }, angle: 0.5, target_system_id: target.id },
-      ]);
 
       window.__e2eFactionPushes = [];
       const { faction } = document.querySelector('#app').__vue__.$socket;
@@ -220,33 +262,38 @@ test('chat channels, claim posts and sightings that go stale', async ({ page, co
         return push(event, payload);
       };
 
-      return { x, y, room: candidates[0].room, target: target.id, faction: foreign };
+      return { candidates, target: target.id, faction: foreign };
     }, homeSystemId);
-    expect(spot.room, 'needs open space beside home for the stand-in blip').toBeGreaterThan(0.8);
-
-    // drawn by the map's own frame loop
-    await page.waitForFunction(() => {
-      const block = window.__rcMap.blocks.find((b) => b.name === 'DetectedObject');
-      const group = block && block.getGroupByName('detected-objects');
-      return group && group.visible && group.children.length === 1;
-    });
-
-    const screen = await page.evaluate(({ x, y }) => {
-      const map = window.__rcMap;
-      const v = map.controls.target.clone().set(x, y, 0).project(map.camera);
-      return { x: ((v.x + 1) / 2) * window.innerWidth, y: ((1 - v.y) / 2) * window.innerHeight };
-    }, spot);
+    expect(setup.candidates.length, 'needs open space beside home for the stand-in blip').toBeGreaterThan(0);
 
     const hint = page.locator('.map-blip-hint');
     const pulsed = () => page.evaluate(() => window.__rcMap.destinationPulse.systemId);
+    const pulsing = (systemId) => page.waitForFunction(
+      (id) => window.__rcMap.destinationPulse.systemId === id,
+      systemId,
+      { timeout: 2000 },
+    ).then(() => true, () => false);
+
+    // Plain hover: where the fleet is going pulses on the map. Under a
+    // plain hover the map picks a system, its markers or an agent (its
+    // name too, which runs well clear of its system) before a blip, so
+    // the first spot where nothing of those is in the way is the one.
+    let spot = null;
+    for (const { x, y, screen: at } of setup.candidates) {
+      await drawBlips(page, [{ faction: setup.faction, position: { x, y }, angle: 0.5, target_system_id: setup.target }]);
+      await page.mouse.move(at.x - 40, at.y - 40);
+      expect(await pulsed()).toBeNull();
+      await page.mouse.move(at.x, at.y, { steps: 4 });
+      if (await pulsing(setup.target)) {
+        spot = { x, y, screen: at, target: setup.target, faction: setup.faction };
+        break;
+      }
+    }
+    expect(spot, 'a spot beside home where a plain hover reaches the blip').not.toBeNull();
+    const { screen } = spot;
     const toastsBefore = (await toasts(page)).length;
 
-    // plain hover: where the fleet is going pulses on the map, and the
-    // pulse keeps running while the pointer wanders over the blip
-    await page.mouse.move(screen.x - 40, screen.y - 40);
-    expect(await pulsed()).toBeNull();
-    await page.mouse.move(screen.x, screen.y, { steps: 4 });
-    await expect.poll(pulsed).toBe(spot.target);
+    // …and the pulse keeps running while the pointer wanders over the blip
     await expect(hint).toHaveText('shift-click to report');
     const startedAt = await page.evaluate(() => window.__rcMap.destinationPulse.startedAt);
     await page.mouse.move(screen.x + 1, screen.y + 1);
@@ -339,10 +386,11 @@ test('chat channels, claim posts and sightings that go stale', async ({ page, co
     expect(lone, 'the fixture parks a lone hostile navarch at home').not.toBeNull();
     expect(lone.type).toBe('admiral');
 
-    const badge = page.locator('.action-item')
-      .filter({ has: page.locator('.action-label .name', { hasText: exactly(lone.name) }) })
-      .locator('.round-icon');
-    await badge.click({ modifiers: ['Shift'] });
+    // In the fan, foreign agents sit on the outer ring, one slot per owner:
+    // a lone agent is a badge of its own, not a collapsed squadron.
+    const badge = page.locator(`.system-actions .agent-badge[data-character-id="${lone.id}"]`);
+    await expect(badge.locator('.agent-card-name')).toHaveText(exactly(lone.name));
+    await badge.locator('.round-icon').click({ modifiers: ['Shift'] });
 
     await expect.poll(() => sightings(page)).toHaveLength(1);
     const [seen] = await sightings(page);
@@ -368,17 +416,29 @@ test('chat channels, claim posts and sightings that go stale', async ({ page, co
     await expect(chip.locator('.chat-ref-doubt')).toHaveCount(0);
     await shot(page, '3-agent-live');
 
-    // reporting it again posts nothing: the player is shown the report
-    await badge.click({ modifiers: ['Shift'] });
-    await expect.poll(async () => (await toasts(page)).length).toBeGreaterThan(0);
+    // Reporting it again posts nothing: the player is shown the report.
+    // This time from the legacy arc, which most accounts see: the beta
+    // toggle swaps the layout live, no reload.
+    const already = await page.evaluate(() => {
+      const app = document.querySelector('#app').__vue__;
+      app.$store.commit('portal/features', { ...app.$store.state.portal.features, agent_fan_display: false });
+      return app.$t('in_game_chat.sighting.already_reported');
+    });
+    const legacyBadge = page.locator(`.system-actions-legacy .action-item[data-character-id="${lone.id}"]`);
+    await expect(legacyBadge.locator('.action-label .name')).toHaveText(exactly(lone.name));
+    await legacyBadge.locator('.round-icon').click({ modifiers: ['Shift'] });
+    await expect.poll(() => toasts(page)).toContain(already);
     expect(await messages(page, 'spotted')).toHaveLength(1);
     expect(await sightings(page)).toHaveLength(1);
 
     // close the system view the way a player does, back to the galaxy
+    // (a close while the view is still opening does nothing)
+    await page.waitForFunction(() => !document.querySelector('#app').__vue__.$store.state.game.hasSystemTransition);
     await page.evaluate(() => {
       const app = document.querySelector('#app').__vue__;
       return app.$store.dispatch('game/closeSystem', app);
     });
+    await page.waitForFunction(() => !document.querySelector('#app').__vue__.$store.state.game.selectedSystem);
   });
 
   let fleetSightingId;
