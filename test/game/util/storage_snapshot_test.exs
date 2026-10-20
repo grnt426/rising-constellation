@@ -125,6 +125,11 @@ defmodule Util.StorageSnapshotTest do
       |> Wave.Warlord.refuse(:research, :not_enough_technology)
       |> Wave.Warlord.refuse(:research, :cooldown_not_unlock)
 
+    # A pass step that raised, then one that recovered: the failure ledger.
+    {traded, _log?} = Wave.Warlord.step_failed(traded, "recon", "BadBooleanError: expected a boolean")
+    {traded, _log?} = Wave.Warlord.step_failed(traded, "steer_fleets", "KeyError: key :post not found")
+    traded = Wave.Warlord.step_ok(traded, "steer_fleets")
+
     %{
       gauges: Map.merge(Wave.Recon.gauges(hostiles, [1, 2]), traded.gauges),
       stats: Map.update!(traded.stats, :refused, &Map.merge(&1, refused)),
@@ -134,7 +139,8 @@ defmodule Util.StorageSnapshotTest do
       siderians: traded.siderians,
       siderian_intel: traded.siderian_intel,
       convert_navarchs: traded.convert_navarchs,
-      research: traded.research
+      research: traded.research,
+      step_failures: traded.step_failures
     }
   end
 

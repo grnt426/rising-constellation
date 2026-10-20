@@ -122,6 +122,15 @@
               {{ $t('page.wave_diagnostics.not_live') }}
             </div>
 
+            <div
+              v-if="failingSteps.length"
+              class="wd-notice is-alert">
+              {{ $t('page.wave_diagnostics.failures.banner', {
+                steps: failingSteps.join(', '),
+                n: failures.failing_after,
+              }) }}
+            </div>
+
             <!-- HEALTH ------------------------------------------------------ -->
             <div class="wd-tiles">
               <div class="wd-tile">
@@ -223,6 +232,42 @@
                 </div>
               </div>
             </div>
+
+            <!-- STEP FAILURES ----------------------------------------------- -->
+            <template v-if="failureSteps.length">
+              <h2 class="default-title">{{ $t('page.wave_diagnostics.failures.title') }}</h2>
+              <p class="wd-caption">
+                {{ $t('page.wave_diagnostics.failures.caption', { n: failures.failing_after }) }}
+              </p>
+              <table class="default-table wd-table">
+                <tr class="wd-head">
+                  <th>{{ $t('page.wave_diagnostics.failures.step') }}</th>
+                  <th class="is-num">{{ $t('page.wave_diagnostics.failures.failed') }}</th>
+                  <th class="is-num">{{ $t('page.wave_diagnostics.failures.streak') }}</th>
+                  <th>{{ $t('page.wave_diagnostics.failures.last_error') }}</th>
+                </tr>
+                <tr
+                  v-for="row in failureSteps"
+                  :key="`failure-${row.step}`">
+                  <td><code>{{ row.step }}</code></td>
+                  <td class="is-num">{{ num(row.failed) }}</td>
+                  <td
+                    class="is-num"
+                    :class="row.failing ? 'is-bad' : (row.streak > 0 ? 'is-warn' : 'is-ok')">
+                    {{ num(row.streak) }}
+                  </td>
+                  <td>
+                    <code>{{ row.last_error || '—' }}</code>
+                    <div class="wd-detail-line">
+                      {{ $t('page.wave_diagnostics.failures.last_failed', { ut: num(row.last_failed_ut, 1) }) }}
+                      <template v-if="row.recovered_ut != null">
+                        · {{ $t('page.wave_diagnostics.failures.recovered', { ut: num(row.recovered_ut, 1) }) }}
+                      </template>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </template>
 
             <!-- ORDERS ------------------------------------------------------ -->
             <h2 class="default-title">{{ $t('page.wave_diagnostics.orders.title') }}</h2>
@@ -550,6 +595,9 @@ export default {
     perf() { return this.warlord && this.warlord.perf; },
     rebellion() { return this.report && this.report.rebellion; },
     sectors() { return this.report && this.report.sectors; },
+    failures() { return (this.report && this.report.failures) || {}; },
+    failureSteps() { return this.failures.steps || []; },
+    failingSteps() { return this.failures.failing || []; },
     orders() { return (this.report && this.report.orders) || []; },
     outcomes() { return (this.report && this.report.outcomes) || []; },
     refusals() { return (this.report && this.report.refusals) || []; },

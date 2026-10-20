@@ -1191,6 +1191,17 @@
         "title": "Secteurs par propriétaire",
         "unowned": "Sans propriétaire"
       },
+      "failures": {
+        "banner": "Le Warlord saute une partie de son tour : {steps} a échoué {n} fois de suite ou plus. Ces étapes ne font plus rien tant que le code n'est pas corrigé ; la trace complète est dans le journal du serveur.",
+        "title": "Étapes du tour en échec",
+        "caption": "Une étape qui échoue est sautée et le reste du tour continue. En rouge : {n} échecs de suite ou plus.",
+        "step": "Étape",
+        "failed": "Échecs",
+        "streak": "De suite",
+        "last_error": "Dernière erreur",
+        "last_failed": "dernier échec à {ut} ut",
+        "recovered": "de nouveau sans erreur à {ut} ut"
+      },
       "orders": {
         "title": "Ordres au moteur",
         "none": "Aucun ordre émis pour l'instant.",

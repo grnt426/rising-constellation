@@ -1530,6 +1530,17 @@
         "title": "Sectors by owner",
         "unowned": "Unowned"
       },
+      "failures": {
+        "banner": "The Warlord is skipping part of its pass: {steps} raised {n} or more times in a row. Those steps do nothing until the code is fixed; see the server log for the stack trace.",
+        "title": "Pass steps that raised",
+        "caption": "A step that raises is skipped and the rest of the pass carries on. Red: raised {n} or more times in a row.",
+        "step": "Step",
+        "failed": "Raised",
+        "streak": "In a row",
+        "last_error": "Last error",
+        "last_failed": "last raised at {ut} ut",
+        "recovered": "ran clean again at {ut} ut"
+      },
       "orders": {
         "title": "Orders to the engine",
         "none": "No orders issued yet.",

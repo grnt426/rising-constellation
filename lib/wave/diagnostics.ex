@@ -1,9 +1,10 @@
 defmodule Wave.Diagnostics do
   @moduledoc """
   The admin health readout of a live Rebel Defense instance: is the Warlord
-  running and keeping up, what it has asked the engine for and how often the
-  engine said no, how its attempts turned out, which agents have been sitting
-  on an order for too long, and its recent behaviour log.
+  running and keeping up, which steps of its pass keep raising, what it has
+  asked the engine for and how often the engine said no, how its attempts
+  turned out, which agents have been sitting on an order for too long, and
+  its recent behaviour log.
 
   Served by `GET /api/instances/:iid/wave/diagnostics` (admins only) and
   rendered by the portal's Rebellion diagnostics page. Every live read degrades
@@ -24,6 +25,10 @@ defmodule Wave.Diagnostics do
   # cancelled, so time on an order says nothing.
   @stale_passes 5
   @event_limit 60
+  # A pass step reads as failing once it has raised this many runs in a row:
+  # one raise can be a race with the engine, three is a bug that will not
+  # clear by itself, and the step does nothing until the code is fixed.
+  @failing_streak 3
 
   def read(instance_id, game_data \\ %{}) when is_integer(instance_id) do
     warlord = call(instance_id, :wave, :master, :get_state)
@@ -40,6 +45,7 @@ defmodule Wave.Diagnostics do
       stale_after_passes: @stale_passes,
       clock: clock_view(time, warlord, start_ut(instance_id, game_data)),
       warlord: summary && warlord_view(summary),
+      failures: warlord && failures_view(warlord),
       rebellion: bot && player_view(bot),
       orders: summary && orders_view(summary.orders),
       outcomes: summary && outcomes_view(summary.stats),
@@ -83,6 +89,28 @@ defmodule Wave.Diagnostics do
       :perf,
       :telemetry
     ])
+  end
+
+  # --- step failures -------------------------------------------------------------
+
+  defp failures_view(warlord) do
+    steps =
+      warlord
+      |> Map.get(:step_failures, %{})
+      |> Enum.map(fn {step, entry} ->
+        %{
+          step: step,
+          failed: entry.failed,
+          streak: entry.streak,
+          failing: entry.streak >= @failing_streak,
+          last_error: entry.last_error,
+          last_failed_ut: round1(entry.last_failed_ut),
+          recovered_ut: round1(entry.recovered_ut)
+        }
+      end)
+      |> Enum.sort_by(&{not &1.failing, -&1.streak, &1.step})
+
+    %{failing_after: @failing_streak, failing: Warlord.failing_steps(warlord, @failing_streak), steps: steps}
   end
 
   defp player_view(player) do

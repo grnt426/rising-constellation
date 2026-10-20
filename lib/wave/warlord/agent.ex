@@ -151,8 +151,10 @@ defmodule Wave.Warlord.Agent do
     Warlord.record_pass(data, System.monotonic_time(:microsecond) - t0, r1 - r0)
   end
 
-  # A failure anywhere in the loop must cost one pass, never the process: a
-  # crash here would restart the Warlord from the last snapshot on every tick.
+  # A failure anywhere in the loop must cost one step, never the pass and never
+  # the process: a crash here would restart the Warlord from the last snapshot
+  # on every tick. Each stage of a pass runs through step/4; this rescue only
+  # catches the glue between them.
   defp run(%Warlord{player_id: nil} = data) do
     case resolve_player(data) do
       nil -> data
@@ -161,23 +163,53 @@ defmodule Wave.Warlord.Agent do
   end
 
   defp run(%Warlord{} = data) do
-    data = ensure_connected(data)
+    data = step(data, "connect", &ensure_connected/1)
 
     case call(data, :player, data.player_id, :get_state) do
       {:ok, player} ->
-        top_up(data, player)
-        pass(data, player)
+        data
+        |> step("top_up", fn data ->
+          top_up(data, player)
+          data
+        end)
+        |> pass(player)
+        |> Warlord.step_ok("pass")
 
       _ ->
         data
     end
   rescue
     error ->
-      Logger.error(
-        "[wave] warlord pass failed in instance #{data.instance_id}: #{Exception.format(:error, error, __STACKTRACE__)}"
-      )
-
+      {data, log?} = Warlord.step_failed(data, "pass", Warlord.failure_text(error, __STACKTRACE__))
+      streak = Warlord.failure_streak(data, "pass")
+      log_failure(data, "pass", %{error: error, stacktrace: __STACKTRACE__, log?: log?, streak: streak})
       data
+  end
+
+  # One stage of a pass (Warlord.run_step/4). A stage that raises is skipped:
+  # the pass carries on from the state the stage was handed, shaped by
+  # `fallback` like the stage's own result, and the failure goes to the
+  # `step_failures` ledger and, once per streak, to the log. Until 2026-10-20
+  # one raise discarded the whole pass, so a raise on every pass froze the
+  # Rebellion outright: i185 sat still for four days on a bug in its hostile
+  # reading, and the losses each discarded pass noticed were logged again.
+  #
+  # A step with nothing to do still counts as a clean run and ends its streak,
+  # so a stage whose fallback moves its own clock (recon) checks that clock
+  # outside the step.
+  defp step(data, name, fun, fallback \\ & &1) do
+    {result, failure} = Warlord.run_step(data, name, fun, fallback)
+    if failure, do: log_failure(data, name, failure)
+    result
+  end
+
+  defp log_failure(_data, _name, %{log?: false}), do: :ok
+
+  defp log_failure(data, name, %{error: error, stacktrace: stacktrace, streak: streak}) do
+    Logger.error(
+      "[wave] warlord step #{name} failed in instance #{data.instance_id} (#{streak} in a row): " <>
+        Exception.format(:error, error, stacktrace)
+    )
   end
 
   defp pass(data, player) do
@@ -187,10 +219,10 @@ defmodule Wave.Warlord.Agent do
 
     data =
       data
-      |> drop_departed(player, summaries)
-      |> observe_siderians(summaries)
-      |> observe_erased(summaries)
-      |> Warlord.mark_stuck(engine_idle)
+      |> step("drop_departed", &drop_departed(&1, player, summaries))
+      |> step("observe_siderians", &observe_siderians(&1, summaries))
+      |> step("observe_erased", &observe_erased(&1, summaries))
+      |> step("mark_stuck", &Warlord.mark_stuck(&1, engine_idle))
 
     refresh? = rem(data.passes, max(knob(data, "state_refresh_passes", 20), 1)) == 0
     idle_navarchs = Enum.filter(Map.keys(data.colonisers), &(refresh? or roster_idle?(summaries[&1])))
@@ -207,122 +239,166 @@ defmodule Wave.Warlord.Agent do
         (Warlord.siderian_hire_due?(data) and Warlord.hired_siderian_count(data) < Map.get(gauges, :siderian_cap, 1)) or
         (Warlord.erased_hire_due?(data) and Warlord.hired_erased_count(data) < Map.get(gauges, :erased_cap, 1))
 
-    adrift_fleets = adrift_fleets(data, player, summaries)
+    {data, adrift_fleets} = step(data, "adrift_fleets", &{&1, adrift_fleets(&1, player, summaries)}, &{&1, []})
 
     needs_geometry? =
       refresh? or idle_navarchs != [] or idle_siderians != [] or idle_erased != [] or adrift_fleets != [] or
         hire_pending?
 
+    idle = %{navarchs: idle_navarchs, siderians: idle_siderians, erased: idle_erased, fleets: adrift_fleets}
+
     data =
       with true <- needs_geometry?,
-           {:ok, galaxy} <- call(data, :galaxy, :master, :get_state) do
-        geo = Geometry.build(galaxy, data.bot_faction)
-
-        # Pace and restraint: open new fronts only while behind the sector pace,
-        # keep working an owned sector only while its vote lead is thin, and
-        # never send more agents at a sector than it still needs.
-        allowance = Warlord.sector_allowance(data, length(galaxy.sectors))
-        frontier_open? = MapSet.size(geo.owned) < allowance
-        hold_margin = trunc(knob(data, "hold_margin", 2))
-        sector_of = Map.new(geo.systems, &{&1.id, &1.sector_id})
-        pending = Warlord.pending_by_sector(data, sector_of)
-        # Past `sector_open_contested_from_day` a neighbouring sector the humans
-        # have a foothold in is worked whatever the pace says.
-        contested = if Warlord.contested_open?(data), do: Geometry.contested_frontier(geo), else: MapSet.new()
-        workable = Geometry.workable_sectors(geo, hold_margin, frontier_open?, pending, contested)
-
-        ctx = %{
-          player: player,
-          geo: geo,
-          galaxy: galaxy,
-          distances: %{},
-          hold_margin: hold_margin,
-          sector_of: sector_of,
-          pending: pending,
-          # What other factions hold: where pressure is counted, and the ground
-          # new agitators, seducers and Erased are deployed toward.
-          held: geo |> Geometry.held_by_others() |> MapSet.new(& &1.id),
-          captures: []
-        }
-
-        data =
-          data
-          |> Warlord.gauge(:sector_allowance, allowance)
-          |> Warlord.gauge(:frontier_open, frontier_open?)
-          |> Warlord.gauge(:contested_open, MapSet.size(contested))
-          |> Warlord.gauge(:workable_sectors, MapSet.size(workable))
-
-        colonisation = Geometry.colonisation_candidates(geo, workable)
-        captures = Geometry.capture_candidates(geo, workable)
-        ctx = %{ctx | captures: captures}
-
-        # The ceilings scale with the humans the Rebellion faces.
-        humans = galaxy.players |> Map.values() |> Enum.count(&(&1.faction != data.bot_faction))
-        data = Warlord.gauge(data, :human_players, humans)
-
-        # The Navarch ceiling, under an optional hard `max_active_colonisers` cap.
-        navarch_ceiling =
-          case knob(data, "max_active_colonisers", nil) do
-            cap when is_number(cap) -> min(Warlord.agent_ceiling(data, :navarchs), trunc(cap))
-            _ -> Warlord.agent_ceiling(data, :navarchs)
-          end
-
-        nav_cap =
-          Warlord.coloniser_cap(
-            length(colonisation),
-            knob(data, "idle_navarch_factor", 1.5) * 1.0,
-            navarch_ceiling
-          )
-
-        # The Siderian ceiling split between the trades; capture only takes
-        # its share while there is something to capture.
-        # Seduction waits for someone to seduce: until a human holds ground in
-        # or next to the Rebellion's sectors, only a few seducers are kept.
-        contact? = Geometry.contact?(geo, trunc(knob(data, "seduce_contact_depth", 1)))
-        seduce_cap = if contact?, do: nil, else: trunc(knob(data, "seducers_before_contact", 1))
-
-        quotas =
-          Siderian.quotas(Warlord.agent_ceiling(data, :siderians), role_weights(data), length(captures), seduce_cap)
-
-        sid_cap = quotas |> Map.values() |> Enum.sum()
-        erased_cap = Warlord.agent_ceiling(data, :erased)
-
-        data =
-          data
-          |> Warlord.gauge(:unclaimed_neighbouring, length(colonisation))
-          |> Warlord.gauge(:coloniser_cap, nav_cap)
-          |> Warlord.gauge(:capture_targets, length(captures))
-          |> Warlord.gauge(:siderian_cap, sid_cap)
-          |> Warlord.gauge(:siderian_quotas, quotas)
-          |> Warlord.gauge(:human_contact, contact?)
-          |> Warlord.gauge(:erased_cap, erased_cap)
-          |> Warlord.gauge(:sectors_owned, MapSet.size(geo.owned))
-
-        # Agents seduced from the humans join the rosters before anyone is steered.
-        data = adopt_converts(data, ctx)
-
-        # One hostile reading per recon interval, for the Erased and for the
-        # Siderians whose trades weigh people and stability.
-        {data, view} = maybe_recon(data, ctx, idle_erased != [] or Enum.any?(idle_siderians, &reads_people?(data, &1)))
-
-        {data, ctx} = steer_navarchs(data, ctx, idle_navarchs, colonisation, nav_cap)
-        {data, ctx} = steer_siderians(data, ctx, view, idle_siderians, captures)
-        {data, ctx} = steer_erased(data, ctx, view, idle_erased)
-
-        data
-        |> steer_fleets(ctx, adrift_fleets)
-        |> tend_convert_navarchs(ctx)
-        |> maybe_hire_navarch(ctx, nav_cap)
-        |> maybe_hire_siderian(ctx, quotas)
-        |> maybe_hire_erased(ctx, erased_cap)
+           {:ok, galaxy} <- call(data, :galaxy, :master, :get_state),
+           {data, %{} = plan} <- step(data, "survey", &survey(&1, player, galaxy), &{&1, nil}) do
+        steer(data, plan, idle)
       else
+        {%Warlord{} = data, nil} -> data
         _ -> data
       end
 
     data
-    |> tend_fleets(player, summaries)
-    |> maybe_research(player)
-    |> maybe_report_day(player)
+    |> step("tend_fleets", &tend_fleets(&1, player, summaries))
+    |> step("research", &maybe_research(&1, player))
+    |> step("report_day", &maybe_report_day(&1, player))
+  end
+
+  # The galaxy reading every decision in the pass shares: the geometry, the
+  # candidates, today's caps and quotas, and the gauges that record them.
+  defp survey(data, player, galaxy) do
+    geo = Geometry.build(galaxy, data.bot_faction)
+
+    # Pace and restraint: open new fronts only while behind the sector pace,
+    # keep working an owned sector only while its vote lead is thin, and
+    # never send more agents at a sector than it still needs.
+    allowance = Warlord.sector_allowance(data, length(galaxy.sectors))
+    frontier_open? = MapSet.size(geo.owned) < allowance
+    hold_margin = trunc(knob(data, "hold_margin", 2))
+    sector_of = Map.new(geo.systems, &{&1.id, &1.sector_id})
+    pending = Warlord.pending_by_sector(data, sector_of)
+    # Past `sector_open_contested_from_day` a neighbouring sector the humans
+    # have a foothold in is worked whatever the pace says.
+    contested = if Warlord.contested_open?(data), do: Geometry.contested_frontier(geo), else: MapSet.new()
+    workable = Geometry.workable_sectors(geo, hold_margin, frontier_open?, pending, contested)
+
+    ctx = %{
+      player: player,
+      geo: geo,
+      galaxy: galaxy,
+      distances: %{},
+      hold_margin: hold_margin,
+      sector_of: sector_of,
+      pending: pending,
+      # What other factions hold: where pressure is counted, and the ground
+      # new agitators, seducers and Erased are deployed toward.
+      held: geo |> Geometry.held_by_others() |> MapSet.new(& &1.id),
+      captures: []
+    }
+
+    data =
+      data
+      |> Warlord.gauge(:sector_allowance, allowance)
+      |> Warlord.gauge(:frontier_open, frontier_open?)
+      |> Warlord.gauge(:contested_open, MapSet.size(contested))
+      |> Warlord.gauge(:workable_sectors, MapSet.size(workable))
+
+    colonisation = Geometry.colonisation_candidates(geo, workable)
+    captures = Geometry.capture_candidates(geo, workable)
+    ctx = %{ctx | captures: captures}
+
+    # The ceilings scale with the humans the Rebellion faces.
+    humans = galaxy.players |> Map.values() |> Enum.count(&(&1.faction != data.bot_faction))
+    data = Warlord.gauge(data, :human_players, humans)
+
+    # The Navarch ceiling, under an optional hard `max_active_colonisers` cap.
+    navarch_ceiling =
+      case knob(data, "max_active_colonisers", nil) do
+        cap when is_number(cap) -> min(Warlord.agent_ceiling(data, :navarchs), trunc(cap))
+        _ -> Warlord.agent_ceiling(data, :navarchs)
+      end
+
+    nav_cap =
+      Warlord.coloniser_cap(
+        length(colonisation),
+        knob(data, "idle_navarch_factor", 1.5) * 1.0,
+        navarch_ceiling
+      )
+
+    # The Siderian ceiling split between the trades; capture only takes
+    # its share while there is something to capture.
+    # Seduction waits for someone to seduce: until a human holds ground in
+    # or next to the Rebellion's sectors, only a few seducers are kept.
+    contact? = Geometry.contact?(geo, trunc(knob(data, "seduce_contact_depth", 1)))
+    seduce_cap = if contact?, do: nil, else: trunc(knob(data, "seducers_before_contact", 1))
+
+    quotas =
+      Siderian.quotas(Warlord.agent_ceiling(data, :siderians), role_weights(data), length(captures), seduce_cap)
+
+    sid_cap = quotas |> Map.values() |> Enum.sum()
+    erased_cap = Warlord.agent_ceiling(data, :erased)
+
+    data =
+      data
+      |> Warlord.gauge(:unclaimed_neighbouring, length(colonisation))
+      |> Warlord.gauge(:coloniser_cap, nav_cap)
+      |> Warlord.gauge(:capture_targets, length(captures))
+      |> Warlord.gauge(:siderian_cap, sid_cap)
+      |> Warlord.gauge(:siderian_quotas, quotas)
+      |> Warlord.gauge(:human_contact, contact?)
+      |> Warlord.gauge(:erased_cap, erased_cap)
+      |> Warlord.gauge(:sectors_owned, MapSet.size(geo.owned))
+
+    {data,
+     %{
+       ctx: ctx,
+       colonisation: colonisation,
+       captures: captures,
+       nav_cap: nav_cap,
+       quotas: quotas,
+       erased_cap: erased_cap
+     }}
+  end
+
+  # Every order the pass gives, each its own step. A steering step that fails
+  # hands the next one the context it was given.
+  defp steer(data, plan, idle) do
+    %{
+      ctx: ctx,
+      colonisation: colonisation,
+      captures: captures,
+      nav_cap: nav_cap,
+      quotas: quotas,
+      erased_cap: erased_cap
+    } =
+      plan
+
+    # Agents seduced from the humans join the rosters before anyone is steered.
+    data = step(data, "adopt_converts", &adopt_converts(&1, ctx))
+
+    # One hostile reading per recon interval, for the Erased and for the
+    # Siderians whose trades weigh people and stability. A reading that fails
+    # still counts as taken, so it is tried again an interval later rather
+    # than on every pass. The clock is read outside the step: a pass with no
+    # reading due must not count as a clean run and end a failure streak.
+    wanted? = idle.erased != [] or Enum.any?(idle.siderians, &reads_people?(data, &1))
+
+    {data, view} =
+      if wanted? and recon_due?(data),
+        do: step(data, "recon", &take_recon(&1, ctx), &{Warlord.mark_recon(&1), nil}),
+        else: {data, nil}
+
+    {data, ctx} =
+      step(data, "steer_navarchs", &steer_navarchs(&1, ctx, idle.navarchs, colonisation, nav_cap), &{&1, ctx})
+
+    {data, ctx} = step(data, "steer_siderians", &steer_siderians(&1, ctx, view, idle.siderians, captures), &{&1, ctx})
+    {data, ctx} = step(data, "steer_erased", &steer_erased(&1, ctx, view, idle.erased), &{&1, ctx})
+
+    data
+    |> step("steer_fleets", &steer_fleets(&1, ctx, idle.fleets))
+    |> step("tend_convert_navarchs", &tend_convert_navarchs(&1, ctx))
+    |> step("hire_navarch", &maybe_hire_navarch(&1, ctx, nav_cap))
+    |> step("hire_siderian", &maybe_hire_siderian(&1, ctx, quotas))
+    |> step("hire_erased", &maybe_hire_erased(&1, ctx, erased_cap))
   end
 
   # The roster summary is kept current by the character agents' update casts;
@@ -1758,19 +1834,15 @@ defmodule Wave.Warlord.Agent do
   # A hostile reading costs a faction read, one call per human player and a
   # capped sweep of the systems their agents stand in. Held for a few ut so a
   # fast tick cadence doesn't re-read the galaxy's people every pass.
-  defp maybe_recon(data, ctx, wanted?) do
-    interval = knob(data, "erased_recon_interval_ut", 3.0) * 1.0
+  defp recon_due?(data), do: Warlord.recon_due?(data, knob(data, "erased_recon_interval_ut", 3.0) * 1.0)
 
-    if wanted? and Warlord.recon_due?(data, interval) do
-      view = build_recon(data, ctx)
+  defp take_recon(data, ctx) do
+    view = build_recon(data, ctx)
 
-      data =
-        Enum.reduce(view.gauges, Warlord.mark_recon(data), fn {key, value}, acc -> Warlord.gauge(acc, key, value) end)
+    data =
+      Enum.reduce(view.gauges, Warlord.mark_recon(data), fn {key, value}, acc -> Warlord.gauge(acc, key, value) end)
 
-      {data, view}
-    else
-      {data, nil}
-    end
+    {data, view}
   end
 
   defp reads_people?(data, id) do

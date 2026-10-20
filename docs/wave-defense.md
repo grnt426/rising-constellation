@@ -1704,8 +1704,27 @@ harness above stays for tests. `Wave.Lobby` holds the server side.
    health, the **order ledger** (`Warlord.order/3`: every hire, itinerary,
    recall and dismissal the engine took or refused, by reason), outcome rates,
    agents stuck on an order (see "The stale flag" under "No duty means
-   training"), untracked engine-side agents,
-   and the last 60 `wave_*` events.
+   training"), untracked engine-side agents, the **pass steps that raised**
+   (see below), and the last 60 `wave_*` events.
+
+**A failing step costs that step, not the pass (2026-10-20).** Each stage of
+a pass (`drop_departed`, the `survey` galaxy reading, `recon`, each
+`steer_*`, each `hire_*`, `tend_fleets`, `research`, `report_day`, ...) runs
+through `Warlord.run_step/4`. A stage that raises is skipped with the state it
+was handed, and every other stage keeps its work. Before this, `run/1`
+rescued the whole pass and returned the state from before it, so a raise
+on every pass froze the Rebellion outright. From 2026-10-15 to 2026-10-20,
+i185 issued no orders while `Wave.Recon.enrich/5` raised on every reading
+(`system && x and y` with a hostile beyond `erased_scan_cap`). Every discarded
+pass also logged the same losses again, about 54k `wave_*_lost` rows. The
+ledger is `step_failures` in Warlord state:
+per step, failures, the current streak, the last error (string, 300 chars)
+and when it last failed or ran clean again. Step names and errors are strings, so the
+snapshot stays safe. A streak logs once when it starts, when the error changes,
+and every 100th repeat after that. Diagnostics flags a step as failing at 3
+in a row, and the page then shows a banner. A step with nothing to do counts
+as a clean run, so `recon` checks its clock outside the step (a failed
+reading still counts as taken and is retried an interval later).
 
 **Real-speed behaviour (checked 2026-09-28 at 1×).** Every Warlord knob is in
 game time, so compressed test runs and a weeks-long Legacy match make the same
