@@ -255,9 +255,12 @@ defmodule Wave.Recon do
     {systems, Map.keys(systems)}
   end
 
-  # Fill in everything that needed the system read, each field gated on what
-  # the Rebellion can actually see there.
-  defp enrich(hostile, systems, visibility, stored, faction) do
+  @doc """
+  Fill in everything that needed the system read, each field gated on what the
+  Rebellion can actually see there. A hostile standing beyond the scan cap has
+  no system read and keeps those fields unknown.
+  """
+  def enrich(hostile, systems, visibility, stored, faction) do
     vis = Map.get(visibility, hostile.system, 0)
     system = Map.get(systems, hostile.system)
 
@@ -272,9 +275,11 @@ defmodule Wave.Recon do
       if seen && Intel.visible?(:protection, vis), do: Map.get(seen, :protection)
 
     # Counter-intelligence only joins the defence when the target's own faction
-    # holds the system — the same rule the attack actions apply.
+    # holds the system — the same rule the attack actions apply. `&&` and `and`
+    # share a precedence, so `system && ... and` hands `and` a nil left side
+    # for an unscanned system and raises.
     counter_intelligence =
-      if system && Intel.visible?(:counter_intelligence, vis) and
+      if system != nil and Intel.visible?(:counter_intelligence, vis) and
            system.owner != nil and system.owner.faction == hostile.faction,
          do: system.counter_intelligence.value,
          else: 0
