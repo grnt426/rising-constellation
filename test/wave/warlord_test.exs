@@ -411,6 +411,79 @@ defmodule Wave.WarlordTest do
     end
   end
 
+  describe "pass steps" do
+    # i185, 2026-10-15..20: the hostile reading raised on every pass, the whole
+    # pass was thrown away each time, and the Rebellion stood still for days.
+    test "a step that raises is skipped and the steps around it keep their work" do
+      raising = fn state ->
+        state |> Warlord.count(:half_done) |> then(fn _ -> raise ArgumentError, "boom" end)
+      end
+
+      state = warlord() |> Warlord.advance(7.0)
+      {state, nil} = Warlord.run_step(state, "drop_departed", &Warlord.count(&1, :hired), & &1)
+      {state, failure} = Warlord.run_step(state, "recon", raising, & &1)
+      {state, nil} = Warlord.run_step(state, "research", &Warlord.count(&1, :dismissed), & &1)
+
+      assert state.stats.hired == 1
+      assert state.stats.dismissed == 1
+      # The failed step's own partial work is gone with it.
+      refute Map.has_key?(state.stats, :half_done)
+
+      assert %{error: %ArgumentError{message: "boom"}, streak: 1, log?: true} = failure
+      assert %{failed: 1, streak: 1, last_failed_ut: 7.0, last_error: "ArgumentError: boom at " <> _} =
+               state.step_failures["recon"]
+
+      refute Map.has_key?(state.step_failures, "drop_departed")
+    end
+
+    test "a step that returns a pair falls back to the pair its caller expects" do
+      state = warlord() |> Warlord.advance(4.0)
+
+      {{state, view}, %{streak: 1}} =
+        Warlord.run_step(state, "recon", fn _ -> raise KeyError, key: :owner end, &{Warlord.mark_recon(&1), nil})
+
+      assert view == nil
+      # A failed reading still counts as taken, so it is retried an interval later.
+      assert state.erased_recon_at == 4.0
+      refute Warlord.recon_due?(state, 3.0)
+
+      {{_state, :read}, nil} = Warlord.run_step(state, "recon", &{&1, :read}, &{&1, nil})
+    end
+
+    test "a streak logs at its start, on a new error and every 100th repeat, and ends on a clean run" do
+      fail = &Warlord.step_failed(&1, "recon", &2)
+
+      {state, logged} =
+        Enum.reduce(1..250, {warlord(), 0}, fn _, {state, logged} ->
+          {state, log?} = fail.(state, "E1")
+          {state, if(log?, do: logged + 1, else: logged)}
+        end)
+
+      # Passes 1, 100 and 200.
+      assert logged == 3
+      assert Warlord.failure_streak(state, "recon") == 250
+
+      {state, true} = fail.(state, "E2")
+      {state, false} = fail.(state, "E2")
+      assert Warlord.failing_steps(state, 3) == ["recon"]
+
+      state = state |> Warlord.advance(2.0) |> Warlord.step_ok("recon")
+      assert %{failed: 252, streak: 0, recovered_ut: 2.0, last_error: "E2"} = state.step_failures["recon"]
+      assert Warlord.failing_steps(state, 1) == []
+
+      {_state, true} = fail.(state, "E2")
+    end
+
+    test "errors are kept short, and the ledger encodes and restores" do
+      {state, true} = Warlord.step_failed(warlord(), "steer_fleets", String.duplicate("x", 1_000))
+      assert String.length(state.step_failures["steer_fleets"].last_error) == 300
+
+      assert Warlord.summary(state).step_failures == state.step_failures
+      assert is_binary(Jason.encode!(Warlord.summary(state)))
+      assert Warlord.upgrade(Map.delete(warlord(), :step_failures)).step_failures == %{}
+    end
+  end
+
   describe "snapshot tolerance" do
     test "a Warlord saved before the Siderian and telemetry fields existed upgrades and keeps running" do
       old = Map.drop(warlord(), [:siderians, :siderian_accum, :passes, :gauges, :perf, :telemetry])

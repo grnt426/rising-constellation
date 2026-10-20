@@ -182,6 +182,12 @@ defmodule Wave.Warlord do
     # %{system_id => %{stacks: float(), at: float()}}: how hard the Rebellion
     # has leaned on each system another faction holds (Wave.Pressure).
     field(:pressure, map(), default: %{})
+
+    # --- added 2026-10-20 (back-filled by upgrade/1) ---
+    # %{step_name => %{failed:, streak:, last_error:, last_failed_ut:, recovered_ut:}}:
+    # the pass steps that raised (Wave.Warlord.Agent.step/4). Step names and
+    # errors are strings, never atoms built at runtime: see step_failed/3.
+    field(:step_failures, map(), default: %{})
   end
 
   @added_fields %{
@@ -216,7 +222,8 @@ defmodule Wave.Warlord do
     doctrine_at: nil,
     human_hulls: [],
     capital_since: nil,
-    pressure: %{}
+    pressure: %{},
+    step_failures: %{}
   }
 
   def new(instance_id, bot_faction) do
@@ -1155,6 +1162,98 @@ defmodule Wave.Warlord do
   @doc "Record a last-pass reading."
   def gauge(%__MODULE__{} = state, key, value), do: %{state | gauges: Map.put(state.gauges, key, value)}
 
+  # --- step failures --------------------------------------------------------------
+
+  # A streak is logged when it starts, when its error changes, and on every
+  # @failure_log_every-th repeat: a step that raises on every pass would
+  # otherwise write a stack trace every few minutes for as long as it lasts.
+  @failure_log_every 100
+  @failure_text_max 300
+
+  @doc """
+  Run one step of a pass. `fun` takes the state and returns it, or
+  `{state, value}`. A clean run ends the step's failure streak and returns
+  `{result, nil}`.
+
+  When `fun` raises, the step is skipped: the failure is recorded on the state
+  the step was handed, `fallback` shapes that state like the step's own result
+  (`& &1` for a plain state, `&{&1, default}` for a pair), and the return is
+  `{fallback_result, %{error:, stacktrace:, streak:, log?:}}` for the agent to
+  log. Every earlier and later step of the pass keeps its work.
+  """
+  def run_step(%__MODULE__{} = state, step, fun, fallback) do
+    result =
+      case fun.(state) do
+        %__MODULE__{} = state -> step_ok(state, step)
+        {%__MODULE__{} = state, value} -> {step_ok(state, step), value}
+      end
+
+    {result, nil}
+  rescue
+    error ->
+      {state, log?} = step_failed(state, step, failure_text(error, __STACKTRACE__))
+      failure = %{error: error, stacktrace: __STACKTRACE__, streak: failure_streak(state, step), log?: log?}
+      {fallback.(state), failure}
+  end
+
+  @doc "What the ledger keeps of a failure: the exception and the frame it was raised in."
+  def failure_text(error, stacktrace) do
+    frame =
+      case stacktrace do
+        [entry | _] -> " at " <> Exception.format_stacktrace_entry(entry)
+        _ -> ""
+      end
+
+    inspect(error.__struct__) <> ": " <> Exception.message(error) <> frame
+  end
+
+  @doc """
+  Record that the pass step `step` raised `error`. Both are strings: the
+  ledger lives in the snapshotted state, and a snapshot only decodes atoms
+  that compiled code knows (see `Wave.Recon.gauges/2`).
+
+  Returns the state and whether this failure deserves a log line: the first of
+  a streak, an error unlike the last one, or every 100th repeat.
+  """
+  def step_failed(%__MODULE__{} = state, step, error) when is_binary(step) and is_binary(error) do
+    error = String.slice(error, 0, @failure_text_max)
+    failures = Map.get(state, :step_failures, %{})
+
+    entry =
+      Map.get(failures, step, %{failed: 0, streak: 0, last_error: nil, last_failed_ut: nil, recovered_ut: nil})
+
+    streak = entry.streak + 1
+    log? = streak == 1 or error != entry.last_error or rem(streak, @failure_log_every) == 0
+    entry = %{entry | failed: entry.failed + 1, streak: streak, last_error: error, last_failed_ut: state.elapsed}
+
+    {Map.put(state, :step_failures, Map.put(failures, step, entry)), log?}
+  end
+
+  @doc "The step ran clean: end its failure streak, if it had one."
+  def step_ok(%__MODULE__{} = state, step) do
+    failures = Map.get(state, :step_failures, %{})
+
+    case Map.get(failures, step) do
+      %{streak: streak} = entry when streak > 0 ->
+        entry = %{entry | streak: 0, recovered_ut: state.elapsed}
+        Map.put(state, :step_failures, Map.put(failures, step, entry))
+
+      _ ->
+        state
+    end
+  end
+
+  @doc "How many times in a row `step` has raised; 0 once it runs clean."
+  def failure_streak(%__MODULE__{} = state, step) do
+    state |> Map.get(:step_failures, %{}) |> Map.get(step, %{}) |> Map.get(:streak, 0)
+  end
+
+  @doc "The steps that have raised at least `min_streak` times in a row, by name."
+  def failing_steps(%__MODULE__{} = state, min_streak) do
+    steps = for {step, %{streak: streak}} <- Map.get(state, :step_failures, %{}), streak >= min_streak, do: step
+    Enum.sort(steps)
+  end
+
   @doc "Accumulate one pass's cost: wall microseconds and reductions."
   def record_pass(%__MODULE__{} = state, microseconds, reductions) do
     perf = state.perf
@@ -2014,6 +2113,7 @@ defmodule Wave.Warlord do
         last_reductions: Map.get(perf, :last_reductions, 0)
       },
       orders: Map.get(state, :orders, %{}),
+      step_failures: Map.get(state, :step_failures, %{}),
       stats:
         Map.update(state.stats, :refused, %{}, fn refused ->
           Map.new(refused, fn {{what, reason}, n} -> {"#{what}:#{inspect(reason)}", n} end)
