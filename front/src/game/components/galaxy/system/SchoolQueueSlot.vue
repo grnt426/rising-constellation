@@ -55,9 +55,10 @@ export default {
       const owner = this.entry.owner.id === this.player.id ? '' : ` (${this.entry.owner.name})`;
       return this.$t('galaxy.school.queue_waiting', { name: `${this.entry.name}${owner}` });
     },
+    // markup for the line break: the label carries player and agent names
     tooltip() {
       const hint = this.action ? `<br>${this.$t(`galaxy.school.queue_${this.action}`)}` : '';
-      return { content: `${this.label}${hint}`, html: true };
+      return { content: `${this.$escape(this.label)}${hint}`, html: true };
     },
   },
   methods: {

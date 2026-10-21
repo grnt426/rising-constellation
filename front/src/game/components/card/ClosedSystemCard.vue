@@ -20,7 +20,7 @@
           <span
             v-if="foreignAgents.length > 0"
             class="agent-dots"
-            v-tooltip="{ content: agentsTooltip }">
+            v-tooltip="{ content: agentsTooltip, html: true }">
             <span
               v-for="agent in foreignAgents"
               :key="`agent-${agent.id}`"
@@ -32,7 +32,7 @@
         <div
           v-if="system.queue > 0"
           class="title-actions"
-          v-tooltip="{ content: queueTooltip }">
+          v-tooltip="{ content: queueTooltip, html: true }">
           <span
             v-if="etaLabel"
             class="counter">

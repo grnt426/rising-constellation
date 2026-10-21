@@ -27,7 +27,7 @@
           role="img"
           :tabindex="context === 'selection' ? 0 : null"
           :aria-label="reactionLabel(character.army.reaction)"
-          v-tooltip.left="$t(`character_reaction.${character.army.reaction}`)">
+          v-tooltip.left="{ content: $t(`character_reaction.${character.army.reaction}`), html: true }">
           <svgicon
             :name="`reaction/${character.army.reaction}`"
             aria-hidden="true" />
@@ -44,7 +44,7 @@
           <div
             v-for="reaction in reactions"
             v-press
-            v-tooltip.left="$t(`character_reaction.${reaction}`)"
+            v-tooltip.left="{ content: $t(`character_reaction.${reaction}`), html: true }"
             class="item"
             :key="reaction"
             :aria-pressed="String(reaction === character.army.reaction)"

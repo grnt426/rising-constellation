@@ -13,7 +13,7 @@
       <div class="system-content-group-pop-state">
         <div
           v-for="ps in blockPopStatus"
-          v-tooltip="formatTooltip(ps.key, ps.display_min, ps.display_max, formatProductivity(ps.penalty))"
+          v-tooltip="{ content: formatTooltip(ps.key, ps.display_min, ps.display_max, formatProductivity(ps.penalty)), html: true }"
           class="pop-state-item"
           :style="{ width: `${ps.width}%` }"
           :class="{ 'is-active': ps.key === system.population_status }"

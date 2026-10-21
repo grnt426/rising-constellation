@@ -74,6 +74,11 @@ Vue.component('v-popover', VPopover);
 Vue.component('v-select', vSelect);
 
 Vue.directive('tooltip', VTooltip);
+// Tooltips are text unless they ask for markup with `{ content, html: true }`
+// (v-tooltip's own default is HTML). Names in a tooltip are free text:
+// player names allow `<`, system names come from published maps. A markup
+// tooltip escapes what it interpolates ($escape, $thtml).
+VTooltip.options.defaultHtml = false;
 
 // Touch has no hover. v-tooltip's 'hover' trigger shows on mouseenter
 // and hides on click, and a tap fires both back to back — so every

@@ -82,7 +82,7 @@
           {{ $t('galaxy.selection.view.speaker_cooldown') }}
         </div>
         <progress-value
-          v-tooltip="tooltip"
+          v-tooltip="{ content: tooltip, html: true }"
           :current="character.speaker.cooldown.initial - character.speaker.cooldown.value"
           :total="character.speaker.cooldown.initial"
           :increase="1" />

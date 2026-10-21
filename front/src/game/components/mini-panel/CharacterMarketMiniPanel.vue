@@ -72,9 +72,12 @@
             class="character-stack">
             <div
               class="character-stack-cooldown"
-              v-tooltip="speed !== 'fast'
-                ? $t('minipanel.character_market.turnover', { date: $options.filters['luxon-std'](timestamp) })
-                : ''">
+              v-tooltip="{
+                content: speed !== 'fast'
+                  ? $t('minipanel.character_market.turnover', { date: $options.filters['luxon-std'](timestamp) })
+                  : '',
+                html: true,
+              }">
               <progress-value
                 :receivedAt="characterMarket.receivedAt"
                 :current="cooldown.value"

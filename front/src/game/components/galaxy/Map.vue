@@ -23,7 +23,7 @@
         <div
           class="map-options-item"
           v-for="mode in modes"
-          v-tooltip="modeTooltip(mode.key)"
+          v-tooltip="{ content: modeTooltip(mode.key), html: true }"
           :key="mode.key"
           :class="{ 'is-active': mode.key === mapOptions.mode }"
           @click="updateMapOptions('mode', mode.key)">

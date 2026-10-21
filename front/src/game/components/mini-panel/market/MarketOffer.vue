@@ -91,7 +91,7 @@
       <button
         v-if="button === 'buy'"
         @click="handelClick('buy')"
-        v-tooltip="isAvailable ? buyTooltip : $t('minipanel.market.agent_unavailable')"
+        v-tooltip="{ content: isAvailable ? buyTooltip : $t('minipanel.market.agent_unavailable'), html: true }"
         class="default-button"
         :disabled="clicked || !isAvailable">
         <div>{{ $t(`minipanel.market.take.${takeKey}`) }}</div>
