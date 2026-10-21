@@ -47,16 +47,17 @@ export default {
     profile() { return this.$store.state.game.player; },
   },
   methods: {
+    // rendered with v-html: conversation and player names are free text
     getConversationName(conversation) {
       if (conversation.is_group) {
-        return `${conversation.name} (${conversation.members.length})`;
+        return `${this.$escape(conversation.name)} (${conversation.members.length})`;
       }
 
       const member = conversation.members.find((m) => m.iid !== this.profile.id);
       const player = this.$store.state.game.galaxy.players[member.iid];
       const theme = this.$store.getters['game/themeByKey'](player.faction);
 
-      return `<span class="is-color-${theme}">${member.name}</span>`;
+      return `<span class="is-color-${theme}">${this.$escape(member.name)}</span>`;
     },
   },
 };

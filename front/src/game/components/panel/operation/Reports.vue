@@ -391,7 +391,7 @@ export default {
       const kindLabel = (k) => k ? this.$t(`galaxy.map.icons.kinds.${k}`) : '';
 
       if (entry.event_type === 'icon_replaced') {
-        return this.$t('report.icon_replaced', {
+        return this.$thtml('report.icon_replaced', {
           actor,
           target,
           previous_kind: kindLabel(p.previous_kind),
@@ -399,7 +399,7 @@ export default {
           system,
         });
       }
-      return this.$t('report.icon_removed', {
+      return this.$thtml('report.icon_removed', {
         actor,
         target,
         kind: kindLabel(p.icon_kind),

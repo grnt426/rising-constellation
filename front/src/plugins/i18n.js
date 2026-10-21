@@ -99,4 +99,18 @@ Vue.prototype.$tmd = function $toastError(...args) {
 
 Vue.prototype.$escape = escape;
 
+// $t for v-html. vue-i18n does not escape interpolated values, and many
+// templates carry their own markup (`<strong class="is-color-{theme}">
+// {player}</strong>`), so the template's markup stays while every string
+// param is HTML-escaped: player, system and faction names are free text
+// (RC.DisplayName allows `<`).
+Vue.prototype.$thtml = function $thtml(key, params) {
+  if (!params || typeof params !== 'object') return this.$t(key, params);
+  const safe = Array.isArray(params) ? [] : {};
+  Object.keys(params).forEach((k) => {
+    safe[k] = typeof params[k] === 'string' ? escape(params[k]) : params[k];
+  });
+  return this.$t(key, safe);
+};
+
 export { i18n, loadLanguage, availableLanguages, defaultLanguage };
