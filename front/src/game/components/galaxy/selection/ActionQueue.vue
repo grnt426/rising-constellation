@@ -36,7 +36,7 @@
             'is-armed': armedIndex === i,
           }"
           class="action-item"
-          v-tooltip="action.timestamp"
+          v-tooltip="{ content: action.timestamp, html: true }"
           @mouseenter="enterAction(i)"
           @mouseleave="leaveAction">
           <template v-if="i === 0 && action.remaining_time !== 'unknown_yet'">

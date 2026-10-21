@@ -101,7 +101,7 @@
           </template>
         </div>
         <div
-          v-tooltip="tooltip"
+          v-tooltip="{ content: tooltip, html: true }"
           class="spy-cover-info">
           <span class="sr-only">{{ $t('a11y.agent.cover', { pct: Math.round(character.spy.cover.value) }) }}</span>
           <progress-value

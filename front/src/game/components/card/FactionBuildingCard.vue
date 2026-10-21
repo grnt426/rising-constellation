@@ -185,7 +185,7 @@
       class="card-cost">
       <div
         class="icon-value"
-        v-tooltip="laborTooltip">
+        v-tooltip="{ content: laborTooltip, html: true }">
         {{ levelData.labor | compact }}
         <svgicon name="resource/production" />
       </div>
@@ -193,7 +193,7 @@
         v-for="amount in cost"
         :key="amount.resource"
         class="icon-value"
-        v-tooltip="costTooltip(amount)">
+        v-tooltip="{ content: costTooltip(amount), html: true }">
         {{ amount.value | compact }}
         <svgicon :name="`resource/${amount.resource}`" />
       </div>

@@ -33,7 +33,7 @@
             <button
               type="button"
               :aria-disabled="tile.building_level >= levelCap ? 'true' : null"
-              v-tooltip="raiseTooltip"
+              v-tooltip="{ content: raiseTooltip, html: true }"
               @click="setLevel(tile.building_level + 1)">+</button>
           </div>
           <button
@@ -118,7 +118,7 @@
               class="planner-choice"
               :class="[`is-${choice.status}`, { 'is-current': choice.building.key === tile.building_key }]"
               :aria-disabled="choice.status !== 'buildable' ? 'true' : null"
-              v-tooltip="choiceTooltip(choice)"
+              v-tooltip="{ content: choiceTooltip(choice), html: true }"
               @mouseenter="preview = choice.building.key"
               @mouseleave="preview = null"
               @focus="preview = choice.building.key"
@@ -266,7 +266,7 @@ export default {
     pickLevel(level) {
       if (this.preview) return;
       if (level > this.levelCap) {
-        this.$toasted.info(this.raiseTooltipFor(level));
+        this.$toasted.info(this.raiseTooltipFor(level), { html: true });
         return;
       }
       this.setLevel(level);

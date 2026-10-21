@@ -40,7 +40,7 @@
           :key="`sys-${action.name}`"
           class="mobile-order-button"
           :class="{ 'is-disabled': action.status !== 'available' }"
-          v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+          v-tooltip="{ content: action.status === 'available' ? action.tooltip : action.reasons, html: true }"
           @click="action.status === 'available' && doAction(action.icon)">
           <svgicon :name="`action/${action.icon}_alt`" />
           {{ $t(`galaxy.system.actions.${action.name}`) }}
@@ -110,7 +110,7 @@
                 :key="`m-${character.id}-${action.name}`"
                 class="mobile-order-button"
                 :class="{ 'is-disabled': action.status !== 'available' }"
-                v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+                v-tooltip="{ content: action.status === 'available' ? action.tooltip : action.reasons, html: true }"
                 @click="action.status === 'available' && doCharacterAction(action, character.id)">
                 <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
                 {{ $t(`galaxy.system.actions.${action.name}`) }}
@@ -122,7 +122,7 @@
                 :key="`m-${character.id}-${action.name}`"
                 class="mobile-order-button"
                 :class="{ 'is-disabled': action.status !== 'available' }"
-                v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+                v-tooltip="{ content: action.status === 'available' ? action.tooltip : action.reasons, html: true }"
                 @click="action.status === 'available' && doCharacterAction(action, character.id)">
                 <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
                 {{ $t(`galaxy.system.actions.${action.name}`) }}
@@ -151,7 +151,7 @@
           </div>
           <div
             v-if="action.status === 'unavailable'"
-            v-tooltip="action.reasons"
+            v-tooltip="{ content: action.reasons, html: true }"
             class="round-icon is-disabled">
             <svgicon :name="`action/${action.icon}_alt`" />
           </div>
@@ -263,7 +263,7 @@
               </div>
               <div
                 v-if="action.status === 'unavailable'"
-                v-tooltip="action.reasons"
+                v-tooltip="{ content: action.reasons, html: true }"
                 class="actions-item is-disabled">
                 <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
               </div>

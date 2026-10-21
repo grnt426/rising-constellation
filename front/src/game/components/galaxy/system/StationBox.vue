@@ -17,7 +17,7 @@
       <div
         v-for="entry in gridEntries"
         :key="entry.key"
-        v-tooltip="entry.tooltip"
+        v-tooltip="{ content: entry.tooltip, html: true }"
         class="station-cell"
         :class="entry.classes"
         :style="entry.style"
@@ -138,7 +138,7 @@
       <div
         v-for="option in buildOptions"
         :key="option.key"
-        v-tooltip="option.reason"
+        v-tooltip="{ content: option.reason, html: true }"
         class="picker-option"
         :class="{ 'is-disabled': option.status !== 'available' }"
         @mouseenter="optionEnter(option)"

@@ -10,6 +10,8 @@
 //   button (role, tab stop, Enter/Space fire its click). For new markup
 //   prefer a real <button class="bare-button">; this is for the many
 //   existing clickable divs whose styling depends on the element.
+import { escape } from '@/plugins/filters';
+
 let regions = null;
 
 function makeRegion(politeness) {
@@ -28,12 +30,13 @@ function ensureRegions() {
   return regions;
 }
 
-// Toast messages may carry markup (i18n strings rendered with $tmd).
-// DOMParser documents are inert — no script runs and no image loads —
-// so this is safe to feed whatever the toast itself was given.
+// Toast messages may carry markup (i18n strings rendered with $tmd) or
+// entities (a text toast arrives escaped). DOMParser documents are inert —
+// no script runs and no image loads — so this is safe to feed whatever the
+// toast itself was given.
 function plainText(message) {
   if (typeof message !== 'string') return '';
-  if (!message.includes('<')) return message;
+  if (!/[<&]/.test(message)) return message;
   return new DOMParser().parseFromString(message, 'text/html').body.textContent || '';
 }
 
@@ -189,14 +192,21 @@ export default {
     // vue-toasted defines show/success/info/error as instance properties,
     // so wrapping them here covers every toast in the app, $toastError
     // included. Must run after Vue.use(VueToasted).
+    //
+    // vue-toasted sets the message as innerHTML, and toasts carry names
+    // (players, systems) and server text, so a string is shown as text
+    // unless the call passes `{ html: true }`: its markup, and escaping
+    // what it interpolates, are then the caller's.
     const toasted = Vue.toasted;
     if (!toasted) return;
     ['show', 'success', 'info', 'error'].forEach((kind) => {
       const original = toasted[kind];
       if (typeof original !== 'function') return;
       toasted[kind] = function announcedToast(message, options) {
-        announce(message, { assertive: kind === 'error' });
-        return original.call(this, message, options);
+        const { html, ...rest } = options || {};
+        const shown = typeof message === 'string' && !html ? escape(message) : message;
+        announce(shown, { assertive: kind === 'error' });
+        return original.call(this, shown, options && rest);
       };
     });
   },
