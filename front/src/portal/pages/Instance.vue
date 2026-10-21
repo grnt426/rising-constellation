@@ -252,7 +252,7 @@
               <h2>{{ $t('page.instance.description') }}</h2>
               <p
                 class="is-large"
-                v-html="nl2br(instance.description)"></p>
+                v-html="nl2br($escape(instance.description || ''))"></p>
             </section>
 
             <section class="panel-aside-info">
