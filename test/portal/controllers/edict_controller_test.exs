@@ -23,6 +23,55 @@ defmodule Portal.EdictControllerTest do
     assert body["simulator"]["stock"]["credit"] == 300_000.0
   end
 
+  test "GET /api/edict/editors/:kind downloads an editor kit", %{conn: conn} do
+    conn = get(conn, "/api/edict/editors/vscode")
+    assert response(conn, 200)
+    assert [disposition] = get_resp_header(conn, "content-disposition")
+    assert disposition =~ ~r/attachment; filename="edict-\d+\.\d+\.\d+\.vsix"/
+    assert {:ok, _} = :zip.list_dir(conn.resp_body)
+
+    assert build_conn() |> get("/api/edict/editors/vscode") |> response(401)
+  end
+
+  test "simulations and analyses run two at a time per account, then answer busy", %{conn: conn, account: account} do
+    previous = Application.get_env(:rc, Edict.Slots)
+    Application.put_env(:rc, Edict.Slots, wait_ms: 0)
+
+    on_exit(fn ->
+      if previous, do: Application.put_env(:rc, Edict.Slots, previous), else: Application.delete_env(:rc, Edict.Slots)
+    end)
+
+    parent = self()
+
+    holders =
+      for k <- [:edict_simulate, :edict_simulate, :edict_analyze, :edict_analyze] do
+        pid =
+          spawn(fn ->
+            Edict.Slots.run([{{k, account.id}, 2}], fn ->
+              send(parent, :holding)
+
+              receive do
+                :let_go -> :ok
+              end
+            end)
+          end)
+
+        assert_receive :holding
+        pid
+      end
+
+    assert %{"message" => "busy"} = conn |> post("/api/edict/simulate", %{source: "score 1"}) |> json_response(429)
+    assert %{"message" => "busy"} = conn |> post("/api/edict/analyze", %{source: "score 1"}) |> json_response(429)
+
+    Enum.each(holders, &send(&1, :let_go))
+    Process.sleep(50)
+    assert %{"ok" => true} = conn |> post("/api/edict/simulate", %{source: "score 1"}) |> json_response(200)
+  end
+
+  test "GET /api/edict/editors/:kind refuses unknown kinds", %{conn: conn} do
+    assert conn |> get("/api/edict/editors/emacs") |> json_response(404)
+  end
+
   test "GET /api/edict/examples returns sources", %{conn: conn} do
     body = json_response(get(conn, "/api/edict/examples"), 200)
     keys = Enum.map(body["examples"], & &1["key"])

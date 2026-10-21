@@ -25,6 +25,35 @@ defmodule Portal.EdictController do
 
   plug(Portal.Plug.AccountRateLimit, [bucket: "edict_playtest", limit: 10, window_ms: 600_000] when action == :playtest)
 
+  # The rate limits bound requests per window, not at once. Simulate and
+  # analyze also hold a slot while they work (`Edict.Slots`): two per account
+  # (an author closing and reopening things overlaps briefly), and
+  # simulations one per scheduler across everyone. Over the limit, a request
+  # waits a moment, then gets 429 "busy".
+  def action(conn, _opts) do
+    name = action_name(conn)
+    work = fn -> apply(__MODULE__, name, [conn, conn.params]) end
+
+    case slot_limits(name, conn) do
+      [] ->
+        work.()
+
+      limits ->
+        case Edict.Slots.run(limits, work) do
+          {:ok, conn} -> conn
+          {:error, :busy} -> conn |> put_status(429) |> json(%{message: "busy"})
+        end
+    end
+  end
+
+  defp slot_limits(:simulate, conn),
+    do: [{{:edict_simulate, account_id(conn)}, 2}, {:edict_simulate, System.schedulers_online()}]
+
+  defp slot_limits(name, conn) when name in [:analyze, :fragment], do: [{{:edict_analyze, account_id(conn)}, 2}]
+  defp slot_limits(_name, _conn), do: []
+
+  defp account_id(conn), do: Guardian.Plug.current_resource(conn).id
+
   # GET /api/edict/catalog
   def catalog(conn, _params) do
     json(conn, Map.put(Catalog.to_json(), :simulator, Simulator.assumptions()))
@@ -33,6 +62,19 @@ defmodule Portal.EdictController do
   # GET /api/edict/examples
   def examples(conn, _params) do
     json(conn, %{examples: Enum.map(Edict.examples(), &Map.take(&1, [:key, :title, :level, :port_of, :source]))})
+  end
+
+  # GET /api/edict/editors/:kind  (vscode | kit | notepadpp)
+  #
+  # Editor support generated from the catalog (`Edict.EditorKit`).
+  def editors(conn, %{"kind" => kind}) do
+    case Edict.EditorKit.download(kind) do
+      {filename, zip} ->
+        send_download(conn, {:binary, zip}, filename: filename, content_type: "application/zip")
+
+      :error ->
+        conn |> put_status(404) |> json(%{message: "no such download"})
+    end
   end
 
   # POST /api/edict/analyze  {source} | {program}

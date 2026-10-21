@@ -48,6 +48,9 @@ defmodule Edict.LiveTest do
     Portal.Endpoint.subscribe(Portal.Controllers.GlobalChannel.topic(iid))
     {:ok, :started, _} = Instance.Manager.call(iid, :start)
 
+    # the instance (seen in lobbies and admin lists) carries no script text
+    assert %{name: "Scenario playtest", description: "Scenario playtest"} = RC.Instances.get_instance(iid)
+
     # setup reached the engine
     assert Instance.Mutators.daily_scripted?(iid)
     {:ok, before} = Game.call(iid, :player, profile.id, :get_state)

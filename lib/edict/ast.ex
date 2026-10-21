@@ -96,6 +96,21 @@ defmodule Edict.AST do
 
   def valid_name?(_), do: false
 
+  @doc """
+  A script's text as a message may quote it: a key or a short word as
+  written (`"capital_1"`), anything else as "this text". Messages reach the
+  editor, the playtest and, once scripts are shared, other players; whatever
+  renders them, none should carry markup a script put there.
+  """
+  def quoted(v) when is_binary(v) do
+    if String.length(v) <= 40 and Regex.match?(~r/^[A-Za-z0-9_][A-Za-z0-9_ .:-]*$/, v),
+      do: ~s("#{v}"),
+      else: "this text"
+  end
+
+  def quoted(v) when is_number(v) or is_boolean(v) or is_nil(v), do: inspect(v)
+  def quoted(_), do: "this value"
+
   # --- JSON in ---------------------------------------------------------------
 
   @doc """

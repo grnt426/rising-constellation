@@ -100,6 +100,18 @@ defmodule Edict.ParserTest do
     assert trailing == Map.merge(trailing, %{k: :note, text: "nothing after this"})
   end
 
+  test "parse errors name a misplaced comment, never repeat its text" do
+    assert {:error, %{message: message}} = Parser.parse("setup # <img src=x onerror=1>")
+    assert message == "expected { but found a comment"
+  end
+
+  test "Windows line endings read like Unix ones, comments included" do
+    unix = "# The opening gift\non start {\n  notify(\"hi\") # a note\n}\n"
+    windows = String.replace(unix, "\n", "\r\n")
+
+    assert parse!(windows) == parse!(unix)
+  end
+
   test "else if chains and if-expressions" do
     printed =
       round_trip!("""

@@ -131,7 +131,14 @@ defmodule Edict.Parser do
   defp describe(nil), do: "the end of the script"
   defp describe(parts) when is_list(parts), do: "text"
   defp describe({n, _}) when is_number(n), do: "a number"
-  defp describe(value) when is_binary(value), do: inspect(value)
+  # Names and operators as written; a longer token is a comment, whose
+  # text an error never repeats (messages reach toasts and tooltips).
+  defp describe(value) when is_binary(value) do
+    if byte_size(value) <= 2 or Regex.match?(~r/^[A-Za-z_][A-Za-z0-9_]*$/, value),
+      do: inspect(value),
+      else: "a comment"
+  end
+
   defp describe(_), do: "something else"
 
   # Skip line breaks. In statement position (`:collect`) comment lines are

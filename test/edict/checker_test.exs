@@ -94,8 +94,24 @@ defmodule Edict.CheckerTest do
     assert_error("setup {\n  time_limit = 3h\n}", "time_limit")
     assert_error("setup {\n  systems = 12\n}", "systems")
     assert_error(~s|setup {\n  faction = "elves"\n}|, "faction")
-    assert_error(~s|setup {\n  mutators = ["no_such_mutator"]\n}|, "unknown mutator")
-    assert_error(~s|setup {\n  grant_patents = ["no_such_patent"]\n}|, "unknown patent")
+    assert_error(~s|setup {\n  mutators = ["no_such_mutator"]\n}|, ~s("no_such_mutator" isn't a mutator))
+    assert_error(~s|setup {\n  grant_patents = ["no_such_patent"]\n}|, ~s("no_such_patent" isn't a patent))
+  end
+
+  # Messages reach the editor's tooltips and toasts and, once scripts are
+  # shared, other players: they quote keys, never markup.
+  test "messages quote a script's text only when it is a plain key" do
+    errs = errors(~s|setup {\n  mutators = ["<svg onload=alert(2)>"]\n  grant_patents = ["<img src=x>"]\n}|)
+    assert Enum.any?(errs, &(&1 =~ "this text isn't a mutator"))
+    assert Enum.any?(errs, &(&1 =~ "this text isn't a patent"))
+
+    for message <-
+          errors(~s|setup {\n  patent_discounts = {"<b>": 50%}\n}\nscore 1\non start {\n  give("<i>x</i>", 5)\n}|) do
+      refute message =~ "<", message
+    end
+
+    # a name shows on one line wherever it appears
+    assert_error("setup {\n  name = \"two\\nlines\"\n}\nscore 1", "must fit on one line")
   end
 
   test "comparisons against impossible choices warn" do

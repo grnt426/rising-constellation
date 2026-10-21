@@ -110,13 +110,15 @@ defmodule Edict.Effects do
 
   defp own_system(_, _own, _home), do: {:error, "system: must be a system id"}
 
-  defp one_of(v, allowed), do: if(v in allowed, do: {:ok, v}, else: {:error, "#{inspect(v)} isn't allowed"})
+  defp one_of(v, allowed), do: if(v in allowed, do: {:ok, v}, else: {:error, "#{Edict.AST.quoted(v)} isn't allowed"})
 
   defp bounded(v, lo, hi) when is_number(v) and v >= lo and v <= hi, do: {:ok, v / 1}
   defp bounded(_v, lo, hi), do: {:error, "must be a number from #{lo} to #{hi}"}
 
   @doc "Clean text for display: no control or direction characters, capped length."
-  def clean_text(text) when is_binary(text) do
+  def clean_text(text, max \\ @max_message)
+
+  def clean_text(text, max) when is_binary(text) do
     cleaned =
       text
       |> String.to_charlist()
@@ -124,8 +126,8 @@ defmodule Edict.Effects do
       |> List.to_string()
       |> String.trim()
 
-    if String.length(cleaned) > @max_message,
-      do: String.slice(cleaned, 0, @max_message - 1) <> "…",
+    if String.length(cleaned) > max,
+      do: String.slice(cleaned, 0, max - 1) <> "…",
       else: cleaned
   end
 

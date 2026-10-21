@@ -252,3 +252,230 @@ test('a race simulates to the finish once its goal is pretended', async ({ page 
   await expect(page.locator('.wk-sim-score strong')).toHaveText('15:00 left');
   await expect(page.locator('.wk-sim-goal')).toHaveCount(0);
 });
+
+// --- files ------------------------------------------------------------------------
+
+async function fileMenu(page, item) {
+  await page.locator('.wk-file').click();
+  await page.locator('.wk-menu button', { hasText: item }).click();
+}
+
+async function downloaded(page, run) {
+  const [download] = await Promise.all([page.waitForEvent('download'), run()]);
+  const file = await download.path();
+  return { name: download.suggestedFilename(), text: fs.readFileSync(file, 'utf8'), file };
+}
+
+test('scripts open from and save to .edict files', async ({ page }) => {
+  await openWorkshop(page);
+  await endTour(page);
+
+  // Save writes the canonical text, named after the scenario
+  const saved = await downloaded(page, () => fileMenu(page, 'Save as file'));
+  expect(saved.name).toBe('first-steps.edict');
+  expect(saved.text).toContain('name = "First Steps"');
+
+  // Open reads a file written on Windows (CRLF, comments and all)
+  const script = [
+    '# Written in another editor.',
+    'setup {',
+    '  name = "From a file"',
+    '  time_limit = 10m',
+    '}',
+    '',
+    '# Credits at the deadline.',
+    'score player.credit',
+    '',
+  ].join('\r\n');
+  await page.locator('input[type="file"]').first().setInputFiles({
+    name: 'from-a-file.edict', mimeType: 'text/plain', buffer: Buffer.from(script),
+  });
+  await expect(page.locator('.wk-scenario-name')).toHaveText('From a file', { timeout: 10000 });
+  await expect(page.locator('.wk-banner')).toHaveCount(0);
+
+  // Ctrl+S saves too, from the code view
+  await setView(page, 'Code');
+  const again = await downloaded(page, () => page.locator('.wk-input').press('Control+s'));
+  expect(again.name).toBe('from-a-file.edict');
+  expect(again.text).toContain('# Credits at the deadline.');
+});
+
+// A file handle the test controls, standing in for the File System Access
+// API's (the real one needs a native picker).
+async function fakeFilePicker(page, name, text) {
+  await page.evaluate(([n, t]) => {
+    const file = { name: n, text: t, modified: 1, writes: 0 };
+    window.fakeFile = file;
+    const handle = {
+      kind: 'file',
+      name: n,
+      getFile: async () => new File([file.text], file.name, { lastModified: file.modified }),
+      requestPermission: async () => 'granted',
+      createWritable: async () => {
+        let next = '';
+        return {
+          write: async (chunk) => { next += chunk; },
+          close: async () => {
+            file.text = next;
+            file.modified += 1;
+            file.writes += 1;
+          },
+        };
+      },
+    };
+    window.showOpenFilePicker = async () => [handle];
+  }, [name, text]);
+}
+
+test('a linked file keeps the workshop in step with another editor', async ({ page }) => {
+  await openWorkshop(page);
+  await endTour(page);
+  const first = 'setup {\n  name = "Linked"\n  time_limit = 10m\n}\n\nscore player.credit\n';
+  await fakeFilePicker(page, 'linked.edict', first);
+  await fileMenu(page, 'Link a file');
+  await expect(page.locator('.wk-scenario-name')).toHaveText('Linked', { timeout: 10000 });
+  await expect(page.locator('.wk-link')).toContainText('linked.edict');
+  await expect(page.locator('.wk-link')).toContainText('linked');
+
+  // saved in the other editor: the workshop follows, keeping that text as written
+  const edited = first.replace('"Linked"', '"Edited elsewhere"').replace('score player.credit', 'score   player.technology');
+  await page.evaluate((t) => {
+    window.fakeFile.text = t;
+    window.fakeFile.modified += 1;
+  }, edited);
+  await expect(page.locator('.wk-scenario-name')).toHaveText('Edited elsewhere', { timeout: 10000 });
+  await setView(page, 'Code');
+  expect(await codeText(page)).toBe(edited);
+
+  // a change here shows Save; Ctrl+S writes it back to the file
+  await page.locator('.wk-input').fill(edited.replace('time_limit = 10m', 'time_limit = 12m'));
+  await expect(page.locator('.wk-link-save')).toBeVisible({ timeout: 10000 });
+  await page.locator('.wk-input').press('Control+s');
+  await expect(page.locator('.wk-link-save')).toHaveCount(0, { timeout: 10000 });
+  const file = await page.evaluate(() => window.fakeFile);
+  expect(file.writes).toBe(1);
+  expect(file.text).toContain('time_limit = 12m');
+
+  // both sides changed: the author is asked, and can keep the workshop's
+  await page.locator('.wk-input').fill(file.text.replace('12m', '14m'));
+  await expect(page.locator('.wk-link-save')).toBeVisible({ timeout: 10000 });
+  page.once('dialog', (d) => d.dismiss());
+  await page.evaluate(() => {
+    window.fakeFile.text = window.fakeFile.text.replace('12m', '13m');
+    window.fakeFile.modified += 1;
+  });
+  await page.waitForTimeout(2500);
+  expect(await codeText(page)).toContain('time_limit = 14m');
+
+  await fileMenu(page, 'Stop following');
+  await expect(page.locator('.wk-link')).toHaveCount(0);
+});
+
+test('functions export to a file and import from one', async ({ page, baseURL }) => {
+  await openWorkshop(page);
+  await endTour(page);
+
+  const lib = [
+    '# Shared by a friend.',
+    '',
+    '# Double a gift.',
+    'fn doubled(x) {',
+    '  return x * 2',
+    '}',
+    '',
+    'fn halved(x) {',
+    '  return x / 2',
+    '}',
+    '',
+    'score 1',
+    '',
+  ].join('\n');
+  await fileMenu(page, 'Import functions');
+  await page.locator('input[type="file"]').nth(1).setInputFiles({
+    name: 'friends.edict', mimeType: 'text/plain', buffer: Buffer.from(lib),
+  });
+  await expect(page.locator('.toasted').last()).toContainText('Added to your library from friends.edict: 2', { timeout: 10000 });
+  await page.locator('.wk-palette-search').fill('doubled');
+  await expect(page.locator('.wk-palette-label:text-is("doubled(x)")')).toBeVisible();
+
+  const out = await downloaded(page, () => fileMenu(page, 'Export my functions'));
+  expect(out.name).toBe('my-functions.edict');
+  expect(out.text).toContain('fn doubled(x) {');
+  expect(out.text).toContain('fn halved(x) {');
+  expect(out.text).not.toContain('score 1');
+
+  // the export reads back as a file of functions
+  const api = new Api(page.request, baseURL);
+  await api.login(PLAYER.email, PLAYER.password);
+  const res = await page.request.post('/api/edict/analyze', { data: { source: out.text }, headers: api.authHeaders(PLAYER.email) });
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  expect(body.program.decls.filter((d) => d.k === 'fn').map((d) => d.name)).toEqual(['doubled', 'halved']);
+});
+
+test('editor kits download from the help tab', async ({ page }) => {
+  await openWorkshop(page);
+  await endTour(page);
+  await fileMenu(page, 'Use your own editor');
+  await expect(page.locator('.wk-help h3', { hasText: 'Use your own editor' })).toBeVisible();
+
+  const vsix = await downloaded(page, () => page.locator('.wk-editor-kits button', { hasText: 'VS Code' }).click());
+  expect(vsix.name).toMatch(/^edict-\d+\.\d+\.\d+\.vsix$/);
+  const kit = await downloaded(page, () => page.locator('.wk-editor-kits button', { hasText: 'All editors' }).click());
+  expect(kit.name).toMatch(/^edict-editor-kit-\d+\.\d+\.\d+\.zip$/);
+  // zips start with PK
+  expect(fs.readFileSync(kit.file).slice(0, 2).toString()).toBe('PK');
+});
+
+// A file someone sent can carry markup in its name and anywhere in its
+// text. Every way the workshop shows it (toasts, tooltips, the code view,
+// problems, the palette, the simulator) must show it as text.
+test('markup in a file never runs, wherever the workshop shows it', async ({ page }) => {
+  await openWorkshop(page);
+  await endTour(page);
+  await page.evaluate(() => { window.pwned = []; });
+  const hook = (n) => `<img src=x onerror="window.pwned.push(${n})">`;
+  const script = [
+    `# ${hook(1)}`,
+    'setup {',
+    `  name = "${hook(2).replace(/"/g, "'")}"`,
+    `  mutators = ["${hook(3).replace(/"/g, "'")}"]`,
+    '}',
+    '',
+    'score player.credit',
+    '',
+    `# ${hook(4)}`,
+    'fn helper(x) {',
+    '  return x',
+    '}',
+    '',
+    'on start {',
+    `  give("${hook(5).replace(/"/g, "'")}", 5)`,
+    `  notify("${hook(6).replace(/"/g, "'")}")`,
+    `  log("${hook(7).replace(/"/g, "'")}")`,
+    '}',
+    '',
+  ].join('\n');
+  const file = { name: `${hook(8).replace(/[/"]/g, '')}.edict`, mimeType: 'text/plain', buffer: Buffer.from(script) };
+
+  await page.locator('input[type="file"]').first().setInputFiles(file);
+  await expect(page.locator('.toasted').last()).toContainText('<img', { timeout: 10000 });
+  await expect(page.locator('.wk-node.has-error').first()).toBeVisible({ timeout: 10000 });
+
+  // the problem badges' tooltips
+  const badges = page.locator('.wk-problem');
+  for (let i = 0; i < await badges.count(); i += 1) {
+    await badges.nth(i).hover();
+    await page.waitForTimeout(300);
+  }
+  await page.locator('.wk-tabs button', { hasText: 'Problems' }).click();
+  await setView(page, 'Both');
+  await fileMenu(page, 'Import functions');
+  await page.locator('input[type="file"]').nth(1).setInputFiles(file);
+  await page.locator('.wk-palette-search').fill('helper');
+  await page.locator('.wk-tabs button', { hasText: 'Simulate' }).click();
+  await page.locator('[data-tour="simulate"]').click();
+  await page.waitForTimeout(1500);
+
+  expect(await page.evaluate(() => window.pwned)).toEqual([]);
+});

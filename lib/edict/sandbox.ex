@@ -26,7 +26,13 @@ defmodule Edict.Sandbox do
     ref = make_ref()
 
     # the limits are set as the process is born, before it runs a single step
-    spawn_opts = [:monitor, {:priority, :low}, {:max_heap_size, %{size: heap, kill: true, error_logger: false}}]
+    # include_shared_binaries: text over 64 bytes lives outside the heap
+    # and would otherwise not count
+    spawn_opts = [
+      :monitor,
+      {:priority, :low},
+      {:max_heap_size, %{size: heap, kill: true, error_logger: false, include_shared_binaries: true}}
+    ]
 
     {pid, monitor} =
       :erlang.spawn_opt(

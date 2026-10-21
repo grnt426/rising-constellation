@@ -25,7 +25,9 @@ defmodule Edict.Simulator do
   # income per game day at the start and at the deadline (a typical run)
   @default_economy %{"credit" => [30.0, 800.0], "technology" => [6.0, 120.0], "ideology" => [6.0, 100.0]}
   @paces %{"slow" => 0.5, "typical" => 1.0, "strong" => 2.0}
-  @max_total_fuel 40_000_000
+  # The heaviest example spends 0.2 M steps over a whole 30-minute run; the
+  # worst script that keeps running reaches 10 M in about 0.6 s of CPU.
+  @max_total_fuel 10_000_000
   @max_timeline 400
   @sample_every 15
 
@@ -44,6 +46,9 @@ defmodule Edict.Simulator do
       "ideology" => c.player_starting_ideology / 1
     }
   end
+
+  @doc "The total step budget of one simulation."
+  def budget, do: @max_total_fuel
 
   @doc """
   Simulate `program`. Options: `:pace` ("slow" | "typical" | "strong"),

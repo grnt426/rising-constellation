@@ -44,7 +44,9 @@ defmodule Edict.Limits do
   def max_effects_per_pulse, do: 50
 
   # --- process backstop ------------------------------------------------------
-  # in words (8 bytes each on a 64-bit BEAM): about 64 MB
-  def max_heap_words, do: 8 * 1024 * 1024
+  # in words (8 bytes each on a 64-bit BEAM): about 16 MB, counting the
+  # shared binaries (text) the process holds. The heaviest pulse measured
+  # needs 6.3 MB (test/edict/resource_bench_test.exs).
+  def max_heap_words, do: 2 * 1024 * 1024
   def timeout_ms, do: 2_000
 end

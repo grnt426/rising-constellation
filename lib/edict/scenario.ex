@@ -40,7 +40,12 @@ defmodule Edict.Scenario do
     end
   end
 
-  defp check("name", v), do: text(v, 60)
+  defp check("name", v) do
+    with :ok <- text(v, 60) do
+      if String.contains?(v, ["\n", "\r", "\t"]), do: {:error, "must fit on one line"}, else: :ok
+    end
+  end
+
   defp check("description", v), do: text(v, 500)
 
   defp check("time_limit", v) do
@@ -80,7 +85,7 @@ defmodule Edict.Scenario do
         {:error, "30 discounts at most"}
 
       Enum.any?(Map.keys(v), &(&1 not in known)) ->
-        {:error, "unknown patent #{inspect(Enum.find(Map.keys(v), &(&1 not in known)))}"}
+        {:error, "#{Edict.AST.quoted(Enum.find(Map.keys(v), &(&1 not in known)))} isn't a patent"}
 
       Enum.any?(Map.values(v), &(not is_number(&1) or &1 < 0.05 or &1 > 1)) ->
         {:error, "each factor must be between 5% and 100%"}
@@ -112,7 +117,7 @@ defmodule Edict.Scenario do
     cond do
       length(v) > max -> {:error, "#{max} at most"}
       Enum.any?(v, &(not is_binary(&1))) -> {:error, "list #{what}s by their key, as text"}
-      (bad = Enum.find(v, &(&1 not in known))) != nil -> {:error, "unknown #{what} #{inspect(bad)}"}
+      (bad = Enum.find(v, &(&1 not in known))) != nil -> {:error, "#{Edict.AST.quoted(bad)} isn't a #{what}"}
       true -> :ok
     end
   end

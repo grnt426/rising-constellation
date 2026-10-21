@@ -95,6 +95,10 @@ defmodule Edict.Lexer do
 
       true ->
         try do
+          # Windows line endings: a file saved by an editor on Windows ends
+          # its lines in \r\n, and a \r left in a comment or text would read
+          # as a control character
+          source = String.replace(source, "\r\n", "\n")
           {:ok, source |> lex({1, 1}, [], 0) |> Enum.reverse()}
         catch
           {:lex_error, message, pos} -> error(message, pos)

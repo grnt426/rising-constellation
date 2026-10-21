@@ -407,6 +407,7 @@ defmodule Portal.Router do
     # simulate service (docs/scenario-scripting.md).
     get("/edict/catalog", EdictController, :catalog)
     get("/edict/examples", EdictController, :examples)
+    get("/edict/editors/:kind", EdictController, :editors)
     post("/edict/analyze", EdictController, :analyze)
     post("/edict/fragment", EdictController, :fragment)
     post("/edict/format", EdictController, :format)

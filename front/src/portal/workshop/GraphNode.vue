@@ -64,7 +64,7 @@
         v-if="problem"
         type="button"
         class="wk-problem"
-        v-tooltip="problemTip"
+        v-tooltip="{ content: problemTip, html: false }"
         :aria-label="problemTip"
         @mousedown.stop
         @click.stop="problem.fix && $emit('fix', problem.fix)">!</button>
@@ -287,6 +287,8 @@ export default {
       if (this.node.addEntry) return this.$t('page.scenario_workshop.add_entry');
       return this.$t('page.scenario_workshop.add_value');
     },
+    // shown with html: false: v-tooltip renders HTML by default, and a
+    // problem message can quote the script's own text
     problemTip() {
       if (!this.problem) return '';
       const { fix } = this.problem;

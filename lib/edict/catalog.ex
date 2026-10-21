@@ -249,7 +249,31 @@ defmodule Edict.Catalog do
     "rival.agents_left" => "Rival agents still in play.",
     "scenario.name" => "This scenario's name.",
     "scenario.systems" => "Systems in the starting sector.",
-    "scenario.time_limit" => "The scenario's run length, in seconds."
+    "scenario.time_limit" => "The scenario's run length, in seconds.",
+    # each item of a list, written with [] (s in `for s in player.systems`)
+    "player.systems[].id" => "The system's id (what system: takes).",
+    "player.systems[].name" => "The system's name.",
+    "player.systems[].home" => "Whether this is the player's first system.",
+    "player.systems[].population" => "The system's population.",
+    "player.systems[].housing" => "How much population the system can house.",
+    "player.systems[].stability" => "The system's stability.",
+    "player.systems[].production" => "The system's production.",
+    "player.systems[].intelligence" => "The system's Intelligence (its counter-intelligence).",
+    "player.systems[].defense" => "The system's defense.",
+    "player.systems[].income" => "The system's own income per game day: .credit, .technology, .ideology.",
+    "player.systems[].income.credit" => "The system's credit income, per game day.",
+    "player.systems[].income.technology" => "The system's technology income, per game day.",
+    "player.systems[].income.ideology" => "The system's ideology income, per game day.",
+    "player.agents[].id" => "The agent's id.",
+    "player.agents[].name" => "The agent's name.",
+    "player.agents[].type" => "navarch, siderian or erased.",
+    "player.agents[].level" => "The agent's level.",
+    "player.agents[].status" => "deck (not in play), board (on the board) or governor.",
+    "player.agents[].system" => "The id of the system the agent is in, or nil.",
+    "player.agents[].fleet" => "A Navarch's fleet: .raid, .invasion, .upkeep (0 for other agents).",
+    "player.agents[].fleet.raid" => "The fleet's raid strength.",
+    "player.agents[].fleet.invasion" => "The fleet's invasion strength.",
+    "player.agents[].fleet.upkeep" => "The fleet's upkeep."
   }
 
   # --- setup ------------------------------------------------------------------------

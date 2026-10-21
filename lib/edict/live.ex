@@ -61,7 +61,9 @@ defmodule Edict.Live do
         faction: get_in(game_data, ["daily", "faction"])
       }
 
-      case Daily.Boot.boot_definition(profile, definition, "Scenario playtest — #{rt.config["name"]}") do
+      # The instance's name and description show in lobbies and admin
+      # lists: no script text there (the run itself shows the scenario's name).
+      case Daily.Boot.boot_definition(profile, definition, "Scenario playtest") do
         {:ok, info} ->
           {:ok, info}
 
@@ -348,8 +350,8 @@ defmodule Edict.Live do
   defp status(state, score, elapsed) do
     GlobalChannel.broadcast_change(GlobalChannel.topic(state.instance_id), %{
       scenario_status: %{
-        name: state.rt.config["name"],
-        description: state.rt.config["description"],
+        name: Effects.clean_text(state.rt.config["name"] || "", 60),
+        description: Effects.clean_text(state.rt.config["description"] || "", 500),
         race: Runtime.race?(state.rt),
         score: score,
         elapsed: elapsed,
@@ -459,6 +461,10 @@ defmodule Edict.Live do
     end
   end
 
+  # finish("…")'s message, cleaned like notify()'s
+  defp finish_message(%{message: message}) when is_binary(message), do: Effects.clean_text(message)
+  defp finish_message(_), do: nil
+
   defp announce(state, result, t, reason) do
     Logger.info("[edict] instance #{state.instance_id} ended (#{reason}) score=#{result.score}")
 
@@ -466,10 +472,10 @@ defmodule Edict.Live do
       daily_result: %{
         reason: "scenario",
         ended: reason,
-        title: state.rt.config["name"],
+        title: Effects.clean_text(state.rt.config["name"] || "", 60),
         run_score: result.score,
         tiebreak: result.tiebreak,
-        message: get_in(state.rt.finished || %{}, [:message]),
+        message: finish_message(state.rt.finished),
         seconds_left: max(state.limit - t, 0),
         time_limit_seconds: state.limit,
         return_to: "/scenario-workshop"
