@@ -406,19 +406,23 @@ The question: can a script's author get HTML, styles, JavaScript or links
 into someone else's browser? Text a script controls includes its strings,
 its comments, its setup name and description, `notify()`, `finish()` and
 `log()` text, and (since files) a file's name. Two of the app's libraries
-render HTML by default, and that is where the risk is: **vue-toasted** sets
-every toast's `innerHTML`, and **v-tooltip** (2.1.2) ships with
-`defaultHtml: true`. vue-i18n doesn't escape `$t` parameters either.
+render HTML by default, and that was where the risk was: **vue-toasted**
+sets every toast's `innerHTML`, and **v-tooltip** (2.1.2) ships with
+`defaultHtml: true`. vue-i18n doesn't escape `$t` parameters either. Since
+master's #217, the app shows every toast and tooltip as text unless the
+call asks for markup (`{ html: true }`, with `$escape`/`$thtml` for what it
+interpolates), and #216 escaped the raw `v-html` spots, the lobby page's
+description among them.
 
 An audit of every path (two passes, one by an independent agent) found
-these, all fixed on this branch:
+these, all fixed:
 
 | Path | Who it hit | Fix |
 |---|---|---|
-| A setup check quoted the author's text (`unknown mutator "<…>"`) into the node's `!` tooltip, which v-tooltip rendered as HTML | anyone who opens a `.edict` file someone sent and hovers the `!` | the tooltip is plain text (`html: false`); messages quote a script's text only when it is a plain key (`Edict.AST.quoted/1`), "this text" otherwise |
-| Parse errors repeated a misplaced comment's whole text, and Import functions showed the first error in a toast | anyone who imports functions from a file | parse errors say "a comment"; every workshop toast is escaped (`toast/3`) |
-| Toasts carried the file's name (`Opened …`, `Linked …`), and file names can hold `<` and `>` on macOS and Linux | anyone who opens or links such a file | the same escaped toasts |
-| The playtest's instance name and description were "Scenario playtest — <the script's name>", and the lobby page (`Instance.vue`) renders the description with `v-html` through an `nl2br` that escaped nothing | anyone who opens the playtest's lobby page (share link, admins) | the instance is just "Scenario playtest"; the lobby page itself is fixed on `claude/vhtml-name-xss` (it escapes before `nl2br`) |
+| A setup check quoted the author's text (`unknown mutator "<…>"`) into the node's `!` tooltip, which v-tooltip rendered as HTML | anyone who opens a `.edict` file someone sent and hovers the `!` | tooltips are text (app-wide since #217); messages quote a script's text only when it is a plain key (`Edict.AST.quoted/1`), "this text" otherwise |
+| Parse errors repeated a misplaced comment's whole text, and Import functions showed the first error in a toast | anyone who imports functions from a file | parse errors say "a comment"; toasts are text (app-wide since #217) |
+| Toasts carried the file's name (`Opened …`, `Linked …`), and file names can hold `<` and `>` on macOS and Linux | anyone who opens or links such a file | the same: toasts are text |
+| The playtest's instance name and description were "Scenario playtest — <the script's name>", and the lobby page (`Instance.vue`) renders the description with `v-html` through an `nl2br` that escaped nothing | anyone who opens the playtest's lobby page (share link, admins) | the instance is just "Scenario playtest"; the lobby page escapes before `nl2br` (#216) |
 | `finish()`'s message and the in-game status skipped the cleaner that `notify()` text goes through; a name with a line break crashed the playtest's boot | the player (rendered as text, but uncapped) | both cleaned and capped; a setup name must be one line |
 | An editor kit's hover showed a function's comment as Markdown (links, remote images) | someone who opens a shared file in VS Code or an LSP editor | comments are escaped to plain text in hovers and signature help |
 
@@ -432,12 +436,10 @@ public instances only), saved file names (reduced to `a-z0-9-`).
 
 Regression tests: a browser test opens, imports, hovers, views and
 simulates a file with markup in its name, strings, comments and logs, and
-fails if any of it runs (it does fail with the toast escaping removed);
+fails if any of it runs (it did fail with toast escaping removed);
 checker, parser and editor-kit tests pin the message and hover rules.
 
-Still open, outside this feature: toasts and tooltips elsewhere in the
-game render HTML by default too, so any of them that carries
-player-controlled text is a risk; and when shared scenarios reach Discord
+Still open: when shared scenarios reach Discord
 (community leaderboards), the posts must escape names and set
 `allowed_mentions`. The lobby's `instance_full.json` includes `game_data`,
 so a playtest's share link exposes the script's source to whoever holds

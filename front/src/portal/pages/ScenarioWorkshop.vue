@@ -382,7 +382,6 @@ import {
 } from '@/portal/workshop/ast';
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import { markPlaytest } from '@/utils/playtest';
-import { escape } from '@/plugins/filters';
 import {
   canLink, fileName, pickLinked, readFile, readLinked, saveBlob, saveText, writeLinked,
 } from '@/portal/workshop/files';
@@ -647,7 +646,7 @@ export default {
       const hadWork = this.history.length > 0;
       await this.loadSource(source);
       // switching replaces the scenario; undo brings the old one back
-      if (hadWork) this.toast('show', this.$t('page.scenario_workshop.switched', { name: this.scenarioName }), { duration: 6000 });
+      if (hadWork) this.$toasted.show(this.$t('page.scenario_workshop.switched', { name: this.scenarioName }), { duration: 6000 });
     },
     // Loading replaces the whole program after a round trip; an edit made in
     // between would land on the old program and be lost, so edits wait for
@@ -747,7 +746,7 @@ export default {
     // Apply an edit result from ast.js.
     apply(result, { place, select } = {}) {
       if (!result || result.error) {
-        if (result && result.error) this.toast('error', result.error);
+        if (result && result.error) this.$toasted.error(result.error);
         return false;
       }
       if (result.program === this.program) return false;
@@ -777,7 +776,7 @@ export default {
     },
     setView(v) {
       if (v !== 'code' && this.syntaxError) {
-        this.toast('error', this.$t('page.scenario_workshop.fix_syntax_first'));
+        this.$toasted.error(this.$t('page.scenario_workshop.fix_syntax_first'));
         return;
       }
       if (v !== 'nodes') this.tourMark('code');
@@ -872,7 +871,7 @@ export default {
         const slot = this.slotForPin(b.node, b.pin);
         if (slot) this.apply(connectData(this.program, exprId, slot));
       } else {
-        this.toast('error', this.$t('page.scenario_workshop.wire_mismatch'));
+        this.$toasted.error(this.$t('page.scenario_workshop.wire_mismatch'));
       }
     },
     // The slot behind an input pin; creates a name: value for a named pin
@@ -945,7 +944,7 @@ export default {
       const v = String(value).trim();
       if (key === 'path') {
         if (!/^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(v)) {
-          this.toast('error', this.$t('page.scenario_workshop.bad_path'));
+          this.$toasted.error(this.$t('page.scenario_workshop.bad_path'));
           return;
         }
         const path = mk.path(v);
@@ -956,7 +955,7 @@ export default {
       } else if (key === 'params') {
         const params = v === '' ? [] : v.split(',').map((s) => s.trim());
         if (params.some((p) => !NAME.test(p))) {
-          this.toast('error', this.$t('page.scenario_workshop.bad_name'));
+          this.$toasted.error(this.$t('page.scenario_workshop.bad_name'));
           return;
         }
         this.apply(setFields(this.program, id, { params }));
@@ -964,7 +963,7 @@ export default {
         if (v !== '' && !NAME.test(v)) return;
         this.apply(setFields(this.program, id, { as: v === '' ? null : v }));
       } else if (!NAME.test(v)) {
-        this.toast('error', this.$t('page.scenario_workshop.bad_name'));
+        this.$toasted.error(this.$t('page.scenario_workshop.bad_name'));
       } else if (key === 'name' && (node.k === 'var' || node.k === 'fn')) {
         this.apply(renameGlobal(this.program, id, v));
       } else if (key === 'name') {
@@ -980,7 +979,7 @@ export default {
     async onCode({ id, text, kind }) {
       const { data } = await this.$axios.post('/edict/fragment', { source: text, kind });
       if (data.error) {
-        this.toast('error', this.$t('page.scenario_workshop.code_error', { line: data.error.line, message: data.error.message }));
+        this.$toasted.error(this.$t('page.scenario_workshop.code_error', { line: data.error.line, message: data.error.message }));
         return;
       }
       const fresh = reconcileIds(null, { decls: [{ k: 'draft', id: 'x', body: kind === 'expr' ? [{ k: 'expr', id: 'y', expr: data.node }] : data.node }] });
@@ -1041,7 +1040,7 @@ export default {
     applyFix(fix) {
       if (!fix || !this.index.byId[fix.target]) return;
       if (this.apply(setFields(this.program, fix.target, { [fix.field]: fix.value }))) {
-        this.toast('success', this.$t('page.scenario_workshop.fixed', { value: fix.value }));
+        this.$toasted.success(this.$t('page.scenario_workshop.fixed', { value: fix.value }));
       }
     },
     deleteNode(id) {
@@ -1219,7 +1218,7 @@ export default {
       const name = (window.prompt(this.$t('page.scenario_workshop.group_name'), this.uniqueName('step')) || '').trim();
       if (!name) return;
       if (!NAME.test(name)) {
-        this.toast('error', this.$t('page.scenario_workshop.bad_name'));
+        this.$toasted.error(this.$t('page.scenario_workshop.bad_name'));
         return;
       }
       const known = {
@@ -1240,7 +1239,7 @@ export default {
       const ids = this.selection.filter((id) => isStmt(this.index.byId[id]) && !insideChosen(id));
       const r = groupIntoFunction(this.program, ids, name, known);
       if (r.error) {
-        this.toast('error', r.error);
+        this.$toasted.error(r.error);
         return;
       }
       // the grouped nodes leave their spots for the new fn's frame
@@ -1249,7 +1248,7 @@ export default {
       // stay where the author was working: flash the call that replaced the
       // steps, and say where the fn went
       this.$nextTick(() => this.$nextTick(() => this.$refs.canvas && this.$refs.canvas.flash(r.callId)));
-      this.toast('show', this.$t('page.scenario_workshop.grouped', { name }), { duration: 6000 });
+      this.$toasted.show(this.$t('page.scenario_workshop.grouped', { name }), { duration: 6000 });
     },
     async saveToLibrary(fnId) {
       const fn = this.index.byId[fnId];
@@ -1265,7 +1264,7 @@ export default {
       mine.push({ name, source, doc });
       storage(LIBRARY_KEY, mine);
       this.library = [...BUILTIN_LIBRARY, ...mine];
-      this.toast('success', this.$t('page.scenario_workshop.saved_to_library', { name }));
+      this.$toasted.success(this.$t('page.scenario_workshop.saved_to_library', { name }));
     },
     async importLibrary(name) {
       const entry = this.library.find((l) => l.name === name);
@@ -1379,13 +1378,13 @@ export default {
     async playtest() {
       const profile = this.$store.state.portal.activeProfile;
       if (!profile) {
-        this.toast('error', this.$t('page.scenario_workshop.playtest_profile'));
+        this.$toasted.error(this.$t('page.scenario_workshop.playtest_profile'));
         return;
       }
       if (this.view === 'nodes' || this.syncTimer) await this.sync(true);
       if (this.errorCount || this.syntaxError) {
         this.tab = 'problems';
-        this.toast('error', this.$t('page.scenario_workshop.playtest_errors'));
+        this.$toasted.error(this.$t('page.scenario_workshop.playtest_errors'));
         return;
       }
 
@@ -1410,22 +1409,14 @@ export default {
         this.toastError(message || this.$t('page.scenario_workshop.playtest_failed'));
       }
     },
-    // --- toasts --------------------------------------------------------------------------
-    // vue-toasted renders its message as HTML (innerHTML), and these carry
-    // scenario names, file names and server messages that a script or a
-    // file someone sent can control: always escaped, shown as text.
-    toast(kind, message, options) {
-      return this.$toasted[kind](escape(String(message)), options);
-    },
-    // $toastError, escaped: a known reason's translation, or the message itself
+    // The workshop's own server answers (busy, rate limited); anything else
+    // as $toastError. Toasts show their text as text (see plugins/a11y).
     toastError(reason) {
-      // the workshop's own: the server is busy with this author's requests, or
-      // they hit the rate limit
-      if (reason === 'busy') return this.toast('error', this.$t('page.scenario_workshop.server_busy'));
-      if (reason === 'rate_limited' || reason === 'too_many') return this.toast('error', this.$t('page.scenario_workshop.server_too_many'));
-      const key = `toast.error['${reason}']`;
-      const text = this.$t(key);
-      return this.toast('error', text && text !== key ? text : reason);
+      if (reason === 'busy') return this.$toasted.error(this.$t('page.scenario_workshop.server_busy'));
+      if (reason === 'rate_limited' || reason === 'too_many') {
+        return this.$toasted.error(this.$t('page.scenario_workshop.server_too_many'));
+      }
+      return this.$toastError(reason);
     },
 
     // --- files ---------------------------------------------------------------------------
@@ -1471,7 +1462,7 @@ export default {
     async takeFile(file, what) {
       const { text, name, error } = await readFile(file);
       if (error) {
-        this.toast('error', this.$t(`page.scenario_workshop.${error}`));
+        this.$toasted.error(this.$t(`page.scenario_workshop.${error}`));
         return;
       }
       if (what === 'functions') {
@@ -1480,7 +1471,7 @@ export default {
       }
       if (this.link) this.unlink();
       await this.loadSource(text);
-      this.toast('show', this.$t('page.scenario_workshop.opened', { name }), { duration: 6000 });
+      this.$toasted.show(this.$t('page.scenario_workshop.opened', { name }), { duration: 6000 });
     },
     // the text as it reads now: after a graph edit the canonical text is a
     // round trip away
@@ -1502,7 +1493,7 @@ export default {
       if (!handle) return;
       const now = await readLinked(handle);
       if (now.error) {
-        this.toast('error', this.$t(`page.scenario_workshop.${now.error}`));
+        this.$toasted.error(this.$t(`page.scenario_workshop.${now.error}`));
         return;
       }
       this.unlink(true);
@@ -1512,14 +1503,14 @@ export default {
       await this.takeLinkedText(now.text);
       this.linkTimer = setInterval(() => this.pollLink(), 1000);
       window.addEventListener('focus', this.pollLink);
-      this.toast('show', this.$t('page.scenario_workshop.linked', { name: now.name }), { duration: 8000 });
+      this.$toasted.show(this.$t('page.scenario_workshop.linked', { name: now.name }), { duration: 8000 });
     },
     unlink(quiet = false) {
       clearInterval(this.linkTimer);
       this.linkTimer = null;
       window.removeEventListener('focus', this.pollLink);
       if (this.link && quiet !== true) {
-        this.toast('show', this.$t('page.scenario_workshop.unlinked', { name: this.link.name }), { duration: 4000 });
+        this.$toasted.show(this.$t('page.scenario_workshop.unlinked', { name: this.link.name }), { duration: 4000 });
       }
       this.link = null;
     },
@@ -1540,7 +1531,7 @@ export default {
         // the file was moved or deleted, or its permission withdrawn
         if (this.link === link) {
           this.unlink(true);
-          this.toast('error', this.$t('page.scenario_workshop.link_lost', { name: link.name }));
+          this.$toasted.error(this.$t('page.scenario_workshop.link_lost', { name: link.name }));
         }
       } finally {
         link.polling = false;
@@ -1559,14 +1550,14 @@ export default {
       try {
         const modified = await writeLinked(link.handle, text);
         if (modified === null) {
-          this.toast('error', this.$t('page.scenario_workshop.link_denied', { name: link.name }));
+          this.$toasted.error(this.$t('page.scenario_workshop.link_denied', { name: link.name }));
           return;
         }
         link.text = text;
         link.modified = modified;
-        this.toast('success', this.$t('page.scenario_workshop.link_saved', { name: link.name }));
+        this.$toasted.success(this.$t('page.scenario_workshop.link_saved', { name: link.name }));
       } catch (e) {
-        this.toast('error', this.$t('page.scenario_workshop.link_lost', { name: link.name }));
+        this.$toasted.error(this.$t('page.scenario_workshop.link_lost', { name: link.name }));
       } finally {
         link.writing = false;
       }
@@ -1587,12 +1578,12 @@ export default {
     async importFunctions(text, name) {
       const { data } = await this.$axios.post('/edict/analyze', { source: text });
       if (!data.program) {
-        this.toast('error', this.$t('page.scenario_workshop.import_unreadable', { name, message: data.diagnostics[0].message }));
+        this.$toasted.error(this.$t('page.scenario_workshop.import_unreadable', { name, message: data.diagnostics[0].message }));
         return;
       }
       const fns = data.program.decls.filter((d) => d.k === 'fn');
       if (!fns.length) {
-        this.toast('error', this.$t('page.scenario_workshop.import_none', { name }));
+        this.$toasted.error(this.$t('page.scenario_workshop.import_none', { name }));
         return;
       }
       const printed = await Promise.all(fns.map((fn) => this.$axios
@@ -1607,7 +1598,7 @@ export default {
       this.library = [...BUILTIN_LIBRARY, ...mine];
       const skipped = data.program.decls.some((d) => d.k !== 'fn' && d.k !== 'note');
       const key = skipped ? 'import_done_partial' : 'import_done';
-      this.toast('success', this.$t(`page.scenario_workshop.${key}`, { count: printed.length, name }), { duration: 6000 });
+      this.$toasted.success(this.$t(`page.scenario_workshop.${key}`, { count: printed.length, name }), { duration: 6000 });
     },
 
     // --- editor kits ---------------------------------------------------------------------
@@ -1636,7 +1627,7 @@ export default {
     },
 
     copySource() {
-      const done = () => this.toast('success', this.$t('page.scenario_workshop.copied'));
+      const done = () => this.$toasted.success(this.$t('page.scenario_workshop.copied'));
       if (navigator.clipboard) navigator.clipboard.writeText(this.source).then(done, () => {});
     },
 
