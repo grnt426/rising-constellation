@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 /* eslint-disable import/prefer-default-export */
 import Vue from 'vue';
 import formatNumber from '@/utils/format';
+import { escape } from '@/utils/escape';
 
 // number filters
 Vue.filter('integer', formatNumber.integer);
@@ -74,16 +75,5 @@ Vue.filter('counter', ((remainingSeconds) => {
 
 Vue.filter('luxon-std', ((timestamp) => DateTime.fromMillis(timestamp).toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS)));
 
-const { replace } = '';
-const detect = /[&<>'"]/g;
-const lookup = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  "'": '&#39;',
-  '"': '&quot;',
-};
-const replacer = (character) => lookup[character];
-const escape = (input) => replace.call(input, detect, replacer);
 Vue.filter('escape', escape);
 export { escape };
