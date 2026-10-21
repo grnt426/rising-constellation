@@ -132,6 +132,64 @@ defmodule Instance.Mutators do
   @doc "The enemy (puppet) faction's key (string) on a puppet-faction daily, or nil."
   def daily_puppet_faction(instance_id), do: meta(instance_id, :daily_puppet_faction)
 
+  @doc """
+  A scenario script's setup on an Edict day (`game_data["daily"]["setup"]`,
+  string keys), or nil on every other instance.
+  """
+  def daily_setup(instance_id), do: meta(instance_id, :daily_setup)
+
+  @doc "True on a day run by a scenario script (Edict) rather than a catalog objective."
+  def daily_scripted?(instance_id), do: is_map(daily_setup(instance_id))
+
+  # The day's setup speaks in strings (it comes from jsonb); the engine wants
+  # the content's atoms. Only keys that name existing content come through,
+  # by lookup, so nothing from the setup ever becomes a new atom.
+  defp content_atoms(instance_id, module, keys) when is_list(keys) do
+    known = module |> Data.Querier.all(instance_id) |> Map.new(&{Atom.to_string(&1.key), &1.key})
+    keys |> Enum.map(&Map.get(known, &1)) |> Enum.reject(&is_nil/1)
+  end
+
+  defp content_atoms(_instance_id, _module, _keys), do: []
+
+  @doc """
+  Patents the day hands the player up front (before their ancestors are
+  added): the script's `grant_patents`, else the catalog objective's grants.
+  """
+  def daily_granted_patents(instance_id) do
+    case daily_setup(instance_id) do
+      %{"grant_patents" => keys} -> content_atoms(instance_id, Data.Game.Patent, keys)
+      _ -> instance_id |> daily_objective() |> Daily.Objective.granted_patents()
+    end
+  end
+
+  @doc "Whether the day's granted patents stay out of the per-patent price increase."
+  def daily_markup_free?(instance_id) do
+    case daily_setup(instance_id) do
+      %{"markup_free" => free} -> free == true
+      _ -> instance_id |> daily_objective() |> Daily.Objective.markup_free_grants?()
+    end
+  end
+
+  @doc "Price factors the day puts on single patents, as `%{patent_key => factor}`."
+  def daily_patent_discounts(instance_id) do
+    case daily_setup(instance_id) do
+      %{"patent_discounts" => discounts} when is_map(discounts) ->
+        keys = content_atoms(instance_id, Data.Game.Patent, Map.keys(discounts))
+        Map.new(keys, fn key -> {key, discounts[Atom.to_string(key)] / 1} end)
+
+      _ ->
+        instance_id |> daily_objective() |> Daily.Objective.patent_discounts()
+    end
+  end
+
+  @doc "Body kinds every system of the day must hold (a catalog objective's `requires`)."
+  def daily_required_bodies(instance_id) do
+    case daily_setup(instance_id) do
+      %{} -> []
+      _ -> instance_id |> daily_objective() |> Daily.Objective.required_bodies()
+    end
+  end
+
   defp meta(instance_id, key) when is_integer(instance_id) do
     try do
       Data.Data.get(instance_id, :metadata)[key]

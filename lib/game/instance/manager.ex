@@ -415,6 +415,10 @@ defmodule Instance.Manager do
       # Puppet-faction days: the enemy faction's key, so the Daily.Director
       # can tell the puppet player from the human one.
       daily_puppet_faction: get_in(game_data, ["daily", "puppet_faction"]),
+      # Scenario-script days (Edict): the script's own grants, discounts and
+      # source, read by Instance.Mutators in place of a catalog objective's.
+      # nil for every other instance.
+      daily_setup: get_in(game_data, ["daily", "setup"]),
       # Cheat access: opt-in at game creation. Gates the in-game cheat
       # panel (CheatChannel) and the engine-side cheat handlers.
       cheats_enabled: game_data["cheats_enabled"] == true,

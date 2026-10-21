@@ -402,6 +402,16 @@ defmodule Portal.Router do
     post("/system-planner/compute", SystemPlannerController, :compute)
     get("/system-planner/template", SystemPlannerController, :template)
     get("/system-planner/preset/:name", SystemPlannerController, :preset)
+
+    # Scenario Workshop: the Edict scripting language's parse/check/format/
+    # simulate service (docs/scenario-scripting.md).
+    get("/edict/catalog", EdictController, :catalog)
+    get("/edict/examples", EdictController, :examples)
+    post("/edict/analyze", EdictController, :analyze)
+    post("/edict/fragment", EdictController, :fragment)
+    post("/edict/format", EdictController, :format)
+    post("/edict/simulate", EdictController, :simulate)
+    post("/edict/playtest", EdictController, :playtest)
   end
 
   scope "/api", Portal do

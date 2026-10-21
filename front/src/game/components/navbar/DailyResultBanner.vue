@@ -2,11 +2,25 @@
   <div class="daily-result">
     <div class="daily-result-panel">
       <div class="title">
-        <template v-if="isRaceWon">{{ $t('daily_result.title_race_won') }}</template>
+        <template v-if="isScenario && result.ended === 'finished'">{{ $t('daily_result.title_scenario_done') }}</template>
+        <template v-else-if="isRaceWon">{{ $t('daily_result.title_race_won') }}</template>
         <template v-else>{{ $t('daily_result.title_time_up') }}</template>
       </div>
 
-      <template v-if="isRaceWon">
+      <template v-if="isScenario">
+        <div
+          v-if="result.title"
+          class="line sub">{{ result.title }}</div>
+        <div
+          v-if="result.message"
+          class="line">{{ result.message }}</div>
+        <div class="line">{{ $t('daily_result.score') }}</div>
+        <div class="big-value">{{ formatScore(result.run_score) }}</div>
+        <div
+          v-if="result.tiebreak"
+          class="line sub">{{ $t('daily_result.tiebreak') }} {{ formatScore(result.tiebreak) }}</div>
+      </template>
+      <template v-else-if="isRaceWon">
         <div class="line">{{ $t('daily_result.time_taken') }}</div>
         <div class="big-value">{{ formatDuration(elapsedSeconds) }}</div>
         <div class="line sub">{{ $t('daily_result.time_left') }} {{ formatDuration(result.seconds_left) }}</div>
@@ -26,10 +40,10 @@
       </div>
 
       <div class="countdown">
-        {{ $t('daily_result.auto_exit', { seconds: countdown }) }}
+        {{ $t(isScenario ? 'daily_result.auto_exit_workshop' : 'daily_result.auto_exit', { seconds: countdown }) }}
       </div>
       <div
-        class="exit-button"
+        class="daily-result-exit"
         @click="exitNow">
         {{ $t('daily_result.exit_now') }}
       </div>
@@ -38,6 +52,8 @@
 </template>
 
 <script>
+import { isPlaytest } from '@/utils/playtest';
+
 // End-of-daily banner: shown the moment the server pushes `daily_result` on
 // the global channel — either a race objective completed live (the run is
 // frozen server-side at that instant, the score already recorded) or the
@@ -56,6 +72,7 @@ export default {
   },
   computed: {
     result() { return this.$store.state.game.dailyResult; },
+    isScenario() { return this.result.reason === 'scenario'; },
     isRaceWon() { return this.result.reason === 'race_won'; },
     isRaceDnf() { return this.result.reason === 'time_up' && this.result.mode === 'race'; },
     elapsedSeconds() {
@@ -75,6 +92,9 @@ export default {
     exitNow() {
       if (this.waiting) { return; }
       this.waiting = true;
+      // read before game/clear empties the result this banner shows
+      const { auth } = this.$store.state.game;
+      const destination = this.isScenario || (auth && isPlaytest(auth.instance)) ? '/scenario-workshop' : '/play/daily';
 
       // Same sequence as the Settings "Exit" daily branch: record + teardown
       // server-side, then straight to the daily page's leaderboard.
@@ -82,7 +102,8 @@ export default {
       this.$ambiance.changeContext('portal');
       this.$socket.leaveGame();
       this.$store.commit('game/clear');
-      this.$router.push('/play/daily');
+      // a scenario playtest goes back to the workshop it came from
+      this.$router.push(destination);
     },
   },
   mounted() {
@@ -168,7 +189,7 @@ export default {
   color: rgba(255, 255, 255, 0.55);
 }
 
-.exit-button {
+.daily-result-exit {
   margin-top: 12px;
   padding: 10px 0;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -179,7 +200,7 @@ export default {
   user-select: none;
 }
 
-.exit-button:hover {
+.daily-result-exit:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 </style>

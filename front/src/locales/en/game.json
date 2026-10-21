@@ -553,7 +553,10 @@
     "score": "Final score",
     "rank": "Today's rank:",
     "auto_exit": "Returning to the daily page in {seconds}s",
-    "exit_now": "Leave now"
+    "exit_now": "Leave now",
+    "title_scenario_done": "Scenario complete!",
+    "tiebreak": "Tiebreak:",
+    "auto_exit_workshop": "Returning to the workshop in {seconds}s"
   },
   "duration": {
     "day": "{n}d",
@@ -2803,5 +2806,14 @@
       "content": "You can now build the <strong>Citadel</strong>, center for the arts and of thinkers! Click on an empty tile and select the proper building.",
       "title": "Ideology"
     }
+  },
+  "scenario_feed": {
+    "label": "Scenario messages",
+    "script": "Script",
+    "dismiss": "Dismiss",
+    "score": "Score",
+    "playtest": "Playtest",
+    "race": "Race: scored by the time left when you finish",
+    "back": "Back to workshop"
   }
 }

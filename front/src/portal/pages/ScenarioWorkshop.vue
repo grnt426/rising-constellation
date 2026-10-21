@@ -1,0 +1,1673 @@
+<template>
+  <default-layout>
+    <div
+      class="scenario-workshop"
+      :class="`view-${view}`"
+      @keydown="onKeys">
+      <div
+        v-if="!catalog || !program"
+        class="wk-loading">{{ loadError || $t('page.scenario_workshop.loading') }}</div>
+
+      <template v-else>
+        <aside
+          class="wk-left"
+          data-tour="palette">
+          <h2 class="wk-side-title">{{ $t('page.scenario_workshop.palette_title') }}</h2>
+          <v-scrollbar class="wk-left-scroll">
+            <palette
+              ref="palette"
+              :catalog="catalog"
+              :user-fns="userFns"
+              :library="library"
+              @add="addItem($event)" />
+          </v-scrollbar>
+        </aside>
+
+        <section class="wk-main">
+          <div class="wk-toolbar">
+            <h1 class="wk-scenario-name">{{ scenarioName }}</h1>
+            <label class="wk-new">
+              <span class="sr-only">{{ $t('page.scenario_workshop.new') }}</span>
+              <select
+                :value="''"
+                @change="loadExample($event.target.value); $event.target.value = ''">
+                <option value="">{{ $t('page.scenario_workshop.new') }}…</option>
+                <option value="__blank">{{ $t('page.scenario_workshop.blank') }}</option>
+                <option value="__race">{{ $t('page.scenario_workshop.template_race') }}</option>
+              </select>
+            </label>
+            <label class="wk-examples">
+              <span class="sr-only">{{ $t('page.scenario_workshop.examples') }}</span>
+              <select
+                :value="''"
+                @change="loadExample($event.target.value); $event.target.value = ''">
+                <option value="">{{ $t('page.scenario_workshop.examples') }}…</option>
+                <optgroup
+                  v-for="group in exampleGroups"
+                  :key="group.key"
+                  :label="group.label">
+                  <option
+                    v-for="ex in group.items"
+                    :key="ex.key"
+                    :value="ex.key">{{ ex.title }}</option>
+                </optgroup>
+              </select>
+            </label>
+            <div
+              class="wk-views"
+              role="tablist"
+              data-tour="views">
+              <button
+                v-for="v in ['nodes', 'split', 'code']"
+                :key="v"
+                type="button"
+                role="tab"
+                :aria-selected="String(view === v)"
+                :class="{ 'is-active': view === v }"
+                @click="setView(v)">{{ $t(`page.scenario_workshop.view_${v}`) }}</button>
+            </div>
+            <div class="wk-tools">
+              <button
+                type="button"
+                :disabled="!history.length"
+                :title="$t('page.scenario_workshop.undo')"
+                @click="undo">↶</button>
+              <button
+                type="button"
+                :disabled="!future.length"
+                :title="$t('page.scenario_workshop.redo')"
+                @click="redo">↷</button>
+              <button
+                type="button"
+                @click="copySource">{{ $t('page.scenario_workshop.copy_text') }}</button>
+              <button
+                type="button"
+                @click="startTour">{{ $t('page.scenario_workshop.tour_start') }}</button>
+              <button
+                type="button"
+                class="wk-playtest"
+                data-tour="playtest"
+                :disabled="playtesting"
+                :title="$t('page.scenario_workshop.playtest_hint')"
+                @click="playtest">{{ playtesting ? $t('page.scenario_workshop.playtest_starting') : $t('page.scenario_workshop.playtest') }}</button>
+            </div>
+          </div>
+
+          <div
+            v-if="syntaxError"
+            class="wk-banner">{{ $t('page.scenario_workshop.syntax_banner', { line: syntaxError.at ? syntaxError.at[0] : '?', message: syntaxError.message }) }}</div>
+
+          <div class="wk-stage">
+            <graph-canvas
+              v-if="view !== 'code'"
+              ref="canvas"
+              class="wk-graph"
+              data-tour="canvas"
+              :graph="graph"
+              :selection="selection"
+              :problems="problemsByNode"
+              @select="select"
+              @moved="moved"
+              @wire="onWire"
+              @wire-dropped="onWireDropped"
+              @detach="onDetach"
+              @literal="onLiteral"
+              @field="onField"
+              @code="onCode"
+              @note="onNote"
+              @add-row="onAddRow"
+              @remove-row="onRemoveRow"
+              @expand="expandCode"
+              @sizes="onSizes"
+              @delete="deleteSelection"
+              @context="openContext"
+              @quick-add="openQuickAdd"
+              @drop-item="onDropItem"
+              @fix="applyFix"
+              @delete-node="deleteNode"
+              @focus-doc="inspect = $event.id" />
+            <code-editor
+              v-if="view !== 'nodes'"
+              ref="code"
+              class="wk-text"
+              data-tour="code"
+              :value="source"
+              :diagnostics="diagnostics"
+              :active-line="activeLine"
+              :actions="catalog.actions.map((a) => a.name)"
+              @input="onSourceInput"
+              @caret="onCaret"
+              @line="onCaret" />
+          </div>
+
+          <div
+            v-if="menu"
+            class="wk-menu"
+            :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
+            role="menu"
+            @mouseleave="menu = null">
+            <button
+              v-for="item in menu.items"
+              :key="item.key"
+              type="button"
+              role="menuitem"
+              :disabled="item.disabled"
+              @click="item.run(); menu = null">{{ item.label }}</button>
+          </div>
+
+          <div
+            v-if="quickAdd"
+            class="wk-quick"
+            :style="{ left: `${quickAdd.client.x}px`, top: `${quickAdd.client.y}px` }">
+            <palette
+              ref="quick"
+              :catalog="catalog"
+              :user-fns="userFns"
+              :library="library"
+              @add="addItem($event, quickAdd.at, quickAdd.connect); quickAdd = null" />
+            <button
+              type="button"
+              class="wk-mini"
+              @click="quickAdd = null">{{ $t('page.scenario_workshop.close') }}</button>
+          </div>
+        </section>
+
+        <aside class="wk-right">
+          <div
+            class="wk-tabs"
+            role="tablist">
+            <button
+              v-for="t in ['simulate', 'problems', 'help']"
+              :key="t"
+              type="button"
+              role="tab"
+              :aria-selected="String(tab === t)"
+              :class="{ 'is-active': tab === t }"
+              @click="tab = t">
+              {{ $t(`page.scenario_workshop.tab_${t}`) }}
+              <span
+                v-if="t === 'problems' && errorCount"
+                class="wk-badge">{{ errorCount }}</span>
+              <span
+                v-else-if="t === 'problems' && warningCount"
+                class="wk-badge is-muted">{{ warningCount }}</span>
+            </button>
+          </div>
+          <v-scrollbar class="wk-right-scroll">
+            <sim-panel
+              v-if="tab === 'simulate'"
+              :report="sim.report"
+              :failure="sim.failure"
+              :running="sim.running"
+              :stale="simStale"
+              :race="isRace"
+              :has-finish="hasFinish"
+              :pace="sim.pace"
+              :auto="sim.auto"
+              :pretend="sim.pretend"
+              :pretend-default="pretendDefault"
+              :paths="worldPaths"
+              :catalog="catalog"
+              @run="simulate"
+              @pace="sim.pace = $event; simulate()"
+              @auto="sim.auto = $event"
+              @pretend="setPretend"
+              @select-node="focusNode" />
+
+            <div
+              v-else-if="tab === 'problems'"
+              class="wk-problems">
+              <p
+                v-if="!diagnostics.length"
+                class="wk-muted">{{ $t('page.scenario_workshop.no_problems') }}</p>
+              <div
+                v-for="(d, i) in diagnostics"
+                :key="`d${i}`"
+                class="wk-problem-item">
+                <button
+                  type="button"
+                  class="wk-problem-row"
+                  :class="`is-${d.severity}`"
+                  @click="focusDiag(d)">
+                  <span
+                    v-if="d.at"
+                    class="wk-time">{{ d.at[0] }}:{{ d.at[1] }}</span>
+                  {{ d.message }}
+                </button>
+                <button
+                  v-if="d.fix"
+                  type="button"
+                  class="wk-mini wk-fix"
+                  @click="applyFix(d.fix)">{{ $t('page.scenario_workshop.fix', { value: d.fix.value }) }}</button>
+              </div>
+            </div>
+
+            <div
+              v-else
+              class="wk-help">
+              <template v-if="inspected">
+                <h3>{{ inspected.title }}</h3>
+                <p v-if="inspected.doc">{{ inspected.doc }}</p>
+                <p
+                  v-if="inspected.problem"
+                  class="wk-problem-row"
+                  :class="`is-${inspected.problem.severity}`">{{ inspected.problem.message }}</p>
+                <hr>
+              </template>
+              <h3>{{ $t('page.scenario_workshop.help_title') }}</h3>
+              <p>{{ $t('page.scenario_workshop.help_intro') }}</p>
+              <ul class="wk-help-list">
+                <li>{{ $t('page.scenario_workshop.help_wires') }}</li>
+                <li>{{ $t('page.scenario_workshop.help_values') }}</li>
+                <li>{{ $t('page.scenario_workshop.help_code') }}</li>
+                <li>{{ $t('page.scenario_workshop.help_group') }}</li>
+                <li>{{ $t('page.scenario_workshop.help_keys') }}</li>
+              </ul>
+
+              <h3>{{ $t('page.scenario_workshop.reference_title') }}</h3>
+              <details class="wk-ref">
+                <summary>{{ $t('page.scenario_workshop.reference_setup') }}</summary>
+                <dl>
+                  <template v-for="f in catalog.setup">
+                    <dt :key="`sd-${f.name}`">{{ f.name }}</dt>
+                    <dd :key="`sv-${f.name}`">{{ f.doc }}</dd>
+                  </template>
+                </dl>
+              </details>
+              <details class="wk-ref">
+                <summary>{{ $t('page.scenario_workshop.reference_world') }}</summary>
+                <dl>
+                  <template v-for="(doc, path) in catalog.world_docs">
+                    <dt :key="`wd-${path}`">{{ path }}</dt>
+                    <dd :key="`wv-${path}`">{{ doc }}</dd>
+                  </template>
+                </dl>
+              </details>
+              <details class="wk-ref">
+                <summary>{{ $t('page.scenario_workshop.reference_actions') }}</summary>
+                <dl>
+                  <template v-for="a in catalog.actions">
+                    <dt :key="`ad-${a.name}`">{{ a.name }}({{ [...a.params.map((p) => p.name), ...a.named.map((p) => `${p.name}:`)].join(', ') }})</dt>
+                    <dd :key="`av-${a.name}`">{{ a.doc }}</dd>
+                  </template>
+                </dl>
+              </details>
+              <details class="wk-ref">
+                <summary>{{ $t('page.scenario_workshop.reference_builtins') }}</summary>
+                <dl>
+                  <template v-for="b in catalog.builtins">
+                    <dt :key="`bd-${b.name}`">{{ b.name }}({{ b.params.map((p) => (p.rest ? `${p.name}…` : p.name)).join(', ') }})</dt>
+                    <dd :key="`bv-${b.name}`">{{ b.doc }}</dd>
+                  </template>
+                </dl>
+              </details>
+            </div>
+          </v-scrollbar>
+        </aside>
+
+        <datalist id="wk-world-paths">
+          <option
+            v-for="p in worldPaths"
+            :key="p"
+            :value="p" />
+        </datalist>
+
+        <workshop-tour
+          v-if="tour.active"
+          :steps="tourSteps"
+          :index="tour.index"
+          @next="tourNext"
+          @close="tourClose" />
+      </template>
+    </div>
+  </default-layout>
+</template>
+
+<script>
+import {
+  addPiece, appendItem, clone, connectData, connectExec, deleteNodes, detachChainAt, detachData,
+  detachExec, duplicate, groupIntoFunction, indexProgram, isStmt, literalFrom, mk, newId,
+  reconcileIds, renameGlobal, replaceNode, setFields, setSlotValue, topNames,
+} from '@/portal/workshop/ast';
+import DefaultLayout from '@/portal/layouts/Default.vue';
+import { markPlaytest } from '@/utils/playtest';
+import { buildGraph } from '@/portal/workshop/graph';
+import GraphCanvas from '@/portal/workshop/GraphCanvas.vue';
+import CodeEditor from '@/portal/workshop/CodeEditor.vue';
+import Palette, { worldPaths } from '@/portal/workshop/Palette.vue';
+import SimPanel from '@/portal/workshop/SimPanel.vue';
+import WorkshopTour from '@/portal/workshop/Tour.vue';
+
+const WORKSPACE_KEY = 'edict.workspace.v1';
+const LIBRARY_KEY = 'edict.library.v1';
+const TOUR_KEY = 'edict.tour.v1';
+const VIEW_KEY = 'edict.view.v1';
+const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+// Starting points that aren't examples: a blank scenario, and a blank race
+// (a race scores the time left and ends with finish(), see the doc).
+const TEMPLATES = {
+  __blank: {
+    source: 'setup {\n  name = "My scenario"\n  time_limit = 20m\n}\n\nscore player.credit\n',
+  },
+  __race: {
+    source: '# A race: the run ends when the goal is met, and players are ranked by the\n# time they had left (0 if they never got there).\nsetup {\n  name = "My race"\n  time_limit = 20m\n}\n\nscore time.left\n\n# Ties go to the higher number here (change it to what should break ties).\ntiebreak player.credit\n\nwhen player.credit >= 1_000_000 {\n  finish("Goal reached!")\n}\n',
+  },
+};
+
+// Functions every author starts with, written in Edict itself.
+const BUILTIN_LIBRARY = [
+  {
+    name: 'best',
+    builtin: true,
+    doc: 'The largest number in a list, or 0 when the list is empty.',
+    source: '# The largest number in a list, or 0 when the list is empty.\nfn best(list) {\n  return max([0] + list)\n}\n',
+  },
+  {
+    name: 'escalate',
+    builtin: true,
+    doc: 'A value that grows by step each time: escalate(100, 50, 3) is 200.',
+    source: '# A value that grows by step each time: escalate(100, 50, 3) is 200.\nfn escalate(base, step, n) {\n  return base + step * (n - 1)\n}\n',
+  },
+  {
+    name: 'level_for_wave',
+    builtin: true,
+    doc: 'A level drawn from 1 up to a top that climbs a level and a half every two minutes of the run (the Headhunter band).',
+    source: '# A level drawn from 1 up to a top that climbs a level and a half every two minutes of the run.\nfn level_for_wave(wave) {\n  let top = 3 + floor(time.elapsed / 120) * 1.5\n  return 1 + floor(random("level", wave) * floor(top))\n}\n',
+  },
+];
+
+function storage(key, value) {
+  try {
+    if (value === undefined) return JSON.parse(localStorage.getItem(key));
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    // private windows and blocked storage: the page works without it
+  }
+  return null;
+}
+
+export default {
+  name: 'scenario-workshop',
+  components: {
+    DefaultLayout, GraphCanvas, CodeEditor, Palette, SimPanel, WorkshopTour,
+  },
+  data() {
+    return {
+      catalog: null,
+      examples: [],
+      loadError: null,
+      program: null,
+      layout: { pos: {}, code: {} },
+      sizes: {},
+      snippets: {},
+      positions: {},
+      source: '',
+      diagnostics: [],
+      syntaxError: null,
+      view: storage(VIEW_KEY) || 'nodes',
+      selection: [],
+      inspect: null,
+      history: [],
+      future: [],
+      tab: 'simulate',
+      menu: null,
+      quickAdd: null,
+      library: [],
+      activeLine: null,
+      sim: {
+        report: null, failure: null, running: false, pace: 'typical', auto: false, pretend: [], ranOn: null,
+      },
+      tour: { active: false, index: 0, done: {} },
+      playtesting: false,
+      loading: null,
+      syncTimer: null,
+      parseTimer: null,
+      simTimer: null,
+      saveTimer: null,
+      syncSeq: 0,
+      parseSeq: 0,
+    };
+  },
+  computed: {
+    graph() {
+      return buildGraph(this.program, {
+        catalog: this.catalog, layout: this.layout, sizes: this.sizes, snippets: this.snippets, program: this.program,
+      });
+    },
+    index() { return indexProgram(this.program); },
+    userFns() { return this.program.decls.filter((d) => d.k === 'fn'); },
+    worldPaths() { return this.catalog ? worldPaths(this.catalog.world, this.catalog.world_docs).map((w) => w.path) : []; },
+    scenarioName() {
+      const setup = this.program.decls.find((d) => d.k === 'setup');
+      const row = setup && setup.body.find((s) => s.k === 'assign' && s.target.name === 'name');
+      return row && row.expr.k === 'str' ? row.expr.v : this.$t('page.scenario_workshop.untitled');
+    },
+    errorCount() { return this.diagnostics.filter((d) => d.severity === 'error').length; },
+    warningCount() { return this.diagnostics.filter((d) => d.severity === 'warning').length; },
+    // a race scores time.left: its score only means something after finish()
+    isRace() {
+      const score = this.program.decls.find((d) => d.k === 'score');
+      return !!score && JSON.stringify(score.expr).includes('"name":"left"') && JSON.stringify(score.expr).includes('"name":"time"');
+    },
+    hasFinish() { return JSON.stringify(this.program.decls).includes('"name":"finish"'); },
+    exampleGroups() {
+      const t = (k) => this.$t(`page.scenario_workshop.${k}`);
+      const groups = [
+        { key: 'start', label: t('examples_start'), items: this.examples.filter((e) => e.level === 'start here') },
+        { key: 'ports', label: t('examples_ports'), items: this.examples.filter((e) => e.port_of) },
+        { key: 'original', label: t('examples_original'), items: this.examples.filter((e) => e.level === 'original') },
+      ];
+      return groups.filter((g) => g.items.length);
+    },
+    // results describe the program they ran; any edit since makes them stale
+    simStale() {
+      return !!this.sim.ranOn && this.sim.ranOn !== JSON.stringify(this.program.decls);
+    },
+    // a what-if worth starting from: the first world value a `when` reads,
+    // with the value that makes it true when the condition says so
+    pretendDefault() {
+      const whenDecl = this.program.decls.find((d) => d.k === 'when');
+      if (!whenDecl) return null;
+      const c = whenDecl.cond;
+      const path = (n) => {
+        if (n.k === 'ident') return n.name;
+        if (n.k === 'field') {
+          const inner = path(n.obj);
+          return inner && `${inner}.${n.name}`;
+        }
+        return null;
+      };
+      const at = Math.round(((this.sim.report && this.sim.report.result.ended_at) || 1200) / 2);
+      if (c.k === 'bin' && c.op === 'in' && c.l.k === 'str' && path(c.r)) return { at, path: path(c.r), value: [c.l.v] };
+      if (c.k === 'bin' && ['>=', '>', '=='].includes(c.op) && path(c.l) && c.r.k === 'num') {
+        return { at, path: path(c.l), value: c.op === '>' ? c.r.v + 1 : c.r.v };
+      }
+      return null;
+    },
+    // a diagnostic lands on the nearest drawn node: itself or an ancestor
+    problemsByNode() {
+      const out = {};
+      this.diagnostics.forEach((d) => {
+        let id = d.node_id;
+        while (id && !this.graph.byId[id]) {
+          const viaExpr = this.graph.nodes.find((n) => n.exprId === id);
+          if (viaExpr) { id = viaExpr.id; break; }
+          const slot = this.index.slotOf[id];
+          id = slot ? slot.pid : null;
+          if (id === '$root') id = null;
+        }
+        if (id && (!out[id] || (out[id].severity === 'warning' && d.severity === 'error'))) out[id] = d;
+      });
+      return out;
+    },
+    inspected() {
+      const id = this.inspect || this.selection[0];
+      const node = id && this.graph.byId[id];
+      if (!node) return null;
+      let doc = node.doc || null;
+      if (!doc && node.shape === 'path') doc = this.catalog.world_docs[node.title] || null;
+      if (!doc) {
+        const key = `page.scenario_workshop.palette.doc_${node.k === 'on' ? 'on_start' : node.k}`;
+        const t = this.$t(key);
+        doc = t !== key ? t : null;
+      }
+      return { title: node.title, doc, problem: this.problemsByNode[id] };
+    },
+    tourSteps() {
+      const d = this.tour.done;
+      return [
+        { key: 'welcome', target: '[data-tour="canvas"]' },
+        { key: 'events', target: '.wk-node.tone-event' },
+        {
+          key: 'values', target: '.wk-node.shape-op', task: true, done: !!d.literal,
+        },
+        {
+          key: 'add', target: '[data-tour="palette"]', task: true, done: !!d.connected,
+        },
+        {
+          key: 'simulate', target: '[data-tour="simulate"]', task: true, done: !!d.simulated,
+        },
+        {
+          key: 'code', target: '[data-tour="views"]', task: true, done: !!d.code,
+        },
+        { key: 'done', target: null },
+      ];
+    },
+  },
+  watch: {
+    view(v) { storage(VIEW_KEY, v); },
+  },
+  async mounted() {
+    try {
+      const [catalog, examples] = await Promise.all([
+        this.$axios.get('/edict/catalog'),
+        this.$axios.get('/edict/examples'),
+      ]);
+      this.catalog = catalog.data;
+      this.examples = examples.data.examples;
+      this.library = [...BUILTIN_LIBRARY, ...(storage(LIBRARY_KEY) || [])];
+
+      const saved = storage(WORKSPACE_KEY);
+      if (saved && saved.program && await this.restore(saved)) {
+        // the author's last session
+      } else {
+        await this.loadExample('first_steps');
+      }
+
+      const tour = storage(TOUR_KEY);
+      if (!tour || !tour.finished) this.startTour();
+    } catch (e) {
+      this.loadError = this.$t('page.scenario_workshop.load_failed');
+    }
+  },
+  beforeDestroy() {
+    [this.syncTimer, this.parseTimer, this.simTimer, this.saveTimer].forEach(clearTimeout);
+  },
+  methods: {
+    // --- loading -----------------------------------------------------------
+    async loadExample(key) {
+      if (!key) return;
+      const template = TEMPLATES[key];
+      const ex = this.examples.find((e) => e.key === key);
+      const source = template ? template.source : ex && ex.source;
+      if (!source) return;
+      const hadWork = this.history.length > 0;
+      await this.loadSource(source);
+      // switching replaces the scenario; undo brings the old one back
+      if (hadWork) this.$toasted.show(this.$t('page.scenario_workshop.switched', { name: this.scenarioName }), { duration: 6000 });
+    },
+    // Loading replaces the whole program after a round trip; an edit made in
+    // between would land on the old program and be lost, so edits wait for
+    // a load in flight (see addItem).
+    loadSource(text) {
+      this.loading = this.doLoadSource(text).finally(() => { this.loading = null; });
+      return this.loading;
+    },
+    async doLoadSource(text) {
+      const { data } = await this.$axios.post('/edict/analyze', { source: text });
+      if (!data.program) {
+        this.source = text;
+        this.diagnostics = data.diagnostics;
+        this.syntaxError = data.diagnostics[0];
+        this.setView('code');
+        return;
+      }
+      this.pushHistory();
+      this.program = reconcileIds(null, data.program);
+      this.layout = { pos: {}, code: {} };
+      this.sizes = {};
+      this.sim.report = null;
+      this.selection = [];
+      await this.sync(true);
+      this.$nextTick(() => this.$refs.canvas && this.$refs.canvas.fit());
+    },
+    async restore(saved) {
+      try {
+        const { data } = await this.$axios.post('/edict/analyze', { program: saved.program });
+        this.program = data.program;
+        this.layout = saved.layout || { pos: {}, code: {} };
+        this.applySync(data);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    },
+
+    // --- the server round trip ---------------------------------------------
+    // After every graph edit: check the tree, get its canonical text, where
+    // each node sits in it, and the text of nodes drawn as code.
+    scheduleSync() {
+      clearTimeout(this.syncTimer);
+      this.syncTimer = setTimeout(() => this.sync(), 200);
+    },
+    async sync(now = false) {
+      if (!now) clearTimeout(this.syncTimer);
+      this.syncSeq += 1;
+      const seq = this.syncSeq;
+      const codeIds = [...new Set([...this.graph.codeIds, ...Object.keys(this.layout.code).filter((k) => this.layout.code[k])])];
+      try {
+        const { data } = await this.$axios.post('/edict/analyze', { program: this.program, code_ids: codeIds });
+        if (seq !== this.syncSeq) return;
+        this.applySync(data);
+      } catch (e) {
+        this.$toastError(e.response && e.response.data && e.response.data.message ? e.response.data.message : 'error');
+      }
+    },
+    applySync(data) {
+      this.diagnostics = data.diagnostics;
+      this.source = data.source;
+      this.positions = data.positions || {};
+      this.snippets = data.snippets || {};
+      this.syntaxError = null;
+      this.saveSoon();
+      if (this.sim.auto) this.simulateSoon();
+    },
+    saveSoon() {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(() => storage(WORKSPACE_KEY, { program: this.program, layout: this.layout }), 600);
+    },
+
+    // --- history -----------------------------------------------------------
+    pushHistory() {
+      if (!this.program) return;
+      this.history.push({ program: this.program, layout: clone(this.layout) });
+      if (this.history.length > 100) this.history.shift();
+      this.future = [];
+    },
+    undo() {
+      const prev = this.history.pop();
+      if (!prev) return;
+      this.future.push({ program: this.program, layout: clone(this.layout) });
+      this.program = prev.program;
+      this.layout = prev.layout;
+      this.sync();
+    },
+    redo() {
+      const next = this.future.pop();
+      if (!next) return;
+      this.history.push({ program: this.program, layout: clone(this.layout) });
+      this.program = next.program;
+      this.layout = next.layout;
+      this.sync();
+    },
+
+    // Apply an edit result from ast.js.
+    apply(result, { place, select } = {}) {
+      if (!result || result.error) {
+        if (result && result.error) this.$toasted.error(result.error);
+        return false;
+      }
+      if (result.program === this.program) return false;
+      this.pushHistory();
+      if (place) {
+        Object.entries(place).forEach(([id, at]) => {
+          if (id && at) this.$set(this.layout.pos, id, { x: Math.round(at.x), y: Math.round(at.y) });
+        });
+      }
+      this.program = result.program;
+      if (select) this.selection = select;
+      this.scheduleSync();
+      return true;
+    },
+
+    // --- selection and view --------------------------------------------------
+    select(ids) {
+      this.selection = ids;
+      this.inspect = null;
+      const pos = ids[0] && this.positionOf(ids[0]);
+      this.activeLine = pos ? pos[0] : null;
+    },
+    positionOf(id) {
+      if (this.positions[id]) return this.positions[id];
+      const node = this.graph.byId[id];
+      return node && node.exprId ? this.positions[node.exprId] : null;
+    },
+    setView(v) {
+      if (v !== 'code' && this.syntaxError) {
+        this.$toasted.error(this.$t('page.scenario_workshop.fix_syntax_first'));
+        return;
+      }
+      if (v !== 'nodes') this.tourMark('code');
+      this.view = v;
+      // the canvas changed size: frame the scenario again
+      this.$nextTick(() => requestAnimationFrame(() => this.$refs.canvas && this.$refs.canvas.fit()));
+    },
+    focusNode(id) {
+      let target = id;
+      while (target && !this.graph.byId[target]) {
+        const viaExpr = this.graph.nodes.find((n) => n.exprId === target);
+        if (viaExpr) { target = viaExpr.id; break; }
+        const slot = this.index.slotOf[target];
+        target = slot && slot.pid !== '$root' ? slot.pid : null;
+      }
+      if (!target) return;
+      this.select([target]);
+      if (this.view === 'code') this.setView('split');
+      this.$nextTick(() => this.$refs.canvas && this.$refs.canvas.centerOn(target));
+    },
+    focusDiag(d) {
+      if (d.node_id) this.focusNode(d.node_id);
+      else if (d.at && this.$refs.code) this.$refs.code.focusLine(d.at[0]);
+    },
+    // A line in the text selects the node that starts on it (the innermost).
+    onCaret(line) {
+      this.activeLine = line;
+      const onLine = Object.entries(this.positions).filter(([, at]) => at[0] === line);
+      const drawn = onLine.map(([id]) => this.graph.byId[id] || this.graph.nodes.find((n) => n.exprId === id)).filter(Boolean);
+      if (drawn.length) {
+        const pick = drawn.find((n) => n.execIn) || drawn[0];
+        this.selection = [pick.id];
+      }
+    },
+
+    // --- text edits --------------------------------------------------------------
+    onSourceInput(text) {
+      this.source = text;
+      clearTimeout(this.parseTimer);
+      this.parseTimer = setTimeout(() => this.parseSource(), 350);
+    },
+    async parseSource() {
+      this.parseSeq += 1;
+      const seq = this.parseSeq;
+      const { data } = await this.$axios.post('/edict/analyze', { source: this.source });
+      if (seq !== this.parseSeq) return;
+      this.diagnostics = data.diagnostics;
+      if (!data.program) {
+        [this.syntaxError] = data.diagnostics;
+        return;
+      }
+      this.syntaxError = null;
+      this.pushHistory();
+      this.program = reconcileIds(this.program, data.program);
+      // positions for the side-by-side highlight, without rewriting the text
+      // the author is typing
+      const keep = this.source;
+      const { data: synced } = await this.$axios.post('/edict/analyze', { program: this.program, code_ids: this.graph.codeIds });
+      this.diagnostics = synced.diagnostics;
+      this.positions = synced.positions || {};
+      this.snippets = synced.snippets || {};
+      this.source = keep;
+      this.saveSoon();
+      if (this.sim.auto) this.simulateSoon();
+    },
+
+    // --- graph edits ---------------------------------------------------------------
+    moved(positions) {
+      this.pushHistory();
+      Object.entries(positions).forEach(([id, at]) => this.$set(this.layout.pos, id, at));
+      this.saveSoon();
+    },
+    onSizes(sizes) {
+      const changed = Object.keys(sizes).some((id) => {
+        const a = this.sizes[id];
+        const b = sizes[id];
+        return !a || Math.abs(a.w - b.w) > 2 || Math.abs(a.h - b.h) > 2;
+      });
+      if (changed) this.sizes = sizes;
+    },
+    // Normalize a wire gesture to "output → input" and apply it.
+    onWire({ from, to }) {
+      let a = from;
+      let b = to;
+      if (a.kind === 'exec-in' || a.kind === 'data-in') [a, b] = [b, a];
+      if (a.kind === 'exec-out' && b.kind === 'exec-in') {
+        const pin = a.pin === 'then' ? 'next' : a.pin;
+        if (this.apply(connectExec(this.program, { node: a.node, pin }, b.node))) this.tourMark('connected');
+      } else if (a.kind === 'data-out' && b.kind === 'data-in') {
+        const source = this.graph.byId[a.node];
+        const exprId = (source && source.exprId) || a.node;
+        const slot = this.slotForPin(b.node, b.pin);
+        if (slot) this.apply(connectData(this.program, exprId, slot));
+      } else {
+        this.$toasted.error(this.$t('page.scenario_workshop.wire_mismatch'));
+      }
+    },
+    // The slot behind an input pin; creates a name: value for a named pin
+    // that has none yet.
+    slotForPin(nodeId, pinKey) {
+      const node = this.graph.byId[nodeId];
+      const input = node && node.inputs.find((i) => i.key === pinKey);
+      if (!input) return null;
+      if (input.slot && !input.missing) return input.slot;
+      if (input.named) {
+        const call = this.index.byId[input.callId];
+        this.apply(appendItem(this.program, input.callId, 'named', { name: input.named, expr: mk.hole() }));
+        return {
+          pid: input.callId, field: 'named', index: call.named.length, sub: 'expr',
+        };
+      }
+      if (input.missing) {
+        const call = this.index.byId[input.slot.pid];
+        let p = this.program;
+        for (let i = call.args.length; i <= input.slot.index; i += 1) p = appendItem(p, call.id, 'args', mk.hole()).program;
+        this.apply({ program: p });
+        return input.slot;
+      }
+      return null;
+    },
+    onWireDropped({ from, at, client }) {
+      if (from.kind === 'data-in') {
+        const input = this.graph.byId[from.node].inputs.find((i) => i.key === from.pin);
+        if (input && input.editor === 'wired') {
+          const r = detachData(this.program, input.slot);
+          this.apply(r, { place: { [r.draftId]: at, [r.nodeId]: at } });
+          return;
+        }
+        this.openQuickAdd({ at, client, connect: { kind: 'data', node: from.node, pin: from.pin } });
+      } else if (from.kind === 'exec-in') {
+        const r = detachChainAt(this.program, from.node);
+        this.apply(r, { place: { [r.draftId]: at, [from.node]: at } });
+      } else if (from.kind === 'exec-out') {
+        const node = this.graph.byId[from.node];
+        const connected = this.graph.wires.some((w) => w.from.node === from.node && w.from.pin === from.pin);
+        if (connected) {
+          const pin = from.pin === 'then' ? 'next' : from.pin;
+          const r = detachExec(this.program, { node: node.id, pin });
+          this.apply(r, { place: { [r.draftId]: at, [r.firstId]: at } });
+        } else {
+          this.openQuickAdd({ at, client, connect: { kind: 'exec', node: from.node, pin: from.pin } });
+        }
+      } else if (from.kind === 'data-out') {
+        this.openQuickAdd({ at, client, connect: { kind: 'feed', node: from.node } });
+      }
+    },
+    onDetach({ node, pin, kind }) {
+      if (kind === 'data-in') {
+        const input = this.graph.byId[node].inputs.find((i) => i.key === pin);
+        if (input && input.slot) this.apply(detachData(this.program, input.slot));
+      } else if (kind === 'exec-out') {
+        this.apply(detachExec(this.program, { node, pin: pin === 'then' ? 'next' : pin }));
+      } else if (kind === 'exec-in') {
+        this.apply(detachChainAt(this.program, node));
+      }
+    },
+    onLiteral({ node, input, text }) {
+      const literal = literalFrom(text, input.type);
+      const slot = this.slotForPin(node.id, input.key);
+      if (!slot) return;
+      if (this.apply(setSlotValue(this.program, slot, literal))) this.tourMark('literal');
+    },
+    onField({ id, key, value }) {
+      const node = this.index.byId[id];
+      const v = String(value).trim();
+      if (key === 'path') {
+        if (!/^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(v)) {
+          this.$toasted.error(this.$t('page.scenario_workshop.bad_path'));
+          return;
+        }
+        const path = mk.path(v);
+        path.id = id;
+        this.apply(replaceNode(this.program, id, path));
+      } else if (key === 'op') {
+        this.apply(setFields(this.program, id, { op: v }));
+      } else if (key === 'params') {
+        const params = v === '' ? [] : v.split(',').map((s) => s.trim());
+        if (params.some((p) => !NAME.test(p))) {
+          this.$toasted.error(this.$t('page.scenario_workshop.bad_name'));
+          return;
+        }
+        this.apply(setFields(this.program, id, { params }));
+      } else if (key === 'as') {
+        if (v !== '' && !NAME.test(v)) return;
+        this.apply(setFields(this.program, id, { as: v === '' ? null : v }));
+      } else if (!NAME.test(v)) {
+        this.$toasted.error(this.$t('page.scenario_workshop.bad_name'));
+      } else if (key === 'name' && (node.k === 'var' || node.k === 'fn')) {
+        this.apply(renameGlobal(this.program, id, v));
+      } else if (key === 'name') {
+        this.apply(setFields(this.program, id, { name: v }));
+      } else if (key === 'var') {
+        this.apply(setFields(this.program, id, { var: v }));
+      } else if (key === 'target') {
+        const target = mk.ident(v);
+        target.id = node.target.id;
+        this.apply(setFields(this.program, id, { target }));
+      }
+    },
+    async onCode({ id, text, kind }) {
+      const { data } = await this.$axios.post('/edict/fragment', { source: text, kind });
+      if (data.error) {
+        this.$toasted.error(this.$t('page.scenario_workshop.code_error', { line: data.error.line, message: data.error.message }));
+        return;
+      }
+      const fresh = reconcileIds(null, { decls: [{ k: 'draft', id: 'x', body: kind === 'expr' ? [{ k: 'expr', id: 'y', expr: data.node }] : data.node }] });
+      const nodes = fresh.decls[0].body;
+      if (kind === 'expr') {
+        const e = nodes[0].expr;
+        e.id = id;
+        this.apply(replaceNode(this.program, id, e));
+      } else {
+        if (nodes.length) nodes[0].id = id;
+        this.apply(replaceNode(this.program, id, nodes));
+      }
+    },
+    onNote({ id, text }) {
+      this.apply(setFields(this.program, id, { text: text.replace(/[\u0000-\u0008\u000b-\u001f]/g, '') }));
+    },
+    onAddRow(node) {
+      if (node.addArg) this.apply(appendItem(this.program, node.addArg, 'args', mk.hole()));
+      else if (node.addItem) this.apply(appendItem(this.program, node.addItem, 'items', mk.hole()));
+      else if (node.addEntry) {
+        const key = (window.prompt(this.$t('page.scenario_workshop.entry_key')) || '').trim();
+        if (key) this.apply(appendItem(this.program, node.addEntry, 'entries', { key, value: mk.hole() }));
+      } else if (node.addSetup) {
+        this.openSetupMenu(node);
+      }
+    },
+    openSetupMenu(node) {
+      const setup = this.index.byId[node.id];
+      const present = new Set(setup.body.filter((s) => s.k === 'assign').map((s) => s.target.name));
+      const rect = document.querySelector(`[data-node="${node.id}"]`).getBoundingClientRect();
+      this.menu = {
+        x: rect.right,
+        y: rect.bottom - 30,
+        items: this.catalog.setup.filter((f) => !present.has(f.name)).map((f) => ({
+          key: f.name,
+          label: f.name,
+          run: () => {
+            const value = this.setupDefault(f);
+            const row = {
+              k: 'assign', id: newId(), target: mk.ident(f.name), expr: value,
+            };
+            this.apply(appendItem(this.program, node.id, 'body', row));
+          },
+        })),
+      };
+    },
+    setupDefault(field) {
+      if (field.type === 'bool') return mk.bool(false);
+      if (field.type === 'text' || (field.type && field.type.enum)) return mk.str(field.type.enum ? field.type.enum[0] : '');
+      if (field.name === 'time_limit') return mk.num(1200, 'duration');
+      if (field.type === 'number') return mk.num(field.default || 1);
+      if (field.type && field.type.list) return mk.list();
+      if (field.type === 'record') return mk.map();
+      return mk.hole();
+    },
+    // One-click repair from a diagnostic: set the named field of the node it
+    // points at (a misspelled name, a choice outside the list).
+    applyFix(fix) {
+      if (!fix || !this.index.byId[fix.target]) return;
+      if (this.apply(setFields(this.program, fix.target, { [fix.field]: fix.value }))) {
+        this.$toasted.success(this.$t('page.scenario_workshop.fixed', { value: fix.value }));
+      }
+    },
+    deleteNode(id) {
+      if (this.index.byId[id]) this.apply(deleteNodes(this.program, [id]), { select: [] });
+    },
+    // a what-if changes the run: re-run it if there are results to update
+    setPretend(list) {
+      this.sim.pretend = list;
+      if (this.sim.report || this.sim.failure) this.simulateSoon();
+    },
+    expandCode(id) {
+      this.pushHistory();
+      this.$set(this.layout.code, id, false);
+      this.sync();
+    },
+    onRemoveRow({ input }) {
+      if (typeof input.removable === 'string') this.apply(deleteNodes(this.program, [input.removable]));
+      else if (input.value) this.apply(deleteNodes(this.program, [input.value.id]));
+    },
+    deleteSelection() {
+      if (!this.selection.length) return;
+      const ids = this.selection.filter((id) => this.index.byId[id]);
+      this.apply(deleteNodes(this.program, ids), { select: [] });
+    },
+
+    // --- adding --------------------------------------------------------------
+    uniqueName(base) {
+      const taken = new Set([...topNames(this.program).globals, ...topNames(this.program).fns]);
+      Object.values(this.index.byId).forEach((n) => { if (n.k === 'let') taken.add(n.name); });
+      if (!taken.has(base)) return base;
+      let i = 2;
+      while (taken.has(`${base}${i}`)) i += 1;
+      return `${base}${i}`;
+    },
+    // Build the tree for a palette item.
+    pieceFor(item) {
+      const c = this.catalog;
+      switch (item.type) {
+        case 'event':
+          if (item.key === 'start' || item.key === 'end') {
+            return {
+              k: 'on', id: newId(), event: item.key, body: [],
+            };
+          }
+          if (item.key === 'every') {
+            return {
+              k: 'every', id: newId(), interval: mk.num(60, 'duration'), from: null, until: null, as: null, body: [],
+            };
+          }
+          if (item.key === 'at') {
+            return {
+              k: 'at', id: newId(), time: mk.num(600, 'duration'), body: [],
+            };
+          }
+          return {
+            k: 'when', id: newId(), cond: mk.hole(), body: [],
+          };
+        case 'decl':
+          if (item.key === 'var') {
+            return {
+              k: 'var', id: newId(), name: this.uniqueName('counter'), expr: mk.num(0),
+            };
+          }
+          if (item.key === 'fn') {
+            return {
+              k: 'fn', id: newId(), name: this.uniqueName('helper'), params: [], body: [],
+            };
+          }
+          if (item.key === 'setup') {
+            if (this.program.decls.some((d) => d.k === 'setup')) return null;
+            return {
+              k: 'setup',
+              id: newId(),
+              body: [{
+                k: 'assign', id: newId(), target: mk.ident('name'), expr: mk.str('My scenario'),
+              }],
+            };
+          }
+          return { k: item.key, id: newId(), expr: mk.hole() };
+        case 'stmt':
+          switch (item.key) {
+            case 'if': return {
+              k: 'if', id: newId(), cond: mk.hole(), then: [], else: null,
+            };
+            case 'for': return {
+              k: 'for', id: newId(), var: 'item', iter: mk.hole(), body: [],
+            };
+            case 'while': return {
+              k: 'while', id: newId(), cond: mk.hole(), body: [],
+            };
+            case 'let': return {
+              k: 'let', id: newId(), name: this.uniqueName('value'), expr: mk.hole(),
+            };
+            case 'assign': return {
+              k: 'assign', id: newId(), target: mk.ident('counter'), expr: mk.hole(),
+            };
+            case 'return': return { k: 'return', id: newId(), expr: null };
+            case 'break': return { k: 'break', id: newId() };
+            case 'note': return { k: 'note', id: newId(), text: this.$t('page.scenario_workshop.new_note') };
+            default: {
+              const s = mk.stmt(mk.hole());
+              this.$set(this.layout.code, s.id, true);
+              return s;
+            }
+          }
+        case 'action': {
+          const a = c.actions.find((x) => x.name === item.key);
+          const args = a.params.filter((p) => !p.optional).map((p) => {
+            if (p.type && p.type.enum) return mk.str(p.type.enum[0]);
+            if (p.type === 'text') return mk.str('');
+            return mk.hole();
+          });
+          return mk.stmt(mk.call(a.name, args));
+        }
+        case 'builtin': {
+          const b = c.builtins.find((x) => x.name === item.key);
+          return mk.call(b.name, b.params.filter((p) => !p.optional).map(() => mk.hole()));
+        }
+        case 'userfn': {
+          const f = this.userFns.find((x) => x.name === item.key);
+          return mk.stmt(mk.call(f.name, f.params.map(() => mk.hole())));
+        }
+        case 'world': return mk.path(item.key);
+        case 'op': return item.key === 'not' ? mk.un('not') : mk.bin(item.key);
+        case 'value':
+          if (item.key === 'cond') return mk.cond();
+          if (item.key === 'list') return mk.list();
+          return mk.map();
+        default: return null;
+      }
+    },
+    async addItem(item, at, connect) {
+      if (this.loading) await this.loading;
+      if (item.type === 'library') {
+        await this.importLibrary(item.key);
+        return;
+      }
+      const piece = this.pieceFor(item);
+      if (!piece) return;
+      const where = at || (this.$refs.canvas ? this.$refs.canvas.viewCenter() : { x: 400, y: 200 });
+      const r = addPiece(this.program, piece);
+      if (!this.apply(r, { place: { [r.draftId || r.id]: where }, select: [r.id] })) return;
+
+      if (connect) this.connectNew(r.id, piece, connect);
+      if (this.view === 'code') this.$nextTick(() => this.sync());
+    },
+    // A piece added from a dropped wire connects to where the wire came from.
+    connectNew(id, piece, connect) {
+      this.$nextTick(() => {
+        if (connect.kind === 'exec' && isStmt(piece)) {
+          const pin = connect.pin === 'then' ? 'next' : connect.pin;
+          if (this.apply(connectExec(this.program, { node: connect.node, pin }, piece.id))) this.tourMark('connected');
+        } else if (connect.kind === 'data' && !isStmt(piece)) {
+          const slot = this.slotForPin(connect.node, connect.pin);
+          if (slot) this.apply(connectData(this.program, piece.id, slot));
+        } else if (connect.kind === 'data' && piece.k === 'expr') {
+          const slot = this.slotForPin(connect.node, connect.pin);
+          if (slot) this.apply(connectData(this.program, piece.expr.id, slot));
+        }
+      });
+    },
+    onDropItem({ item, at, pin }) {
+      let connect = null;
+      if (pin && pin.kind === 'exec-out') connect = { kind: 'exec', node: pin.node, pin: pin.pin };
+      if (pin && pin.kind === 'data-in') connect = { kind: 'data', node: pin.node, pin: pin.pin };
+      this.addItem(item, at, connect);
+    },
+    openQuickAdd({ at, client, connect }) {
+      this.quickAdd = { at, client, connect: connect || null };
+      this.$nextTick(() => this.$refs.quick && this.$refs.quick.focus());
+    },
+
+    // --- functions and the library -------------------------------------------------
+    groupSelection() {
+      const name = (window.prompt(this.$t('page.scenario_workshop.group_name'), this.uniqueName('step')) || '').trim();
+      if (!name) return;
+      if (!NAME.test(name)) {
+        this.$toasted.error(this.$t('page.scenario_workshop.bad_name'));
+        return;
+      }
+      const known = {
+        ...topNames(this.program),
+        library: [...this.catalog.builtins.map((b) => b.name), ...this.catalog.actions.map((a) => a.name)],
+      };
+      // a step inside a selected if/loop comes along with it: keep only the
+      // outermost selected steps
+      const chosen = new Set(this.selection);
+      const insideChosen = (id) => {
+        let slot = this.index.slotOf[id];
+        while (slot && slot.pid !== '$root') {
+          if (chosen.has(slot.pid)) return true;
+          slot = this.index.slotOf[slot.pid];
+        }
+        return false;
+      };
+      const ids = this.selection.filter((id) => isStmt(this.index.byId[id]) && !insideChosen(id));
+      const r = groupIntoFunction(this.program, ids, name, known);
+      if (r.error) {
+        this.$toasted.error(r.error);
+        return;
+      }
+      // the grouped nodes leave their spots for the new fn's frame
+      ids.forEach((id) => this.$delete(this.layout.pos, id));
+      this.apply(r, { select: [r.callId] });
+      // stay where the author was working: flash the call that replaced the
+      // steps, and say where the fn went
+      this.$nextTick(() => this.$nextTick(() => this.$refs.canvas && this.$refs.canvas.flash(r.callId)));
+      this.$toasted.show(this.$t('page.scenario_workshop.grouped', { name }), { duration: 6000 });
+    },
+    async saveToLibrary(fnId) {
+      const fn = this.index.byId[fnId];
+      const { data } = await this.$axios.post('/edict/analyze', { program: { decls: [fn] }, code_ids: [] });
+      this.storeLibrary(fn.name, data.source, fn.note || '');
+    },
+    storeLibrary(name, source, doc = '') {
+      const saved = storage(LIBRARY_KEY) || [];
+      const existing = saved.find((l) => l.name === name);
+      if (existing && existing.source !== source
+        && !window.confirm(this.$t('page.scenario_workshop.library_replace', { name }))) return;
+      const mine = saved.filter((l) => l.name !== name);
+      mine.push({ name, source, doc });
+      storage(LIBRARY_KEY, mine);
+      this.library = [...BUILTIN_LIBRARY, ...mine];
+      this.$toasted.success(this.$t('page.scenario_workshop.saved_to_library', { name }));
+    },
+    async importLibrary(name) {
+      const entry = this.library.find((l) => l.name === name);
+      if (!entry) return;
+      const { data } = await this.$axios.post('/edict/analyze', { source: entry.source });
+      if (!data.program) return;
+      const fresh = reconcileIds(null, data.program);
+      let p = this.program;
+      let lastId = null;
+      fresh.decls.filter((d) => d.k === 'fn').forEach((fn) => {
+        const copy = { ...fn };
+        if (this.userFns.some((f) => f.name === copy.name)) copy.name = this.uniqueName(copy.name);
+        const r = addPiece(p, copy);
+        p = r.program;
+        lastId = r.id;
+      });
+      this.apply({ program: p }, { select: lastId ? [lastId] : [] });
+    },
+
+    // --- context menu ---------------------------------------------------------------
+    openContext({ id, client, at }) {
+      const t = (k) => this.$t(`page.scenario_workshop.menu_${k}`);
+      const items = [];
+      const node = id && this.index.byId[id];
+      if (node) {
+        const graphNode = this.graph.byId[id];
+        const codeId = graphNode && graphNode.exprId ? graphNode.exprId : id;
+        if (node.k !== 'fn' && node.k !== 'setup' && !['on', 'every', 'at', 'when', 'score', 'tiebreak', 'var', 'draft', 'note'].includes(node.k)) {
+          // drawn as code: by choice, or by default for a long formula
+          const shownAsCode = this.graph.codeIds.includes(codeId) || this.layout.code[id] === true;
+          items.push({
+            key: 'code',
+            label: shownAsCode ? t('show_nodes') : t('show_code'),
+            run: () => {
+              this.pushHistory();
+              const key = isStmt(node) && !graphNode.exprId ? id : codeId;
+              this.$set(this.layout.code, key, !shownAsCode);
+              if (key !== id) this.$delete(this.layout.code, id);
+              this.sync();
+            },
+          });
+        }
+        const stmts = this.selection.filter((s) => isStmt(this.index.byId[s]));
+        if (stmts.length) {
+          items.push({ key: 'group', label: t('group'), run: () => this.groupSelection() });
+        }
+        if (node.k === 'fn') items.push({ key: 'library', label: t('save_library'), run: () => this.saveToLibrary(id) });
+        items.push({ key: 'dup', label: t('duplicate'), run: () => this.apply(duplicate(this.program, id), { place: {} }) });
+        if (isStmt(node)) items.push({ key: 'cut', label: t('detach'), run: () => this.apply(detachChainAt(this.program, id)) });
+        items.push({ key: 'delete', label: t('delete'), run: () => this.deleteSelection() });
+      } else {
+        items.push({ key: 'add', label: t('add_here'), run: () => this.openQuickAdd({ at, client }) });
+        items.push({ key: 'fit', label: t('fit'), run: () => this.$refs.canvas.fit() });
+      }
+      this.menu = { x: client.x, y: client.y, items };
+    },
+
+    // --- keys ----------------------------------------------------------------------
+    onKeys(e) {
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); }
+      if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); this.redo(); }
+      if (mod && e.key.toLowerCase() === 'g') { e.preventDefault(); this.groupSelection(); }
+      if (e.key === 'Escape') { this.menu = null; this.quickAdd = null; }
+    },
+
+    // --- simulation ----------------------------------------------------------------
+    simulateSoon() {
+      clearTimeout(this.simTimer);
+      this.simTimer = setTimeout(() => this.simulate(), 1200);
+    },
+    async simulate() {
+      if (this.sim.running) return;
+      this.sim.running = true;
+      this.tab = 'simulate';
+      try {
+        const { data } = await this.$axios.post('/edict/simulate', {
+          program: this.program, pace: this.sim.pace, pretend: this.sim.pretend,
+        });
+        this.sim.ranOn = JSON.stringify(this.program.decls);
+        if (data.ok) {
+          this.sim.report = data.report;
+          this.sim.failure = null;
+        } else {
+          this.sim.report = null;
+          this.sim.failure = data.errors;
+        }
+        this.tourMark('simulated');
+      } catch (e) {
+        this.$toastError(e.response && e.response.status === 429 ? 'rate_limited' : 'error');
+      } finally {
+        this.sim.running = false;
+      }
+    },
+
+    // Play the scenario in a real game: the server boots a single-player run
+    // from the script (POST /api/edict/playtest) and hands back the same
+    // join payload as the daily, which enters the game the same way.
+    async playtest() {
+      const profile = this.$store.state.portal.activeProfile;
+      if (!profile) {
+        this.$toasted.error(this.$t('page.scenario_workshop.playtest_profile'));
+        return;
+      }
+      if (this.view === 'nodes' || this.syncTimer) await this.sync(true);
+      if (this.errorCount || this.syntaxError) {
+        this.tab = 'problems';
+        this.$toasted.error(this.$t('page.scenario_workshop.playtest_errors'));
+        return;
+      }
+
+      this.playtesting = true;
+      try {
+        const { data } = await this.$axios.post('/edict/playtest', { source: this.source, profile_id: profile.id });
+        if (!data.ok) {
+          this.diagnostics = data.errors.map((e) => ({ severity: 'error', ...e }));
+          this.tab = 'problems';
+          this.playtesting = false;
+          return;
+        }
+        storage(WORKSPACE_KEY, { program: this.program, layout: this.layout });
+        markPlaytest(data.instance);
+        this.$ambiance.sound('play');
+        this.$store.commit('game/init', data);
+        this.$ambiance.changeContext('game');
+        this.$router.push('/game');
+      } catch (e) {
+        this.playtesting = false;
+        const message = e.response && e.response.data && e.response.data.message;
+        this.$toastError(message || this.$t('page.scenario_workshop.playtest_failed'));
+      }
+    },
+    copySource() {
+      const done = () => this.$toasted.success(this.$t('page.scenario_workshop.copied'));
+      if (navigator.clipboard) navigator.clipboard.writeText(this.source).then(done, () => {});
+    },
+
+    // --- the tour ----------------------------------------------------------------------
+    startTour() {
+      this.tour = { active: true, index: 0, done: {} };
+    },
+    tourMark(key) {
+      if (this.tour.done[key]) return;
+      this.$set(this.tour.done, key, true);
+      const step = this.tourSteps[this.tour.index];
+      if (this.tour.active && step && step.task && step.done) {
+        setTimeout(() => this.tourNext(), 900);
+      }
+    },
+    tourNext() {
+      if (this.tour.index >= this.tourSteps.length - 1) {
+        this.tourClose();
+        return;
+      }
+      this.tour.index += 1;
+    },
+    tourClose() {
+      this.tour.active = false;
+      storage(TOUR_KEY, { finished: true, at: new Date().toISOString(), reached: this.tour.index });
+    },
+  },
+};
+</script>
+
+<style lang="scss" scoped>
+@import '~@/styles/shared/variables';
+
+$panel: rgba(10, 12, 16, .92);
+$line: rgba(255, 255, 255, .12);
+
+.scenario-workshop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) 330px;
+  height: calc(100vh - 70px);
+  min-height: 520px;
+  color: $white;
+  font-size: 1.3rem;
+}
+
+.wk-loading {
+  grid-column: 1 / -1;
+  padding: 60px 20px;
+  text-align: center;
+  opacity: .7;
+}
+
+.wk-left,
+.wk-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: $panel;
+  border-right: solid 1px $line;
+}
+
+.wk-right {
+  border-right: none;
+  border-left: solid 1px $line;
+}
+
+.wk-left-scroll,
+.wk-right-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wk-side-title {
+  margin: 0;
+  padding: 12px 14px 6px;
+  font-size: 1.2rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: .7;
+}
+
+.wk-main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.wk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: $panel;
+  border-bottom: solid 1px $line;
+}
+
+// a long name gives way; the controls never move
+.wk-scenario-name {
+  flex: 0 1 260px;
+  min-width: 60px;
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wk-new,
+.wk-examples,
+.wk-views,
+.wk-tools {
+  flex: 0 0 auto;
+}
+
+.wk-examples select {
+  max-width: 220px;
+}
+
+.wk-new select,
+.wk-examples select,
+.wk-tools button,
+.wk-views button {
+  padding: 5px 9px;
+  border: solid 1px $line;
+  background: rgba(255, 255, 255, .04);
+  color: $white;
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: .35;
+    cursor: default;
+  }
+}
+
+.wk-views {
+  display: flex;
+
+  button + button {
+    border-left: none;
+  }
+
+  .is-active {
+    background: $primary;
+    border-color: $primary;
+    color: $black;
+  }
+}
+
+.wk-tools {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.wk-tools .wk-playtest {
+  border-color: $primary;
+  color: $primary;
+  font-weight: 700;
+}
+
+.wk-banner {
+  padding: 6px 12px;
+  background: rgba($color-alert, .15);
+  border-bottom: solid 1px $color-alert;
+  color: lighten($color-alert, 20%);
+}
+
+.wk-stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wk-graph,
+.wk-text {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.view-split .wk-text {
+  border-left: solid 1px $line;
+}
+
+.wk-tabs {
+  display: flex;
+  border-bottom: solid 1px $line;
+
+  button {
+    flex: 1;
+    padding: 9px 4px;
+    border: none;
+    background: none;
+    color: $white;
+    font: inherit;
+    opacity: .6;
+    cursor: pointer;
+
+    &.is-active {
+      opacity: 1;
+      box-shadow: inset 0 -2px 0 $primary;
+    }
+  }
+}
+
+.wk-badge.is-muted {
+  background: $white-alt-2;
+}
+
+.wk-badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: $color-alert;
+  color: $black;
+  font-size: 1.1rem;
+}
+
+.wk-problems,
+.wk-help {
+  padding: 10px 12px;
+
+  p {
+    margin: 0 0 10px;
+    line-height: 1.45;
+  }
+}
+
+.wk-problem-item {
+  margin-bottom: 5px;
+
+  .wk-problem-row {
+    margin-bottom: 0;
+  }
+}
+
+.wk-fix {
+  margin: 3px 0 0 3px;
+  border-color: $primary;
+  color: $primary;
+}
+
+.wk-ref {
+  margin-bottom: 8px;
+
+  summary {
+    cursor: pointer;
+  }
+
+  dl {
+    margin: 6px 0 0;
+  }
+
+  dt {
+    margin-top: 6px;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 1.15rem;
+  }
+
+  dd {
+    margin: 2px 0 0 10px;
+    opacity: .75;
+  }
+}
+
+.wk-help-list {
+  padding-left: 18px;
+
+  li {
+    margin-bottom: 8px;
+  }
+}
+
+.wk-menu {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  background: $grey-darker;
+  border: solid 1px $line;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .6);
+
+  button {
+    padding: 7px 12px;
+    border: none;
+    background: none;
+    color: $white;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(255, 255, 255, .08);
+    }
+  }
+}
+
+.wk-quick {
+  position: fixed;
+  z-index: 50;
+  width: 260px;
+  max-height: 380px;
+  overflow: auto;
+  background: $grey-darker;
+  border: solid 1px $line;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .6);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+@media (max-width: $mobile-breakpoint) {
+  .scenario-workshop {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    height: auto;
+  }
+
+  .wk-main {
+    min-height: 70vh;
+  }
+}
+</style>
+
+<style lang="scss">
+@import '~@/styles/shared/variables';
+@import '~@/portal/workshop/workshop';
+</style>

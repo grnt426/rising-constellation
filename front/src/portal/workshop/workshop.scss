@@ -1,0 +1,1014 @@
+// Scenario Workshop: the canvas, nodes, code view, palette, simulator and
+// tour. Colors stay in the portal's palette: greys for structure, $primary
+// for selection and for actions (the nodes that change the game), and
+// $color-alert for problems. Node kinds differ by shade and shape, not hue.
+
+$wk-line: rgba(255, 255, 255, .12);
+$wk-node: #23262d;
+$wk-node-head: #2e323b;
+$wk-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+
+.scenario-workshop {
+  .wk-button {
+    padding: 6px 12px;
+    border: solid 1px $wk-line;
+    background: rgba(255, 255, 255, .05);
+    color: $white;
+    font: inherit;
+    cursor: pointer;
+
+    &.is-primary {
+      background: $primary;
+      border-color: $primary;
+      color: $black;
+      font-weight: 600;
+    }
+
+    &:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+  }
+
+  .wk-mini {
+    padding: 1px 6px;
+    border: solid 1px $wk-line;
+    background: none;
+    color: $white-alt-1;
+    font: inherit;
+    font-size: 1.15rem;
+    cursor: pointer;
+
+    &:hover {
+      color: $white;
+      border-color: rgba(255, 255, 255, .3);
+    }
+  }
+
+  .wk-muted {
+    opacity: .6;
+    font-size: 1.2rem;
+  }
+
+  .wk-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+  }
+
+  .wk-problem-row {
+    display: block;
+    width: 100%;
+    margin: 0 0 5px;
+    padding: 6px 8px;
+    border: solid 1px $wk-line;
+    border-left: solid 3px $white-alt-2;
+    background: rgba(255, 255, 255, .03);
+    color: $white;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &.is-error {
+      border-left-color: $color-alert;
+    }
+
+    &.is-warning {
+      border-left-color: $white-alt-1;
+    }
+  }
+
+  .wk-time {
+    display: inline-block;
+    min-width: 42px;
+    margin-right: 6px;
+    font-family: $wk-mono;
+    opacity: .7;
+  }
+
+  .wk-count {
+    margin-left: 4px;
+    opacity: .6;
+  }
+
+  .is-mono {
+    font-family: $wk-mono;
+  }
+
+  // --- canvas ---------------------------------------------------------------
+
+  .wk-canvas {
+    position: relative;
+    overflow: hidden;
+    outline: none;
+    background-color: #15171b;
+    background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1px);
+    background-size: 22px 22px;
+    cursor: grab;
+
+    &.is-panning {
+      cursor: grabbing;
+    }
+
+    &.is-wiring {
+      cursor: crosshair;
+    }
+  }
+
+  .wk-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+  }
+
+  .wk-wires {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .wk-wire {
+    fill: none;
+    stroke-width: 2;
+
+    &.is-exec {
+      stroke: rgba(255, 255, 255, .7);
+      stroke-width: 2.5;
+    }
+
+    &.is-data {
+      stroke: rgba(255, 255, 255, .32);
+    }
+
+    &.is-hot {
+      stroke: $primary;
+    }
+
+    &.is-ghost {
+      stroke: $primary;
+      stroke-dasharray: 6 5;
+    }
+  }
+
+  .wk-frame {
+    position: absolute;
+    border: dashed 1px rgba(255, 255, 255, .28);
+    background: rgba(255, 255, 255, .025);
+    border-radius: 6px;
+
+    &.is-selected {
+      border-color: $primary;
+    }
+  }
+
+  .wk-frame-title {
+    padding: 4px 10px;
+    font-family: $wk-mono;
+    font-size: 1.25rem;
+    color: $white-alt-1;
+    cursor: move;
+    user-select: none;
+  }
+
+  .wk-select-rect {
+    position: absolute;
+    border: solid 1px $primary;
+    background: rgba($primary, .08);
+    pointer-events: none;
+  }
+
+  .wk-zoom {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, .6);
+    border: solid 1px $wk-line;
+    font-size: 1.15rem;
+
+    button {
+      padding: 1px 7px;
+      border: solid 1px $wk-line;
+      background: none;
+      color: $white;
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  // --- nodes ------------------------------------------------------------------
+
+  .wk-node {
+    position: absolute;
+    background: $wk-node;
+    border: solid 1px rgba(255, 255, 255, .14);
+    border-radius: 5px;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, .45);
+    font-size: 1.2rem;
+    cursor: default;
+
+    &.is-selected {
+      border-color: $primary;
+      box-shadow: 0 0 0 1px $primary, 0 3px 14px rgba(0, 0, 0, .5);
+    }
+
+    &.has-error {
+      border-color: $color-alert;
+    }
+
+    &.is-draft {
+      opacity: .78;
+      border-style: dashed;
+    }
+
+    &.is-flash {
+      animation: wk-flash 1.2s ease-out;
+    }
+  }
+
+  @keyframes wk-flash {
+    0% { box-shadow: 0 0 0 6px rgba($primary, .7); }
+    100% { box-shadow: 0 0 0 0 rgba($primary, 0); }
+  }
+
+  .wk-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 4px 9px;
+    background: $wk-node-head;
+    border-radius: 5px 5px 0 0;
+    font-weight: 700;
+    cursor: move;
+    user-select: none;
+  }
+
+  .wk-title {
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .wk-head-edit {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 1px 4px;
+    border: solid 1px transparent;
+    background: transparent;
+    color: $white;
+    font: inherit;
+    font-weight: 700;
+    cursor: text;
+
+    &:hover,
+    &:focus {
+      border-color: rgba(255, 255, 255, .25);
+      background: rgba(0, 0, 0, .3);
+    }
+  }
+
+  select.wk-head-edit {
+    flex: 0 0 auto;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .wk-problem {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: $color-alert;
+    color: $black;
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+
+  .has-warning .wk-problem {
+    background: $white-alt-1;
+  }
+
+  button.wk-problem {
+    flex: 0 0 auto;
+    padding: 0;
+    border: none;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .wk-node-delete {
+    flex: 0 0 auto;
+    padding: 0 5px;
+    border: solid 1px rgba(255, 255, 255, .25);
+    background: rgba(0, 0, 0, .3);
+    color: $white;
+    font: inherit;
+    line-height: 1.2;
+    cursor: pointer;
+
+    &:hover {
+      border-color: $color-alert;
+      color: $color-alert;
+    }
+  }
+
+  .wk-input::selection {
+    background: rgba($primary, .35);
+    color: transparent;
+  }
+
+  // shades by kind
+  .tone-event .wk-head {
+    background: #444a57;
+    border-top: solid 2px $white;
+    text-transform: lowercase;
+  }
+
+  .tone-setup .wk-head,
+  .tone-score .wk-head {
+    background: #3b404b;
+    text-transform: uppercase;
+    font-size: 1.1rem;
+    letter-spacing: .06em;
+  }
+
+  .tone-action .wk-head {
+    background: mix($primary, $wk-node-head, 22%);
+    box-shadow: inset 3px 0 0 $primary;
+  }
+
+  .tone-fn .wk-head {
+    background: #37343f;
+    font-family: $wk-mono;
+  }
+
+  .tone-world .wk-head {
+    background: #2a2e36;
+    font-family: $wk-mono;
+    font-weight: 600;
+  }
+
+  .tone-data .wk-head,
+  .tone-value .wk-head {
+    background: #2b2f37;
+  }
+
+  .tone-logic .wk-head {
+    background: #262a31;
+    justify-content: center;
+    font-family: $wk-mono;
+  }
+
+  .tone-note {
+    background: #2a2a24;
+
+    .wk-head {
+      background: #33332b;
+      font-style: italic;
+      font-weight: 400;
+    }
+  }
+
+  .tone-code .wk-head {
+    background: #1f2227;
+    font-family: $wk-mono;
+  }
+
+  .shape-path,
+  .shape-get {
+    .wk-head {
+      border-radius: 5px;
+    }
+  }
+
+  .wk-note-line {
+    padding: 3px 9px;
+    color: $white-alt-1;
+    font-style: italic;
+    font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-bottom: solid 1px $wk-line;
+  }
+
+  .wk-note-text textarea,
+  .wk-code-block textarea {
+    display: block;
+    width: 100%;
+    padding: 6px 9px;
+    border: none;
+    background: transparent;
+    color: $white;
+    font: inherit;
+    resize: vertical;
+  }
+
+  .wk-code-block textarea {
+    font-family: $wk-mono;
+    white-space: pre;
+  }
+
+  .wk-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 2px 9px 2px 14px;
+
+    &.is-missing .wk-label {
+      color: lighten($color-alert, 15%);
+    }
+
+    input,
+    select {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 2px 5px;
+      border: solid 1px rgba(255, 255, 255, .1);
+      background: rgba(0, 0, 0, .35);
+      color: $white;
+      font: inherit;
+    }
+
+    input.is-code {
+      color: $white-alt-1;
+    }
+  }
+
+  .is-missing input,
+  .is-missing select {
+    border-color: rgba($color-alert, .6);
+  }
+
+  .wk-field input {
+    font-weight: 600;
+  }
+
+  .wk-label {
+    flex: 0 0 auto;
+    max-width: 90px;
+    color: $white-alt-1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .wk-wired-hint {
+    flex: 1 1 auto;
+    height: 1px;
+    background: rgba(255, 255, 255, .1);
+  }
+
+  .wk-add {
+    padding-top: 0;
+  }
+
+  .wk-out-right {
+    justify-content: flex-end;
+    padding-right: 14px;
+  }
+
+  // pins
+  .wk-pin {
+    position: absolute;
+    z-index: 2;
+    cursor: crosshair;
+  }
+
+  .wk-data {
+    width: 11px;
+    height: 11px;
+    border: solid 2px rgba(255, 255, 255, .55);
+    border-radius: 50%;
+    background: $wk-node;
+
+    &.is-wired {
+      background: rgba(255, 255, 255, .55);
+    }
+
+    &:hover {
+      border-color: $primary;
+    }
+  }
+
+  .wk-data-in {
+    left: -6px;
+    top: 50%;
+    margin-top: -5.5px;
+  }
+
+  .wk-data-out {
+    right: -6px;
+    top: 50%;
+    margin-top: -5.5px;
+    background: rgba(255, 255, 255, .55);
+  }
+
+  .wk-exec {
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 9px solid $white;
+
+    &:hover {
+      border-top-color: $primary;
+    }
+  }
+
+  .wk-exec-in {
+    top: -5px;
+    left: 50%;
+    margin-left: -7px;
+  }
+
+  .wk-exec-out {
+    bottom: -10px;
+    left: 50%;
+    margin-left: -7px;
+  }
+
+  .wk-exec-out-right {
+    right: -8px;
+    top: 50%;
+    margin-top: -4px;
+    border-top: 7px solid transparent;
+    border-bottom: 7px solid transparent;
+    border-left: 9px solid $white;
+    border-right: none;
+
+    &:hover {
+      border-left-color: $primary;
+    }
+  }
+
+  // --- code view ------------------------------------------------------------------
+
+  .wk-code {
+    position: relative;
+    display: flex;
+    min-height: 0;
+    background: #121418;
+    font-family: $wk-mono;
+    font-size: 1.3rem;
+    line-height: 20px;
+  }
+
+  .wk-gutter {
+    flex: 0 0 auto;
+    width: 46px;
+    padding: 10px 0;
+    overflow: hidden;
+    border-right: solid 1px $wk-line;
+    text-align: right;
+    color: rgba(255, 255, 255, .3);
+    user-select: none;
+  }
+
+  .wk-gutter-line {
+    height: 20px;
+    padding-right: 8px;
+    cursor: pointer;
+
+    &.is-active {
+      color: $white;
+    }
+
+    &.has-error {
+      color: $black;
+      background: $color-alert;
+    }
+
+    &.has-warning {
+      box-shadow: inset 3px 0 0 $white-alt-1;
+    }
+  }
+
+  .wk-code-area {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .wk-highlight,
+  .wk-input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 10px 12px;
+    font: inherit;
+    line-height: 20px;
+    white-space: pre;
+    tab-size: 2;
+  }
+
+  .wk-highlight {
+    overflow: hidden;
+    color: $white-alt-1;
+    pointer-events: none;
+
+    code {
+      display: block;
+      min-height: 20px;
+      font: inherit;
+    }
+
+    .is-active {
+      background: rgba($primary, .1);
+    }
+
+    .has-error {
+      text-decoration: underline wavy rgba($color-alert, .8);
+    }
+  }
+
+  .wk-input {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    border: none;
+    outline: none;
+    resize: none;
+    background: transparent;
+    color: transparent;
+    caret-color: $white;
+  }
+
+  .hl-c { color: rgba(255, 255, 255, .38); font-style: italic; }
+  .hl-s { color: #d8d0b8; }
+  .hl-n { color: $white; }
+  .hl-k { color: $white; font-weight: 700; }
+  .hl-a { color: lighten($primary, 8%); }
+  .hl-w { color: #c9ced8; text-decoration: underline dotted rgba(255, 255, 255, .3); }
+  .hl-o { color: rgba(255, 255, 255, .55); }
+
+  // --- palette ----------------------------------------------------------------------
+
+  .wk-palette {
+    padding: 4px 10px 20px;
+  }
+
+  .wk-palette-search {
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border: solid 1px $wk-line;
+    background: rgba(0, 0, 0, .35);
+    color: $white;
+    font: inherit;
+  }
+
+  .wk-palette-head {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 6px 2px;
+    border: none;
+    border-bottom: solid 1px $wk-line;
+    background: none;
+    color: $white-alt-1;
+    font: inherit;
+    font-size: 1.15rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .wk-palette-count {
+    opacity: .5;
+  }
+
+  .wk-palette-items {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 0 8px;
+  }
+
+  .wk-palette-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 4px 8px;
+    border: solid 1px rgba(255, 255, 255, .08);
+    background: $wk-node;
+    color: $white;
+    font: inherit;
+    text-align: left;
+    cursor: grab;
+
+    &:hover {
+      border-color: rgba(255, 255, 255, .3);
+    }
+
+    &.tone-action {
+      box-shadow: inset 3px 0 0 $primary;
+    }
+
+    &.tone-event {
+      box-shadow: inset 3px 0 0 $white;
+    }
+
+    &.tone-world .wk-palette-hint {
+      font-family: $wk-mono;
+    }
+  }
+
+  .wk-palette-hint {
+    overflow: hidden;
+    color: $white-alt-2;
+    font-size: 1.1rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .wk-palette-empty {
+    opacity: .6;
+  }
+
+  // --- simulator ----------------------------------------------------------------------
+
+  .wk-sim {
+    padding: 10px 12px 20px;
+
+    h4 {
+      margin: 16px 0 6px;
+      font-size: 1.15rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      opacity: .7;
+    }
+  }
+
+  .wk-sim-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+
+    select {
+      margin-left: 4px;
+      padding: 3px 5px;
+      border: solid 1px $wk-line;
+      background: rgba(0, 0, 0, .35);
+      color: $white;
+      font: inherit;
+    }
+  }
+
+  .wk-sim-result {
+    padding: 10px;
+    border: solid 1px $wk-line;
+    background: rgba(255, 255, 255, .03);
+  }
+
+  .wk-sim-score {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+
+    strong {
+      font-size: 2.4rem;
+    }
+  }
+
+  .wk-sim-label,
+  .wk-sim-tie {
+    opacity: .7;
+  }
+
+  .wk-sim-end {
+    margin: 6px 0;
+  }
+
+  .wk-sim-chart {
+    width: 100%;
+    height: 70px;
+  }
+
+  .wk-sim-line {
+    fill: none;
+    stroke: $primary;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .wk-sim-end-mark {
+    stroke: $white;
+    stroke-dasharray: 3 3;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .wk-sim-result.is-stale {
+    opacity: .55;
+  }
+
+  .wk-sim-stale {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border-left: solid 3px $white-alt-1;
+    background: rgba(255, 255, 255, .05);
+    font-size: 1.2rem;
+  }
+
+  .wk-sim-series {
+    display: flex;
+    gap: 4px;
+    margin: 4px 0 6px;
+
+    button {
+      padding: 2px 7px;
+      border: solid 1px $wk-line;
+      background: none;
+      color: $white-alt-1;
+      font: inherit;
+      font-size: 1.1rem;
+      cursor: pointer;
+
+      &.is-active {
+        border-color: $primary;
+        color: $white;
+      }
+    }
+  }
+
+  .wk-sim-plot {
+    display: flex;
+    gap: 6px;
+  }
+
+  .wk-sim-y {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 44px;
+    padding-bottom: 16px;
+    font-size: 1.05rem;
+    text-align: right;
+    opacity: .6;
+  }
+
+  .wk-sim-canvas {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .wk-sim-x {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.05rem;
+    opacity: .6;
+  }
+
+  .wk-tl-handler {
+    color: $white-alt-1;
+    font-family: $wk-mono;
+    font-size: 1.1rem;
+  }
+
+  .wk-tl-warning {
+    color: lighten($color-alert, 10%);
+  }
+
+  .wk-tl-log {
+    opacity: .6;
+  }
+
+  .wk-timeline {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    button {
+      display: flex;
+      width: 100%;
+      padding: 3px 0;
+      border: none;
+      border-bottom: solid 1px rgba(255, 255, 255, .05);
+      background: none;
+      color: $white;
+      font: inherit;
+      font-size: 1.2rem;
+      text-align: left;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba(255, 255, 255, .04);
+      }
+    }
+  }
+
+  .wk-what {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .wk-pretend {
+    margin-top: 16px;
+
+    summary {
+      cursor: pointer;
+    }
+  }
+
+  .wk-pretend-row {
+    display: grid;
+    grid-template-columns: 54px 1fr 1fr auto;
+    gap: 4px;
+    margin-bottom: 4px;
+
+    input,
+    select {
+      min-width: 0;
+      padding: 2px 4px;
+      border: solid 1px $wk-line;
+      background: rgba(0, 0, 0, .35);
+      color: $white;
+      font: inherit;
+      font-size: 1.15rem;
+    }
+  }
+
+  .wk-assumptions {
+    margin-top: 14px;
+  }
+
+  // --- tour -----------------------------------------------------------------------------
+
+  .wk-tour {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+  }
+
+  .wk-tour-ring {
+    position: fixed;
+    border: solid 2px $primary;
+    border-radius: 6px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, .35);
+    transition: all .25s ease;
+  }
+
+  .wk-tour-card {
+    position: fixed;
+    padding: 14px 16px;
+    background: $grey-darker;
+    border: solid 1px rgba(255, 255, 255, .2);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, .7);
+    pointer-events: auto;
+
+    h3 {
+      margin: 0 0 6px;
+      font-size: 1.6rem;
+    }
+
+    p {
+      margin: 0 0 8px;
+      line-height: 1.45;
+    }
+  }
+
+  .wk-tour-count {
+    float: right;
+    opacity: .5;
+    font-size: 1.1rem;
+  }
+
+  .wk-tour-task {
+    padding: 5px 8px;
+    border-left: solid 3px $white-alt-2;
+    background: rgba(255, 255, 255, .04);
+
+    &.is-done {
+      border-left-color: $primary;
+    }
+  }
+
+  .wk-tour-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+}

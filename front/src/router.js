@@ -227,6 +227,11 @@ const router = new Router({
       // who still have to sign in
       beforeEnter: onlySignedInGuard,
     }, {
+      path: '/scenario-workshop',
+      component: () => import('@/portal/pages/ScenarioWorkshop.vue'),
+      meta: { titleKey: 'a11y_portal.route.scenario_workshop' },
+      beforeEnter: onlySignedInGuard,
+    }, {
       path: '/maintenance',
       component: () => import('@/portal/pages/Maintenance.vue'),
       meta: { titleKey: 'a11y_portal.route.maintenance' },

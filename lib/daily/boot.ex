@@ -80,11 +80,19 @@ defmodule Daily.Boot do
   def boot_persisted(profile, date \\ Daily.today())
 
   def boot_persisted(%Profile{} = profile, date) do
+    definition = Daily.definition_for(date)
+    boot_definition(profile, definition, "Daily Challenge — #{definition.date}")
+  end
+
+  @doc """
+  Boot a persisted single-player run from a day `definition` (as
+  `Daily.definition_for/1` returns, or as `Edict.Live` builds for a scenario
+  script) under the instance `name`. Same contract as `boot_persisted/2`.
+  """
+  def boot_definition(%Profile{} = profile, definition, name) do
     # Reap any of this player's still-live dailies first, so repeatedly
     # starting-then-abandoning runs can't pile up instances and DoS the server.
     reap_running_dailies(profile.id)
-
-    definition = Daily.definition_for(date)
 
     {:ok, scenario} =
       %RC.Scenarios.Scenario{}
@@ -96,8 +104,8 @@ defmodule Daily.Boot do
       |> RC.Repo.insert()
 
     instance_attrs = %{
-      "name" => "Daily Challenge — #{definition.date}",
-      "description" => "Daily challenge for #{definition.date}",
+      "name" => name,
+      "description" => name,
       "opening_date" => DateTime.to_iso8601(DateTime.utc_now()),
       "registration_type" => "pre_registration",
       "game_type" => "private",
@@ -179,6 +187,12 @@ defmodule Daily.Boot do
   inline would deadlock the victory tick on itself.
   """
   def finalize(instance_id) do
+    if Instance.Mutators.daily_scripted?(instance_id),
+      do: Edict.Live.finalize(instance_id),
+      else: finalize_daily(instance_id)
+  end
+
+  defp finalize_daily(instance_id) do
     Task.Supervisor.start_child(RC.TaskSupervisor, fn ->
       # Freeze first so the score we read next is the deadline value.
       Instance.Manager.call(instance_id, :stop)
@@ -236,8 +250,10 @@ defmodule Daily.Boot do
               :noop
           end
 
-          # Days with scripted opposition (Headhunter) start it with the clock.
+          # Days with scripted opposition (Headhunter) start it with the clock,
+          # and so does a scenario script's runner.
           Daily.Director.start(instance_id)
+          Edict.Live.start(instance_id)
 
           Logger.info("[daily] started instance #{instance_id} on client connect")
       end
@@ -469,26 +485,35 @@ defmodule Daily.Boot do
     objective = Instance.Mutators.daily_objective(instance_id)
     date = Instance.Mutators.daily_date(instance_id)
 
-    if is_binary(objective) and is_binary(date) do
-      stats =
-        Instance.Player.Player.get_stats(player)
-        |> Map.put(:stored_technology, trunc(player.technology.value))
-        |> Map.put(:stored_ideology, trunc(player.ideology.value))
-        # Dominion count for sector days (Hegemon). get_stats folds dominions
-        # into total_systems; the daily needs them counted on their own.
-        |> Map.put(:total_dominions, length(player.dominions))
-        # Owned-system count for conquest sector days (Siege Breaker) — excludes
-        # dominions, so vassalizing can't score a conquest day.
-        |> Map.put(:total_owned, length(player.stellar_systems))
-        # Puppet-faction days (Headhunter): the running assassination tally and
-        # the player's best Erased level (the Headhunter tiebreak).
-        |> Map.put(:agents_assassinated, Map.get(player, :agents_assassinated, 0))
-        |> Map.put(:best_agent_level, best_agent_level(player))
-
+    # a scenario script keeps its own score (Edict.Live); it never touches
+    # the daily leaderboard
+    if is_binary(objective) and is_binary(date) and not Instance.Mutators.daily_scripted?(instance_id) do
+      stats = score_stats(player)
       %{score: score, tiebreak: tiebreak} = Daily.Objective.evaluate(objective, stats, player)
       Daily.record_score(player.id, date, objective, score, tiebreak, instance_id)
       score
     end
+  end
+
+  @doc """
+  The stats map a daily objective is scored on: the player's `get_stats/1`
+  plus the counts only dailies need. Public so the scripted ports of the
+  objectives (test/edict/parity_test.exs) are checked against the real thing.
+  """
+  def score_stats(%Instance.Player.Player{} = player) do
+    Instance.Player.Player.get_stats(player)
+    |> Map.put(:stored_technology, trunc(player.technology.value))
+    |> Map.put(:stored_ideology, trunc(player.ideology.value))
+    # Dominion count for sector days (Hegemon). get_stats folds dominions
+    # into total_systems; the daily needs them counted on their own.
+    |> Map.put(:total_dominions, length(player.dominions))
+    # Owned-system count for conquest sector days (Siege Breaker) — excludes
+    # dominions, so vassalizing can't score a conquest day.
+    |> Map.put(:total_owned, length(player.stellar_systems))
+    # Puppet-faction days (Headhunter): the running assassination tally and
+    # the player's best Erased level (the Headhunter tiebreak).
+    |> Map.put(:agents_assassinated, Map.get(player, :agents_assassinated, 0))
+    |> Map.put(:best_agent_level, best_agent_level(player))
   end
 
   # Highest level among the player's Erased (spies) — the Headhunter tiebreak.
