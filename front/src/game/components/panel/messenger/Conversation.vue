@@ -201,12 +201,13 @@ export default {
         ? `${conversation.name} (${conversation.members.length})`
         : conversation.members.find((m) => m.iid !== this.profile.id).name;
     },
+    // rendered with v-html: the name is free text
     getPlayerTheme(name, pid) {
-      if (!pid) return name;
+      if (!pid) return this.$escape(name);
 
       const player = this.$store.state.game.galaxy.players[pid];
       const theme = this.$store.getters['game/themeByKey'](player.faction);
-      return `<span class="is-color-${theme}">${name}</span>`;
+      return `<span class="is-color-${theme}">${this.$escape(name)}</span>`;
     },
     openPlayer(playerId) {
       this.$store.dispatch('game/openPlayer', { vm: this, id: playerId });

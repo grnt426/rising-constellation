@@ -113,7 +113,7 @@
               :class="displayTileClass(i, j)"
               role="img"
               :aria-label="displayTooltip(i, j).replace(/<br>/g, ', ')"
-              v-tooltip.bottom="displayTooltip(i, j)">
+              v-tooltip.bottom="{ content: displayTooltip(i, j), html: true }">
               <svgicon
                 class="tile-icon is-rotated"
                 aria-hidden="true"

@@ -190,7 +190,7 @@
                   class="agent-plan-action"
                   :class="{ 'is-doomed': doomed.actions.has(action.uid) }"
                   :data-action-type="action.type"
-                  v-tooltip="compact ? null : actionTooltip(action)"
+                  v-tooltip="compact ? null : { content: actionTooltip(action), html: true }"
                   @click="compact && tapAction($event, row, action)">
                   <svgicon :name="`action/${action.type}`" />
                   <svgicon
@@ -215,7 +215,7 @@
               v-if="!compact && canEdit"
               name="close"
               class="agent-plan-remove"
-              v-tooltip="$t('galaxy.selection.plan.remove_stop')"
+              v-tooltip="{ content: $t('galaxy.selection.plan.remove_stop'), html: true }"
               @mouseenter.native="hover({ stopKey: row.stop.key }, $event)"
               @mouseleave.native="unhover"
               @mousedown.native="keepSelection"
@@ -485,13 +485,13 @@ export default {
     // The plan redraws itself, so an edit needs no announcement — except
     // a removed stop that is still on the way to the next one: the agent
     // keeps flying through it, which looks exactly like a removal that
-    // failed. That one is said (names escaped: a toast's text is HTML).
+    // failed. That one is said (a toast is text: names need no escaping).
     notify(summary) {
       summary.passThrough.forEach((p) => {
         this.$toasted.info(this.$t('galaxy.selection.plan.pass_through', {
-          system: this.$escape(this.systemName(p.target)),
-          next: this.$escape(this.systemName(p.on_way_to)),
-          agent: this.$escape(this.character.name),
+          system: this.systemName(p.target),
+          next: this.systemName(p.on_way_to),
+          agent: this.character.name,
         }), { duration: PASS_THROUGH_TOAST_MS, className: 'plan-pass-through-toast' });
       });
     },

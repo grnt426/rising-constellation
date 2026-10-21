@@ -52,7 +52,7 @@
             </template>
             <span
               v-else-if="event.type === 'faction'"
-              v-html="$t(`event.faction.${event.key}`, event.data)">
+              v-html="$thtml(`event.faction.${event.key}`, event.data)">
             </span>
             <span
               v-else-if="event.type === 'global' && event.key.startsWith('news.')"
@@ -60,7 +60,7 @@
             </span>
             <span
               v-else-if="event.type === 'global'"
-              v-html="$t(`event.global.${event.key}`, event.data)">
+              v-html="$thtml(`event.global.${event.key}`, event.data)">
             </span>
           </span>
           <span class="event-date">{{ event.inserted_at | datetime-long }}</span>

@@ -84,7 +84,7 @@
         </div>
         <div
           v-if="action.status === 'unavailable'"
-          v-tooltip="action.reasons"
+          v-tooltip="{ content: action.reasons, html: true }"
           class="actions-item is-disabled">
           <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
         </div>

@@ -5,10 +5,7 @@
     <div class="mpc-oi-header">
       <span class="mpc-oi-name">
         #{{ offer.id }}
-        <span
-          v-html="`<span class='is-color-${theme}'>${offer.profile.name}</span>`"
-          @click="openPlayer(offer.profile.id)">
-        </span>
+        <span @click="openPlayer(offer.profile.id)"><span :class="`is-color-${theme}`">{{ offer.profile.name }}</span></span>
       </span>
       <span class="mpc-oi-badges">
         <!-- agents: listed from the deck (no fleet, no location) or from
@@ -94,7 +91,7 @@
       <button
         v-if="button === 'buy'"
         @click="handelClick('buy')"
-        v-tooltip="isAvailable ? buyTooltip : $t('minipanel.market.agent_unavailable')"
+        v-tooltip="{ content: isAvailable ? buyTooltip : $t('minipanel.market.agent_unavailable'), html: true }"
         class="default-button"
         :disabled="clicked || !isAvailable">
         <div>{{ $t(`minipanel.market.take.${takeKey}`) }}</div>

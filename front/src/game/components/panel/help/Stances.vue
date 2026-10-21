@@ -15,7 +15,7 @@
             <th>
               <div
                 class="help-stances-icon"
-                v-tooltip.right="$t(`character_reaction.${row.reaction}`)">
+                v-tooltip.right="{ content: $t(`character_reaction.${row.reaction}`), html: true }">
                 <svgicon :name="`reaction/${row.reaction}`" />
               </div>
             </th>
