@@ -19,7 +19,8 @@ defmodule RC.Discord.Render.Style do
     cardan: "Cardan",
     myrmezir: "Myrmezir",
     synelle: "Synelectic Federation",
-    tetrarchy: "Tetrarchy"
+    tetrarchy: "Tetrarchy",
+    rebellion: "The Rebellion"
   }
 
   # Tight layouts (VP star rows) where the full Synelectic name collides
@@ -29,7 +30,8 @@ defmodule RC.Discord.Render.Style do
     cardan: "Cardan",
     myrmezir: "Myrmezir",
     synelle: "Synelectic",
-    tetrarchy: "Tetrarchy"
+    tetrarchy: "Tetrarchy",
+    rebellion: "Rebellion"
   }
 
   # SPA dark theme (front/src/styles/shared/variables.scss)
@@ -70,10 +72,12 @@ defmodule RC.Discord.Render.Style do
 
   def faction_name(_), do: "Neutral"
 
+  # Every catalog faction must render a string: a nil here reached
+  # String.upcase/1 in the VP strip and killed the i185 victory post.
   def faction_short_name(key) do
     case safe_faction_key(key) do
       nil -> "Neutral"
-      atom -> Map.get(@faction_short_names, atom)
+      atom -> Map.get(@faction_short_names, atom) || faction_name(atom)
     end
   end
 

@@ -437,6 +437,56 @@ defmodule RC.Discord.RenderCardsTest do
     assert victory =~ "FINAL STANDINGS"
   end
 
+  # i185 (Rebel Defense): the bot faction's row reached String.upcase(nil)
+  # in the VP strip and the victory post never went out.
+  test "victory card renders a Rebel Defense match with the Rebellion in the standings" do
+    data = %{
+      instance_name: "Broken Beyond",
+      winner: "myrmezir",
+      victory_type_label: "Victory track complete",
+      vp: %{
+        win_target: 14,
+        rows: [
+          %{faction: "myrmezir", vp: 14, gained: [14], lost: []},
+          %{faction: "rebellion", vp: 0, gained: [], lost: []}
+        ]
+      },
+      totals: [
+        %{faction: "myrmezir", systems: 61, dominions: 52, players: 11},
+        %{faction: "rebellion", systems: 40, dominions: 10, players: 1}
+      ]
+    }
+
+    for svg <- [Cards.victory(data), Cards.victory(data, t: 0.3)] do
+      assert_svg(svg)
+      assert svg =~ "MYRMEZIR CONQUERS THE GALAXY"
+      assert svg =~ ">REBELLION</text>"
+      assert svg =~ "The Rebellion</tspan>"
+    end
+  end
+
+  test "every catalog faction has a display name and a short name" do
+    alias RC.Discord.Render.Style
+
+    for %{key: key} <- Data.Game.Faction.Content.data() do
+      assert is_binary(Style.faction_short_name(key)), "#{key} has no short name"
+      assert Style.faction_name(key) != "Neutral", "#{key} has no display name"
+      assert RC.Discord.News.faction_name(Atom.to_string(key)) != Atom.to_string(key)
+    end
+  end
+
+  test "rasterize_gif/2 returns an error, not an exit, when a frame raises" do
+    alias RC.Discord.Render
+
+    result = Render.rasterize_gif(fn _t -> raise "broken frame" end, frames: 2, width: 100)
+
+    if Render.available?() do
+      assert {:error, {:frame, _i, %RuntimeError{message: "broken frame"}}} = result
+    else
+      assert {:error, :rasterizer_unavailable} = result
+    end
+  end
+
   test "player profile card renders stats, favorites, and the avatar embed" do
     data = %{
       name: "Alrua",

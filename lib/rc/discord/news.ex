@@ -58,7 +58,8 @@ defmodule RC.Discord.News do
     "cardan" => "Cardan",
     "myrmezir" => "Myrmezir",
     "synelle" => "Synelectic Federation",
-    "tetrarchy" => "Tetrarchy"
+    "tetrarchy" => "Tetrarchy",
+    "rebellion" => "The Rebellion"
   }
 
   # Map ownership changes — batched together per bucket. Sector-control

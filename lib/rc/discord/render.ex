@@ -87,6 +87,10 @@ defmodule RC.Discord.Render do
         File.mkdir_p!(dir)
 
         try do
+          # Workers are linked to the caller, so a raise (or a timeout
+          # exit) in one would kill the caller outright and skip its
+          # fallback — the i185 victory post died that way. Every frame
+          # failure comes back as an {:error, _} result instead.
           frame_results =
             0..(frames - 1)
             |> Task.async_stream(
@@ -94,16 +98,24 @@ defmodule RC.Discord.Render do
                 base = Path.join(dir, "frame_#{String.pad_leading(Integer.to_string(i), 3, "0")}")
                 png = base <> ".png"
 
-                case rasterize_to(backend, render_frame.(i / frames), base <> ".svg", png, width) do
-                  :ok -> {:ok, png}
-                  error -> {:error, {:frame, i, error}}
+                try do
+                  case rasterize_to(backend, render_frame.(i / frames), base <> ".svg", png, width) do
+                    :ok -> {:ok, png}
+                    error -> {:error, {:frame, i, error}}
+                  end
+                rescue
+                  e -> {:error, {:frame, i, e}}
                 end
               end,
               max_concurrency: concurrency,
               timeout: 120_000,
+              on_timeout: :kill_task,
               ordered: true
             )
-            |> Enum.map(fn {:ok, result} -> result end)
+            |> Enum.map(fn
+              {:ok, result} -> result
+              {:exit, reason} -> {:error, {:frame_exit, reason}}
+            end)
 
           with nil <- Enum.find(frame_results, &match?({:error, _}, &1)) do
             encode_gif(Enum.map(frame_results, fn {:ok, png} -> png end), delay)
