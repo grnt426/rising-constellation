@@ -164,7 +164,11 @@ test('steps group into a named function, which saves to the library', async ({ p
   await page.selectOption('.wk-new select', '__blank');
   await expect(page.locator('.wk-scenario-name')).toHaveText('My scenario');
   await page.locator('.wk-palette-search').fill('reward');
-  await page.locator('.wk-palette-item:has(.wk-palette-label:text-is("reward(amount)"))').first().click();
+  // a click shows its docs, a double-click adds it
+  const reward = page.locator('.wk-palette-item:has(.wk-palette-label:text-is("reward(amount)"))').first();
+  await reward.click();
+  await expect(page.locator('.wk-help .wk-doc-title').first()).toHaveText('reward');
+  await reward.dblclick();
   await expect(page.locator('.wk-frame-title', { hasText: 'fn reward(amount)' })).toBeVisible({ timeout: 10000 });
 });
 
@@ -417,7 +421,8 @@ test('editor kits download from the help tab', async ({ page }) => {
   await openWorkshop(page);
   await endTour(page);
   await fileMenu(page, 'Use your own editor');
-  await expect(page.locator('.wk-help h3', { hasText: 'Use your own editor' })).toBeVisible();
+  // the File menu opens the (collapsible) section
+  await expect(page.locator('.wk-help details[open] summary', { hasText: 'Use your own editor' })).toBeVisible();
 
   const vsix = await downloaded(page, () => page.locator('.wk-editor-kits button', { hasText: 'VS Code' }).click());
   expect(vsix.name).toMatch(/^edict-\d+\.\d+\.\d+\.vsix$/);
@@ -478,4 +483,120 @@ test('markup in a file never runs, wherever the workshop shows it', async ({ pag
   await page.waitForTimeout(1500);
 
   expect(await page.evaluate(() => window.pwned)).toEqual([]);
+});
+
+// --- help while writing ----------------------------------------------------------
+
+test('the code view suggests names, and the accept key is a setting', async ({ page }) => {
+  // Settings → Scenario editor: accept with Enter
+  const saved = () => page.waitForResponse((r) => r.url().includes('/accounts/settings') && r.request().method() === 'POST');
+  await page.goto('/portal/settings/scenario-editor');
+  await Promise.all([saved(), page.locator('label[for="scenario-accept-enter"]').click()]);
+  try {
+    await openWorkshop(page);
+    await endTour(page);
+    await setView(page, 'Code');
+    const input = page.locator('.wk-input');
+    await input.click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('on start {');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('noti');
+    await expect(page.locator('.wk-complete-item.is-active')).toContainText('notify');
+    await expect(page.locator('.wk-complete-hint')).toContainText('Enter to insert');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => codeText(page)).toContain('  notify(message)');
+
+    // fields after a dot, and the docs for the highlighted one
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('let c = player.inc');
+    await expect(page.locator('.wk-complete-item.is-active')).toContainText('income');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.wk-complete')).toHaveCount(0);
+
+    // Ctrl+Space opens the list with nothing typed
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Backspace');
+    await expect(page.locator('.wk-complete')).toHaveCount(0);
+    await page.keyboard.press('Control+Space');
+    await expect(page.locator('.wk-complete-item').first()).toContainText('agents');
+    await page.keyboard.press('Escape');
+  } finally {
+    await page.goto('/portal/settings/scenario-editor');
+    await Promise.all([saved(), page.locator('label[for="scenario-accept-tab"]').click()]);
+  }
+});
+
+test('docs show on hover, open on double-click, and the reference opens them at the top', async ({ page }) => {
+  await openWorkshop(page);
+  await endTour(page);
+
+  // the node list: a click shows the docs and adds nothing
+  const nodes = await page.locator('.wk-node').count();
+  await page.locator('.wk-palette-item:has(.wk-palette-label:text-is("take"))').click();
+  await expect(page.locator('.wk-help .wk-doc-title').first()).toHaveText('take');
+  expect(await page.locator('.wk-node').count()).toBe(nodes);
+
+  await node(page, 'give').locator('.wk-head').hover();
+  const card = page.locator('.wk-hover-card');
+  await expect(card).toContainText('give');
+  await expect(card).toContainText('How to write it');
+
+  await node(page, 'give').locator('.wk-head').dblclick();
+  const help = page.locator('.wk-help');
+  await expect(page.locator('.wk-tabs button.is-active')).toContainText('Help');
+  await expect(help.locator('.wk-doc-title').first()).toHaveText('give');
+  await expect(help).toContainText('What comes out');
+
+  // the reference: a name opens its entry at the top, scrolled into view
+  const operators = help.locator('details.wk-ref', { hasText: 'Operators' });
+  await operators.locator('summary').click();
+  await operators.locator('.wk-ref-item', { has: page.locator('.wk-ref-name:text-is("in")') }).click();
+  await expect(help.locator('.wk-doc-title').first()).toHaveText('in');
+  await expect(help.locator('.wk-doc').first()).toContainText('Examples');
+  expect(await page.evaluate(() => document.querySelector('.wk-right-scroll').scrollTop)).toBe(0);
+
+  // a mistyped world value says it isn't one
+  await setView(page, 'Both');
+  const source = await codeText(page);
+  await page.locator('.wk-input').fill(source.replace('score player.credit', 'score player.credt'));
+  await expect(page.locator('.wk-node.has-error')).toHaveCount(1, { timeout: 10000 });
+  await page.locator('.wk-node.has-error .wk-head').click();
+  await page.locator('.wk-tabs button', { hasText: 'Help' }).click();
+  await expect(help.locator('.wk-doc-unknown')).toContainText('something the game knows');
+});
+
+test('the quick add closes from its button, Escape or a click outside, and deleting offers Undo', async ({ page }) => {
+  await openWorkshop(page);
+  await endTour(page);
+  const canvas = page.locator('.wk-canvas');
+  const box = await canvas.boundingBox();
+  const empty = { x: box.x + 60, y: box.y + box.height - 60 };
+
+  await page.mouse.dblclick(empty.x, empty.y);
+  await expect(page.locator('.wk-quick')).toBeVisible();
+  await page.locator('.wk-quick-close').click();
+  await expect(page.locator('.wk-quick')).toHaveCount(0);
+
+  await page.mouse.dblclick(empty.x, empty.y);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.wk-quick')).toHaveCount(0);
+
+  await page.mouse.dblclick(empty.x, empty.y);
+  await page.mouse.dblclick(box.x + box.width - 80, box.y + 80);
+  await expect(page.locator('.wk-quick')).toHaveCount(0);
+
+  // deleting an event takes its steps; the toast says so and Undo brings them back
+  const before = await page.locator('.wk-node').count();
+  await page.locator('.wk-node.tone-event').filter({ hasText: 'every' }).locator('.wk-head').click();
+  await page.keyboard.press('Delete');
+  const toast = page.locator('.toasted').last();
+  await expect(toast).toContainText('Deleted every');
+  await expect(toast).toContainText('steps in it');
+  expect(await page.locator('.wk-node').count()).toBeLessThan(before);
+  await toast.locator('.action').click();
+  await expect(page.locator('.wk-node')).toHaveCount(before, { timeout: 10000 });
 });

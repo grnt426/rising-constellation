@@ -31,6 +31,18 @@ defmodule Edict.ExamplesTest do
     end
   end
 
+  test "the built-in library: one fn per file, named after it, that checks clean in a scenario" do
+    library = Edict.library()
+    assert Enum.map(library, & &1.name) == ~w(best escalate level_for_wave)
+
+    for %{name: name, doc: doc, source: source} <- library do
+      assert doc != "", name
+      %{program: program, diagnostics: diags} = Edict.analyze(source <> "\nscore 1\n")
+      assert [%{k: :fn, name: ^name}] = Enum.filter(program.decls, &(&1.k == :fn))
+      assert Enum.filter(diags, &(&1.severity == "error")) == [], "#{name}: #{inspect(diags)}"
+    end
+  end
+
   test "The Bequest simulates as designed: the fortune drains 5,000 a minute" do
     %{program: program} = Edict.analyze(Edict.example("the_bequest").source)
     {:ok, report} = Simulator.run(program)
@@ -51,7 +63,7 @@ defmodule Edict.ExamplesTest do
     assert dnf.result.score == 0.0
 
     {:ok, won} =
-      Simulator.run(program, pretend: [%{"at" => 1140, "path" => "player.patents", "value" => ["capital_1"]}])
+      Simulator.run(program, pretend: [%{"at" => 1140, "path" => "player.patents", "value" => ["armoring"]}])
 
     assert won.result.reason == "finished"
     assert won.result.ended_at == 1140.0

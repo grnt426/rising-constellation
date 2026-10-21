@@ -13,7 +13,8 @@ defmodule Edict.EditorKitTest do
     assert Enum.sort(c.keywords) == Enum.sort(Lexer.keywords())
     for kw <- Lexer.keywords(), do: assert(c.keyword_docs[kw], "no doc for #{kw}")
     for root <- Catalog.world_roots(), do: assert(c.root_docs[root], "no doc for #{root}")
-    assert "capital_1" in c.enums.patents
+    assert "armoring" in c.enums.patents
+    assert c.enums.patent_titles["armoring"] == "Armoring"
     assert Enum.all?(c.enums.mutators, &is_binary(&1.name))
     # it survives JSON
     assert {:ok, _} = c |> Jason.encode!() |> Jason.decode()
@@ -58,7 +59,7 @@ defmodule Edict.EditorKitTest do
   end
 
   test "the Notepad++ files are well formed, and auto-completion is sorted for its binary search" do
-    for xml <- [EditorKit.notepadpp_udl(), EditorKit.notepadpp_autocomplete()] do
+    for xml <- [EditorKit.notepadpp_udl(:light), EditorKit.notepadpp_udl(:dark), EditorKit.notepadpp_autocomplete()] do
       assert {_doc, _rest} = :xmerl_scan.string(String.to_charlist(xml), quiet: true)
     end
 
@@ -72,9 +73,18 @@ defmodule Edict.EditorKitTest do
     for name <- Catalog.builtin_names() ++ Catalog.action_names(), do: assert(name in names)
     assert "player.income.credit" in names
 
-    udl = EditorKit.notepadpp_udl()
+    udl = EditorKit.notepadpp_udl(:light)
     assert udl =~ ~s(ext="edict")
     for name <- Catalog.action_names(), do: assert(udl =~ name)
+
+    # keywords, builtins, actions and world roots each get a color; plain
+    # text follows the theme (colorStyle 0), so it reads on dark themes too
+    for style <- ~w(KEYWORDS1 KEYWORDS2 KEYWORDS3 KEYWORDS4 NUMBERS DELIMITERS1) do
+      assert udl =~ ~r/name="#{style}" fgColor="[0-9A-F]{6}" bgColor="FFFFFF" colorStyle="1"/
+    end
+
+    assert udl =~ ~s(name="DEFAULT" fgColor="000000" bgColor="FFFFFF" colorStyle="0")
+    assert EditorKit.notepadpp_udl(:dark) =~ ~s(darkModeTheme="yes")
   end
 
   test "downloads are built once and named by version" do

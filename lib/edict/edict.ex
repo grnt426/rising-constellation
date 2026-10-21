@@ -81,6 +81,29 @@ defmodule Edict do
     end)
   end
 
+  # Functions every author starts with in the workshop's library.
+  @library ~w(best escalate level_for_wave)
+
+  @doc """
+  The built-in function library: `%{name, doc, source}`, one `fn` per file
+  in `priv/edict/library`, its doc the comment above it.
+  """
+  def library do
+    dir = Application.app_dir(:rc, "priv/edict/library")
+
+    Enum.map(@library, fn name ->
+      source = File.read!(Path.join(dir, name <> ".edict"))
+
+      doc =
+        source
+        |> String.split("\n")
+        |> Enum.take_while(&String.starts_with?(&1, "#"))
+        |> Enum.map_join(" ", &String.trim_leading(&1, "# "))
+
+      %{name: name, doc: doc, source: source}
+    end)
+  end
+
   @doc "One example by key, or nil."
   def example(key), do: Enum.find(examples(), &(&1.key == key))
 

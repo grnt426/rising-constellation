@@ -56,12 +56,19 @@ defmodule Portal.EdictController do
 
   # GET /api/edict/catalog
   def catalog(conn, _params) do
-    json(conn, Map.put(Catalog.to_json(), :simulator, Simulator.assumptions()))
+    # plus what the code view's suggestions and the docs read (the same
+    # catalog the editor kits ship)
+    editor = Map.take(Edict.EditorKit.catalog(), [:keyword_docs, :root_docs, :enums, :docs])
+
+    json(conn, Catalog.to_json() |> Map.merge(editor) |> Map.put(:simulator, Simulator.assumptions()))
   end
 
   # GET /api/edict/examples
   def examples(conn, _params) do
-    json(conn, %{examples: Enum.map(Edict.examples(), &Map.take(&1, [:key, :title, :level, :port_of, :source]))})
+    json(conn, %{
+      examples: Enum.map(Edict.examples(), &Map.take(&1, [:key, :title, :level, :port_of, :source])),
+      library: Edict.library()
+    })
   end
 
   # GET /api/edict/editors/:kind  (vscode | kit | notepadpp)

@@ -84,7 +84,7 @@ defmodule Edict.EditorKit do
     "else" => "The other branch of an `if`.",
     "for" => "**for** *item* **in** *list* { … }: repeats the steps for each item of the list.",
     "in" =>
-      "In `for item in list`, the list to walk. As an operator, true when the left value is in the list, text or record on the right: `\"capital_1\" in player.patents`.",
+      "In `for item in list`, the list to walk. As an operator, true when the left value is in the list, text or record on the right: `\"armoring\" in player.patents`.",
     "while" =>
       "**while** *condition* { … }: repeats the steps while the condition is true. Every step costs fuel, so an endless loop is stopped.",
     "break" => "Leaves the loop.",
@@ -131,10 +131,12 @@ defmodule Edict.EditorKit do
       world: json.world,
       world_docs: json.world_docs,
       setup: json.setup,
+      docs: Edict.Docs.all(),
       enums: %{
         resources: Catalog.resources(),
         factions: Catalog.factions(),
-        patents: Enum.sort(Catalog.patent_keys()),
+        patents: Catalog.patent_names(),
+        patent_titles: Map.new(Catalog.patent_names(), &{&1, Catalog.patent_title(&1)}),
         mutators: Enum.map(json.mutators, &Map.take(&1, [:key, :name, :polarity, :description]))
       }
     }
@@ -339,44 +341,71 @@ defmodule Edict.EditorKit do
 
   # --- Notepad++ ---------------------------------------------------------------------------------
 
-  @doc "A Notepad++ user-defined language (Language > User Defined Language > Import)."
-  def notepadpp_udl do
+  # Colors per theme: {fg, fontStyle} (fontStyle 1 bold, 2 italic). nil
+  # leaves the style to the editor's theme (colorStyle 0), so plain text and
+  # operators read on light and dark backgrounds alike.
+  @udl_colors %{
+    light: %{
+      "COMMENTS" => {"008000", 2},
+      "LINE COMMENTS" => {"008000", 2},
+      "NUMBERS" => {"098658", 0},
+      # declarations and control words
+      "KEYWORDS1" => {"0000FF", 1},
+      # builtins
+      "KEYWORDS2" => {"795E26", 0},
+      # actions (they change the game)
+      "KEYWORDS3" => {"AF00DB", 1},
+      # world roots: time, player, rival, scenario
+      "KEYWORDS4" => {"001080", 1},
+      # true false nil and or not
+      "KEYWORDS5" => {"0000FF", 0},
+      "DELIMITERS1" => {"A31515", 0}
+    },
+    dark: %{
+      "COMMENTS" => {"6A9955", 2},
+      "LINE COMMENTS" => {"6A9955", 2},
+      "NUMBERS" => {"B5CEA8", 0},
+      "KEYWORDS1" => {"569CD6", 1},
+      "KEYWORDS2" => {"DCDCAA", 0},
+      "KEYWORDS3" => {"C586C0", 1},
+      "KEYWORDS4" => {"9CDCFE", 1},
+      "KEYWORDS5" => {"569CD6", 0},
+      "DELIMITERS1" => {"CE9178", 0}
+    }
+  }
+
+  @udl_styles ~w(DEFAULT COMMENTS) ++
+                ["LINE COMMENTS", "NUMBERS"] ++
+                Enum.map(1..8, &"KEYWORDS#{&1}") ++
+                ["OPERATORS", "FOLDER IN CODE1", "FOLDER IN CODE2", "FOLDER IN COMMENT"] ++
+                Enum.map(1..8, &"DELIMITERS#{&1}")
+
+  @doc """
+  A Notepad++ user-defined language (Language > User Defined Language >
+  Import), for a light (`:light`) or dark (`:dark`) theme. Both are named
+  "Edict", so the one auto-completion file serves either.
+  """
+  def notepadpp_udl(theme \\ :light) do
+    colors = Map.fetch!(@udl_colors, theme)
+
     styles =
-      [
-        {"DEFAULT", "000000", 0},
-        {"COMMENTS", "008000", 0},
-        {"LINE COMMENTS", "008000", 0},
-        {"NUMBERS", "098658", 0},
-        {"KEYWORDS1", "0000FF", 1},
-        {"KEYWORDS2", "795E26", 0},
-        {"KEYWORDS3", "AF00DB", 1},
-        {"KEYWORDS4", "001080", 1},
-        {"KEYWORDS5", "0000FF", 0},
-        {"KEYWORDS6", "000000", 0},
-        {"KEYWORDS7", "000000", 0},
-        {"KEYWORDS8", "000000", 0},
-        {"OPERATORS", "000000", 0},
-        {"FOLDER IN CODE1", "000000", 0},
-        {"FOLDER IN CODE2", "000000", 0},
-        {"FOLDER IN COMMENT", "000000", 0},
-        {"DELIMITERS1", "A31515", 0},
-        {"DELIMITERS2", "000000", 0},
-        {"DELIMITERS3", "000000", 0},
-        {"DELIMITERS4", "000000", 0},
-        {"DELIMITERS5", "000000", 0},
-        {"DELIMITERS6", "000000", 0},
-        {"DELIMITERS7", "000000", 0},
-        {"DELIMITERS8", "000000", 0}
-      ]
-      |> Enum.map_join("\n", fn {name, fg, bold} ->
-        # colorStyle 1: the foreground only, so dark themes keep their background
-        ~s(            <WordsStyle name="#{name}" fgColor="#{fg}" bgColor="FFFFFF" colorStyle="1" fontName="" fontStyle="#{bold}" nesting="0" />)
+      Enum.map_join(@udl_styles, "\n", fn name ->
+        case Map.get(colors, name) do
+          # colorStyle 1: this foreground on the theme's own background
+          {fg, font} ->
+            ~s(            <WordsStyle name="#{name}" fgColor="#{fg}" bgColor="FFFFFF" colorStyle="1" fontName="" fontStyle="#{font}" nesting="0" />)
+
+          nil ->
+            ~s(            <WordsStyle name="#{name}" fgColor="000000" bgColor="FFFFFF" colorStyle="0" fontName="" fontStyle="0" nesting="0" />)
+        end
       end)
+
+    dark = if theme == :dark, do: ~s( darkModeTheme="yes"), else: ""
 
     keywords = fn list -> list |> Enum.sort() |> Enum.join(" ") |> xml() end
 
     lists = [
-      {"Comments", "00# 01 02 03 04"},
+      {"Comments", "00# 01 02((EOL)) 03 04"},
       {"Numbers, prefix1", ""},
       {"Numbers, prefix2", ""},
       {"Numbers, extras1", "_"},
@@ -413,7 +442,7 @@ defmodule Edict.EditorKit do
     <?xml version="1.0" encoding="UTF-8" ?>
     <!-- Edict (Tetrarchy Falls scenarios) #{version()}, generated by the game. -->
     <NotepadPlus>
-        <UserLang name="Edict" ext="edict" udlVersion="2.1">
+        <UserLang name="Edict" ext="edict" udlVersion="2.1"#{dark}>
             <Settings>
                 <Global caseIgnored="no" allowFoldOfComments="no" foldCompact="no" forcePureLC="0" decimalSeparator="0" />
                 <Prefix Keywords1="no" Keywords2="no" Keywords3="no" Keywords4="no" Keywords5="no" Keywords6="no" Keywords7="no" Keywords8="no" />
@@ -563,7 +592,8 @@ defmodule Edict.EditorKit do
   @doc "The Notepad++ files: the language and its auto-completion."
   def notepadpp_files do
     [
-      {"notepad++/Edict.xml", notepadpp_udl()},
+      {"notepad++/Edict.xml", notepadpp_udl(:light)},
+      {"notepad++/dark/Edict.xml", notepadpp_udl(:dark)},
       {"notepad++/autoCompletion/Edict.xml", notepadpp_autocomplete()}
     ]
   end

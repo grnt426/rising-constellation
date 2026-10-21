@@ -15,6 +15,8 @@ const catalog = require(path.join(kit, 'lsp/catalog.json'));
 const examplesDir = process.env.EDICT_EXAMPLES;
 
 const edict = createEdict(catalog);
+// the same engine without the docs entries: the signature-based hovers
+const bare = createEdict({ ...catalog, docs: {} });
 
 // `|` marks the cursor
 function at(src) {
@@ -24,6 +26,10 @@ function at(src) {
 const complete = (src) => edict.complete(...at(src));
 const labels = (src) => complete(src).items.map((i) => i.label);
 const hover = (src) => {
+  const h = bare.hover(...at(src));
+  return h && h.md;
+};
+const docsHover = (src) => {
   const h = edict.hover(...at(src));
   return h && h.md;
 };
@@ -35,7 +41,7 @@ test('top level offers the parts of a scenario', () => {
 });
 
 test('setup offers the fields not set yet, as snippets', () => {
-  const r = complete('setup {\n  name = "x"\n  |\n  patent_discounts = {capital_1: 20%}\n}');
+  const r = complete('setup {\n  name = "x"\n  |\n  patent_discounts = {armoring: 20%}\n}');
   const l = r.items.map((i) => i.label);
   assert.ok(l.includes('time_limit'));
   assert.ok(!l.includes('name'));
@@ -59,11 +65,11 @@ test('text offers the values its place takes', () => {
   assert.deepStrictEqual(labels('on start {\n  give("|")\n}'), catalog.enums.resources);
   assert.deepStrictEqual(labels('on start {\n  notify("hi", tone: "|")\n}'), ['info', 'good', 'warning']);
   assert.deepStrictEqual(labels('setup {\n  faction = "|"\n}'), catalog.enums.factions);
-  assert.ok(labels('setup {\n  grant_patents = ["|"]\n}').includes('capital_1'));
+  assert.ok(labels('setup {\n  grant_patents = ["|"]\n}').includes('armoring'));
   assert.ok(labels('setup {\n  mutators = ["|"]\n}').includes(catalog.enums.mutators[0].key));
-  assert.ok(labels('when "|" in player.patents {\n}').includes('capital_1'));
+  assert.ok(labels('when "|" in player.patents {\n}').includes('armoring'));
   assert.deepStrictEqual(labels('score count(player.agents, a => a.type == "|")'), ['navarch', 'siderian', 'erased']);
-  assert.ok(labels('setup {\n  patent_discounts = {|}\n}').includes('capital_1'));
+  assert.ok(labels('setup {\n  patent_discounts = {|}\n}').includes('armoring'));
 });
 
 test('a hole in text completes like code, with the names in scope', () => {
@@ -114,6 +120,28 @@ test('a function comment shows as plain text in hovers, never as links, images o
   assert.ok(md.includes('\\<img src=x onerror=1\\>'), md);
   const sigDoc = edict.signature(...at('# a [link](https://evil.example)\nfn helper(x) {\n  return x\n}\nscore helper(|')).doc;
   assert.ok(!/\]\(/.test(sigDoc.replace(/\\\]\\\(/g, '')), sigDoc);
+});
+
+test('with the docs, hovers show the full entry: how to write it, inputs, what comes out, examples', () => {
+  const md = docsHover('on start {\n  gi|ve("credit", 5)\n}');
+  assert.match(md, /^\*\*give\*\* · action/);
+  assert.match(md, /give\(resource, amount\)/);
+  assert.match(md, /- `resource`: /);
+  assert.match(md, /Gives: /);
+  assert.match(docsHover('ev|ery 15s {}'), /15s/);
+  assert.match(docsHover('when "armoring" i|n player.patents {\n}'), /\*\*in\*\*/);
+  assert.match(docsHover('score player.pat|ents'), /armoring/);
+  // which entry the cursor is on
+  const key = (src) => (edict.docKey(...at(src)) || {}).key;
+  assert.strictEqual(key('on start {\n  gi|ve("credit", 5)\n}'), 'action:give');
+  assert.strictEqual(key('o|n end {}'), 'event:on_end');
+  assert.strictEqual(key('score 1 |+ 2'), 'operator:+');
+  assert.strictEqual(key('score |-1'), 'operator:negate');
+  assert.strictEqual(key('on start {\n  for s i|n player.systems {\n  }\n}'), 'keyword:in');
+  assert.strictEqual(key('on start {\n  for s in player.systems {\n    log(s.popu|lation)\n  }\n}'), 'world:player.systems[].population');
+  assert.strictEqual(key('setup {\n  time_li|mit = 20m\n}'), 'setup:time_limit');
+  assert.strictEqual(key('fn f() {\n  return 1\n}\nscore |f()'), 'fn:f');
+  ['builtin:sum', 'action:notify', 'event:every', 'operator:in', 'keyword:let', 'setup:rival', 'world:time.left'].forEach((k) => assert.ok(catalog.docs[k], k));
 });
 
 test('signature help tracks the argument being typed', () => {

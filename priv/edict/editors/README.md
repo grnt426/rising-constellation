@@ -52,11 +52,14 @@ later):
 
 ## Notepad++
 
-Highlighting:
+Highlighting (keywords and actions in bold, builtins, world values,
+numbers and text in their own colors, comments in italics):
 
 1. **Language > User Defined Language > Define your language...**, click
-   **Import...** and pick `notepad++/Edict.xml`.
-2. Restart Notepad++. `.edict` files open as Edict.
+   **Import...** and pick `notepad++/Edict.xml`, or `notepad++/dark/Edict.xml`
+   if you use a dark theme (Settings > Preferences > Dark Mode).
+2. Restart Notepad++. `.edict` files open as Edict; for a file with another
+   name, choose **Language > Edict**.
 
 Completion with call tips:
 

@@ -266,12 +266,21 @@ defmodule Edict.Printer do
   end
 
   @doc false
-  def plain(v) when is_float(v) do
+  # A number as source code: 100_000_000.
+  def plain(v) when is_float(v), do: format_number(v, true)
+  def plain(v) when is_integer(v), do: plain(v / 1)
+
+  @doc false
+  # A number as a script's text shows it to players: 100000000 (scripts use
+  # fmt_number for 100,000,000).
+  def text(v) when is_number(v), do: format_number(v / 1, false)
+
+  defp format_number(v, grouped?) do
     rounded = Float.round(v)
 
     if v == rounded and abs(v) <= 1.0e15 do
       n = trunc(v)
-      if abs(n) >= 10_000, do: group(n), else: Integer.to_string(n)
+      if grouped? and abs(n) >= 10_000, do: group(n), else: Integer.to_string(n)
     else
       # the lexer reads no exponents, so never print one
       short = :erlang.float_to_binary(v, [:short])
@@ -283,8 +292,6 @@ defmodule Edict.Printer do
       end
     end
   end
-
-  def plain(v) when is_integer(v), do: plain(v / 1)
 
   # 100000000 -> 100_000_000
   defp group(n) when n < 0, do: "-" <> group(-n)

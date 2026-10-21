@@ -9,7 +9,7 @@ defmodule Edict.Simulator do
   top (`give`, `take`, `destabilize`, `send_agent`). It plays no actual game;
   what it answers is "what does my script do, when, and does it break?".
   Authors can bend the model with **pretend** entries ("at 15:00,
-  player.patents is [\"capital_1\"]") to test goals the model never reaches
+  player.patents is [\"armoring\"]") to test goals the model never reaches
   on its own.
 
   The simulator drives the real runtime (`Edict.Runtime`), pulse by pulse,

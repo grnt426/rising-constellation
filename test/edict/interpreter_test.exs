@@ -95,6 +95,10 @@ defmodule Edict.InterpreterTest do
       assert value!("fmt_number(1250000)") == "1,250,000"
       assert value!("fmt_time(185)") == "3:05"
       assert value!(~s|join(["a", "b"], "-")|) == "a-b"
+      # big numbers read as players expect in text (the source writes 12_500)
+      assert value!(~s("{12_500} credits")) == "12500 credits"
+      assert value!("str(1_250_000)") == "1250000"
+      assert value!(~s("total: " + 2.5)) == "total: 2.5"
     end
 
     test "text has a size cap" do

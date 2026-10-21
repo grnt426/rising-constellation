@@ -16,8 +16,8 @@ defmodule Edict.LiveTest do
   setup {
     name = "Live test"
     time_limit = 10m
-    grant_patents = ["shipyard_2"]
-    patent_discounts = {capital_1: 20%}
+    grant_patents = ["precision_cranes"]
+    patent_discounts = {armoring: 20%}
     rival = true
   }
 

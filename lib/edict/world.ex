@@ -53,7 +53,8 @@ defmodule Edict.World do
         "dominions" => f(length(dominions)),
         "population" => f(Enum.reduce(systems ++ dominions, 0, &(num(get(&1, :workforce, 0)) + &2))),
         "agents" => player |> get(:characters, []) |> Enum.map(&agent/1),
-        "patents" => player |> get(:patents, []) |> Enum.map(&text/1),
+        # by the names scripts use ("armoring"), not the engine's keys
+        "patents" => player |> get(:patents, []) |> Enum.map(&patent_name/1),
         "wonders" => player |> get(:wonders_built, []) |> Enum.map(&text/1),
         "agents_removed" => f(get(player, :agents_assassinated, 0))
       },
@@ -130,6 +131,11 @@ defmodule Edict.World do
       %{change: c} -> f(c)
       _ -> 0.0
     end
+  end
+
+  defp patent_name(key) do
+    key = text(key)
+    Edict.Catalog.patent_name(key) || key
   end
 
   defp get(map, key, default) when is_map(map), do: Map.get(map, key, default)

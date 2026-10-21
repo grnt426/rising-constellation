@@ -13,6 +13,10 @@
     <router-link to="/settings/crosshair">
       {{ $t('page.settings.nav.crosshair') }}
     </router-link>
+
+    <router-link to="/settings/scenario-editor">
+      {{ $t('page.settings.nav.scenario_editor') }}
+    </router-link>
   </nav>
 </template>
 

@@ -1,0 +1,5 @@
+# A level drawn from 1 up to a top that climbs a level and a half every two minutes of the run.
+fn level_for_wave(wave) {
+  let top = 3 + floor(time.elapsed / 120) * 1.5
+  return 1 + floor(random("level", wave) * floor(top))
+}

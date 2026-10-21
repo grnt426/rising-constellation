@@ -60,7 +60,9 @@
         @expand="$emit('expand', $event)"
         @fix="$emit('fix', $event)"
         @delete-node="$emit('delete-node', $event)"
-        @focus-doc="$emit('focus-doc', $event)" />
+        @focus-doc="$emit('focus-doc', $event)"
+        @hover-doc="$emit('hover-doc', $event)"
+        @hover-end="$emit('hover-end')" />
     </div>
 
     <div

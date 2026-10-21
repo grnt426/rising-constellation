@@ -22,7 +22,8 @@
               :catalog="catalog"
               :user-fns="userFns"
               :library="library"
-              @add="addItem($event)" />
+              @add="addItem($event)"
+              @inspect="openDoc(paletteDocKey($event))" />
           </v-scrollbar>
         </aside>
 
@@ -145,7 +146,9 @@
               @drop-item="onDropItem"
               @fix="applyFix"
               @delete-node="deleteNode"
-              @focus-doc="inspect = $event.id" />
+              @focus-doc="showDocFor($event.id)"
+              @hover-doc="onNodeHover"
+              @hover-end="onNodeHoverEnd" />
             <code-editor
               v-if="view !== 'nodes'"
               ref="code"
@@ -155,9 +158,22 @@
               :diagnostics="diagnostics"
               :active-line="activeLine"
               :actions="catalog.actions.map((a) => a.name)"
+              :assist="assist"
+              :settings="editorSettings"
+              @doc="onCodeDoc"
               @input="onSourceInput"
               @caret="onCaret"
               @line="onCaret" />
+          </div>
+
+          <div
+            v-if="hoverDoc"
+            class="wk-hover-card"
+            :style="{ left: `${hoverDoc.x}px`, top: `${hoverDoc.y}px` }">
+            <doc-card
+              :doc="hoverDoc.doc"
+              :docs="allDocs"
+              compact />
           </div>
 
           <div
@@ -177,18 +193,25 @@
 
           <div
             v-if="quickAdd"
+            ref="quickBox"
             class="wk-quick"
             :style="{ left: `${quickAdd.client.x}px`, top: `${quickAdd.client.y}px` }">
+            <div class="wk-quick-head">
+              <span>{{ $t('page.scenario_workshop.quick_add') }}</span>
+              <button
+                type="button"
+                class="wk-quick-close"
+                :title="$t('page.scenario_workshop.close')"
+                :aria-label="$t('page.scenario_workshop.close')"
+                @click="closeQuickAdd">×</button>
+            </div>
             <palette
               ref="quick"
               :catalog="catalog"
               :user-fns="userFns"
               :library="library"
-              @add="addItem($event, quickAdd.at, quickAdd.connect); quickAdd = null" />
-            <button
-              type="button"
-              class="wk-mini"
-              @click="quickAdd = null">{{ $t('page.scenario_workshop.close') }}</button>
+              click-adds
+              @add="addItem($event, quickAdd.at, quickAdd.connect); closeQuickAdd()" />
           </div>
         </section>
 
@@ -265,74 +288,70 @@
             <div
               v-else
               class="wk-help">
-              <template v-if="inspected">
-                <h3>{{ inspected.title }}</h3>
-                <p v-if="inspected.doc">{{ inspected.doc }}</p>
-                <p
-                  v-if="inspected.problem"
-                  class="wk-problem-row"
-                  :class="`is-${inspected.problem.severity}`">{{ inspected.problem.message }}</p>
-                <hr>
-              </template>
-              <h3>{{ $t('page.scenario_workshop.help_title') }}</h3>
-              <p>{{ $t('page.scenario_workshop.help_intro') }}</p>
-              <ul class="wk-help-list">
-                <li>{{ $t('page.scenario_workshop.help_wires') }}</li>
-                <li>{{ $t('page.scenario_workshop.help_values') }}</li>
-                <li>{{ $t('page.scenario_workshop.help_code') }}</li>
-                <li>{{ $t('page.scenario_workshop.help_group') }}</li>
-                <li>{{ $t('page.scenario_workshop.help_keys') }}</li>
-              </ul>
+              <doc-card
+                v-if="helpDoc"
+                :doc="helpDoc"
+                :docs="allDocs"
+                @open="openDoc" />
+              <p
+                v-else
+                class="wk-muted wk-doc-empty">{{ $t('page.scenario_workshop.doc_empty') }}</p>
 
-              <h3 ref="editorsHelp">{{ $t('page.scenario_workshop.editors_title') }}</h3>
-              <p>{{ $t('page.scenario_workshop.editors_intro') }}</p>
-              <div class="wk-editor-kits">
-                <button
-                  v-for="k in editorKits"
-                  :key="k.kind"
-                  type="button"
-                  class="wk-mini"
-                  :disabled="downloading === k.kind"
-                  @click="downloadKit(k)">{{ $t(`page.scenario_workshop.editors_${k.kind}`) }}</button>
-              </div>
-              <p class="wk-muted">{{ $t(canLink ? 'page.scenario_workshop.editors_link' : 'page.scenario_workshop.editors_open') }}</p>
+              <details
+                class="wk-help-section"
+                :open="helpOpen.how"
+                @toggle="onHelpToggle('how', $event)">
+                <summary>{{ $t('page.scenario_workshop.help_title') }}</summary>
+                <p>{{ $t('page.scenario_workshop.help_intro') }}</p>
+                <ul class="wk-help-list">
+                  <li>{{ $t('page.scenario_workshop.help_wires') }}</li>
+                  <li>{{ $t('page.scenario_workshop.help_values') }}</li>
+                  <li>{{ $t('page.scenario_workshop.help_code') }}</li>
+                  <li>{{ $t('page.scenario_workshop.help_group') }}</li>
+                  <li>{{ $t('page.scenario_workshop.help_keys') }}</li>
+                </ul>
+              </details>
 
-              <h3>{{ $t('page.scenario_workshop.reference_title') }}</h3>
-              <details class="wk-ref">
-                <summary>{{ $t('page.scenario_workshop.reference_setup') }}</summary>
-                <dl>
-                  <template v-for="f in catalog.setup">
-                    <dt :key="`sd-${f.name}`">{{ f.name }}</dt>
-                    <dd :key="`sv-${f.name}`">{{ f.doc }}</dd>
-                  </template>
-                </dl>
+              <details
+                ref="editorsHelp"
+                class="wk-help-section"
+                :open="helpOpen.editors"
+                @toggle="onHelpToggle('editors', $event)">
+                <summary>{{ $t('page.scenario_workshop.editors_title') }}</summary>
+                <p>{{ $t('page.scenario_workshop.editors_intro') }}</p>
+                <div class="wk-editor-kits">
+                  <button
+                    v-for="k in editorKits"
+                    :key="k.kind"
+                    type="button"
+                    class="wk-mini"
+                    :disabled="downloading === k.kind"
+                    @click="downloadKit(k)">{{ $t(`page.scenario_workshop.editors_${k.kind}`) }}</button>
+                </div>
+                <p class="wk-muted">{{ $t(canLink ? 'page.scenario_workshop.editors_link' : 'page.scenario_workshop.editors_open') }}</p>
               </details>
-              <details class="wk-ref">
-                <summary>{{ $t('page.scenario_workshop.reference_world') }}</summary>
-                <dl>
-                  <template v-for="(doc, path) in catalog.world_docs">
-                    <dt :key="`wd-${path}`">{{ path }}</dt>
-                    <dd :key="`wv-${path}`">{{ doc }}</dd>
-                  </template>
-                </dl>
-              </details>
-              <details class="wk-ref">
-                <summary>{{ $t('page.scenario_workshop.reference_actions') }}</summary>
-                <dl>
-                  <template v-for="a in catalog.actions">
-                    <dt :key="`ad-${a.name}`">{{ a.name }}({{ [...a.params.map((p) => p.name), ...a.named.map((p) => `${p.name}:`)].join(', ') }})</dt>
-                    <dd :key="`av-${a.name}`">{{ a.doc }}</dd>
-                  </template>
-                </dl>
-              </details>
-              <details class="wk-ref">
-                <summary>{{ $t('page.scenario_workshop.reference_builtins') }}</summary>
-                <dl>
-                  <template v-for="b in catalog.builtins">
-                    <dt :key="`bd-${b.name}`">{{ b.name }}({{ b.params.map((p) => (p.rest ? `${p.name}…` : p.name)).join(', ') }})</dt>
-                    <dd :key="`bv-${b.name}`">{{ b.doc }}</dd>
-                  </template>
-                </dl>
+
+              <h3 class="wk-ref-title">{{ $t('page.scenario_workshop.reference_title') }}</h3>
+              <p class="wk-muted">{{ $t('page.scenario_workshop.reference_hint') }}</p>
+              <details
+                v-for="group in reference"
+                :key="group.label"
+                class="wk-ref">
+                <summary>{{ $t(`page.scenario_workshop.${group.label}`) }} ({{ group.items.length }})</summary>
+                <ul class="wk-ref-list">
+                  <li
+                    v-for="item in group.items"
+                    :key="item.key">
+                    <button
+                      type="button"
+                      class="wk-ref-item"
+                      :class="{ 'is-active': docPin === item.key }"
+                      @click="openDoc(item.key)">
+                      <span class="wk-ref-name">{{ item.title }}</span>
+                      <span class="wk-ref-summary">{{ item.summary }}</span>
+                    </button>
+                  </li>
+                </ul>
               </details>
             </div>
           </v-scrollbar>
@@ -388,6 +407,11 @@ import {
 import { buildGraph } from '@/portal/workshop/graph';
 import GraphCanvas from '@/portal/workshop/GraphCanvas.vue';
 import CodeEditor from '@/portal/workshop/CodeEditor.vue';
+import DocCard from '@/portal/workshop/DocCard.vue';
+import {
+  fallbackDocs, nodeDocKey, paletteDocKey, referenceGroups,
+} from '@/portal/workshop/docs';
+import { createEdict } from 'edict-editors/core';
 import Palette, { worldPaths } from '@/portal/workshop/Palette.vue';
 import SimPanel from '@/portal/workshop/SimPanel.vue';
 import WorkshopTour from '@/portal/workshop/Tour.vue';
@@ -396,6 +420,7 @@ const WORKSPACE_KEY = 'edict.workspace.v1';
 const LIBRARY_KEY = 'edict.library.v1';
 const TOUR_KEY = 'edict.tour.v1';
 const VIEW_KEY = 'edict.view.v1';
+const HELP_KEY = 'edict.help.v1';
 
 // editor support, generated by the server from the catalog (Edict.EditorKit)
 const EDITOR_KITS = [
@@ -416,27 +441,14 @@ const TEMPLATES = {
   },
 };
 
-// Functions every author starts with, written in Edict itself.
-const BUILTIN_LIBRARY = [
-  {
-    name: 'best',
-    builtin: true,
-    doc: 'The largest number in a list, or 0 when the list is empty.',
-    source: '# The largest number in a list, or 0 when the list is empty.\nfn best(list) {\n  return max([0] + list)\n}\n',
-  },
-  {
-    name: 'escalate',
-    builtin: true,
-    doc: 'A value that grows by step each time: escalate(100, 50, 3) is 200.',
-    source: '# A value that grows by step each time: escalate(100, 50, 3) is 200.\nfn escalate(base, step, n) {\n  return base + step * (n - 1)\n}\n',
-  },
-  {
-    name: 'level_for_wave',
-    builtin: true,
-    doc: 'A level drawn from 1 up to a top that climbs a level and a half every two minutes of the run (the Headhunter band).',
-    source: '# A level drawn from 1 up to a top that climbs a level and a half every two minutes of the run.\nfn level_for_wave(wave) {\n  let top = 3 + floor(time.elapsed / 120) * 1.5\n  return 1 + floor(random("level", wave) * floor(top))\n}\n',
-  },
-];
+
+// the steps inside a node: an event's whole chain, an if's branches
+function countSteps(node) {
+  if (!node || typeof node !== 'object') return 0;
+  return ['body', 'then', 'else'].reduce((n, f) => n + (Array.isArray(node[f])
+    ? node[f].reduce((m, step) => m + (step.k === 'note' ? 0 : 1) + countSteps(step), 0)
+    : 0), 0);
+}
 
 function storage(key, value) {
   try {
@@ -451,7 +463,7 @@ function storage(key, value) {
 export default {
   name: 'scenario-workshop',
   components: {
-    DefaultLayout, GraphCanvas, CodeEditor, Palette, SimPanel, WorkshopTour,
+    DefaultLayout, GraphCanvas, CodeEditor, DocCard, Palette, SimPanel, WorkshopTour,
   },
   data() {
     return {
@@ -474,7 +486,19 @@ export default {
       tab: 'simulate',
       menu: null,
       quickAdd: null,
+      quickAddClosedAt: 0,
+      // the language engine (completion, docs under the caret): frozen, so
+      // Vue leaves its tables alone
+      assist: null,
+      // docs chosen from the reference or a see-also link; the selected node
+      // or the code under the caret otherwise
+      docPin: null,
+      codeDocKey: null,
+      hoverDoc: null,
+      hoverTimer: null,
+      helpOpen: { how: true, editors: false, ...(storage(HELP_KEY) || {}) },
       library: [],
+      builtinLibrary: [],
       activeLine: null,
       sim: {
         report: null, failure: null, running: false, pace: 'typical', auto: false, pretend: [], ranOn: null,
@@ -512,6 +536,20 @@ export default {
       return row && row.expr.k === 'str' ? row.expr.v : this.$t('page.scenario_workshop.untitled');
     },
     errorCount() { return this.diagnostics.filter((d) => d.severity === 'error').length; },
+    editorSettings() { return this.$store.getters['portal/scenarioEditor']; },
+    // the docs: the language's entries over ones made from the catalog
+    allDocs() { return this.catalog ? { ...fallbackDocs(this.catalog), ...(this.catalog.docs || {}) } : {}; },
+    reference() { return referenceGroups(this.allDocs); },
+    // what the Help tab explains: a pinned entry, else the selected node,
+    // else (in the code view) the name under the caret
+    helpDoc() {
+      if (this.docPin) return this.docFor(this.docPin);
+      const id = this.inspect || this.selection[0];
+      const node = id && this.graph.byId[id];
+      if (node) return this.docForNode(node);
+      if (this.codeDocKey && this.view !== 'nodes') return this.docFor(this.codeDocKey);
+      return null;
+    },
     // the workshop holds changes the linked file doesn't have yet
     linkDirty() { return !!this.link && this.source !== this.link.text; },
     warningCount() { return this.diagnostics.filter((d) => d.severity === 'warning').length; },
@@ -571,19 +609,6 @@ export default {
       });
       return out;
     },
-    inspected() {
-      const id = this.inspect || this.selection[0];
-      const node = id && this.graph.byId[id];
-      if (!node) return null;
-      let doc = node.doc || null;
-      if (!doc && node.shape === 'path') doc = this.catalog.world_docs[node.title] || null;
-      if (!doc) {
-        const key = `page.scenario_workshop.palette.doc_${node.k === 'on' ? 'on_start' : node.k}`;
-        const t = this.$t(key);
-        doc = t !== key ? t : null;
-      }
-      return { title: node.title, doc, problem: this.problemsByNode[id] };
-    },
     tourSteps() {
       const d = this.tour.done;
       return [
@@ -614,9 +639,13 @@ export default {
         this.$axios.get('/edict/catalog'),
         this.$axios.get('/edict/examples'),
       ]);
+      // the engine gets its own copy: Vue makes the catalog reactive in place
+      this.assist = Object.freeze(createEdict(JSON.parse(JSON.stringify(catalog.data))));
       this.catalog = catalog.data;
       this.examples = examples.data.examples;
-      this.library = [...BUILTIN_LIBRARY, ...(storage(LIBRARY_KEY) || [])];
+      // functions every author starts with (priv/edict/library), then theirs
+      this.builtinLibrary = (examples.data.library || []).map((l) => ({ ...l, builtin: true }));
+      this.library = [...this.builtinLibrary, ...(storage(LIBRARY_KEY) || [])];
 
       const saved = storage(WORKSPACE_KEY);
       if (saved && saved.program && await this.restore(saved)) {
@@ -633,6 +662,8 @@ export default {
   },
   beforeDestroy() {
     [this.syncTimer, this.parseTimer, this.simTimer, this.saveTimer].forEach(clearTimeout);
+    document.removeEventListener('mousedown', this.onOutsideQuickAdd, true);
+    clearTimeout(this.hoverTimer);
     this.unlink(true);
   },
   methods: {
@@ -766,6 +797,7 @@ export default {
     select(ids) {
       this.selection = ids;
       this.inspect = null;
+      this.docPin = null;
       const pos = ids[0] && this.positionOf(ids[0]);
       this.activeLine = pos ? pos[0] : null;
     },
@@ -1044,7 +1076,7 @@ export default {
       }
     },
     deleteNode(id) {
-      if (this.index.byId[id]) this.apply(deleteNodes(this.program, [id]), { select: [] });
+      if (this.index.byId[id]) this.removeNodes([id]);
     },
     // a what-if changes the run: re-run it if there are results to update
     setPretend(list) {
@@ -1062,8 +1094,28 @@ export default {
     },
     deleteSelection() {
       if (!this.selection.length) return;
-      const ids = this.selection.filter((id) => this.index.byId[id]);
-      this.apply(deleteNodes(this.program, ids), { select: [] });
+      this.removeNodes(this.selection.filter((id) => this.index.byId[id]));
+    },
+    // Deleting an event or a fn takes its steps with it: say what went, and
+    // offer Undo right there.
+    removeNodes(ids) {
+      const steps = ids.reduce((n, id) => n + countSteps(this.index.byId[id]), 0);
+      const first = this.graph.byId[ids[0]];
+      if (!this.apply(deleteNodes(this.program, ids), { select: [] })) return;
+      const what = ids.length === 1 && first ? first.title : this.$t('page.scenario_workshop.deleted_nodes', { count: ids.length });
+      const message = steps
+        ? this.$tc('page.scenario_workshop.deleted_with_steps', steps, { what, count: steps })
+        : this.$t('page.scenario_workshop.deleted', { what });
+      this.$toasted.show(message, {
+        duration: 8000,
+        action: {
+          text: this.$t('page.scenario_workshop.undo_action'),
+          onClick: (e, toast) => {
+            this.undo();
+            toast.goAway(0);
+          },
+        },
+      });
     },
 
     // --- adding --------------------------------------------------------------
@@ -1209,8 +1261,20 @@ export default {
       this.addItem(item, at, connect);
     },
     openQuickAdd({ at, client, connect }) {
+      // the second click of a double-click that closed it shouldn't reopen it
+      if (Date.now() - this.quickAddClosedAt < 600) return;
       this.quickAdd = { at, client, connect: connect || null };
+      document.addEventListener('mousedown', this.onOutsideQuickAdd, true);
       this.$nextTick(() => this.$refs.quick && this.$refs.quick.focus());
+    },
+    closeQuickAdd() {
+      document.removeEventListener('mousedown', this.onOutsideQuickAdd, true);
+      if (this.quickAdd) this.quickAddClosedAt = Date.now();
+      this.quickAdd = null;
+    },
+    // a click (or double-click) anywhere outside the quick add closes it
+    onOutsideQuickAdd(e) {
+      if (this.$refs.quickBox && !this.$refs.quickBox.contains(e.target)) this.closeQuickAdd();
     },
 
     // --- functions and the library -------------------------------------------------
@@ -1263,7 +1327,7 @@ export default {
       const mine = saved.filter((l) => l.name !== name);
       mine.push({ name, source, doc });
       storage(LIBRARY_KEY, mine);
-      this.library = [...BUILTIN_LIBRARY, ...mine];
+      this.library = [...this.builtinLibrary, ...mine];
       this.$toasted.success(this.$t('page.scenario_workshop.saved_to_library', { name }));
     },
     async importLibrary(name) {
@@ -1325,6 +1389,11 @@ export default {
     // --- keys ----------------------------------------------------------------------
     onKeys(e) {
       const mod = e.ctrlKey || e.metaKey;
+      if (e.key === 'Escape' && (this.menu || this.quickAdd)) {
+        this.menu = null;
+        this.closeQuickAdd();
+        return;
+      }
       if (mod && !e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (this.link) this.saveToLink();
@@ -1340,7 +1409,7 @@ export default {
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); }
       if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); this.redo(); }
       if (mod && e.key.toLowerCase() === 'g') { e.preventDefault(); this.groupSelection(); }
-      if (e.key === 'Escape') { this.menu = null; this.quickAdd = null; }
+
     },
 
     // --- simulation ----------------------------------------------------------------
@@ -1417,6 +1486,105 @@ export default {
         return this.$toasted.error(this.$t('page.scenario_workshop.server_too_many'));
       }
       return this.$toastError(reason);
+    },
+
+    // --- docs ------------------------------------------------------------------------------
+    // A docs entry by key, ready for the card: the language's own, or one
+    // made for a function in this script, or "not something scripts can read".
+    docFor(key, problem = null) {
+      if (!key) return null;
+      const entry = this.allDocs[key];
+      if (entry) return { ...entry, key, problem };
+      if (key.startsWith('fn:')) {
+        const fn = this.userFns.find((f) => f.name === key.slice(3));
+        if (fn) {
+          return {
+            key,
+            title: `${fn.name}(${fn.params.join(', ')})`,
+            kind: this.$t('page.scenario_workshop.doc_kind_fn'),
+            summary: fn.note || this.$t('page.scenario_workshop.doc_fn_plain'),
+            see_also: ['node:fn'],
+            problem,
+          };
+        }
+      }
+      if (key.startsWith('lib:')) {
+        const entry = this.library.find((l) => l.name === key.slice(4));
+        if (entry) {
+          return {
+            key,
+            title: entry.name,
+            kind: this.$t(entry.builtin ? 'page.scenario_workshop.palette.builtin_lib' : 'page.scenario_workshop.palette.saved_lib'),
+            summary: entry.doc || null,
+            details: this.$t('page.scenario_workshop.doc_lib_details'),
+            examples: [{ code: entry.source.trim(), result: null, note: null }],
+            see_also: ['node:fn'],
+          };
+        }
+      }
+      if (key.startsWith('world:')) return { key, title: key.slice(6), state: 'unknown', problem };
+      return null;
+    },
+    docForNode(node) {
+      const problem = this.problemsByNode[node.id] || null;
+      const key = nodeDocKey(node, this.index.byId[node.id], this.catalog);
+      const doc = this.docFor(key, problem);
+      if (doc) return doc;
+      // a name the game doesn't know: say so, with the problem
+      if (problem) return { title: node.title, state: 'unknown', problem };
+      if (node.doc) return { title: node.title, summary: node.doc };
+      // the palette's one-liner for the kind of node
+      const palette = `page.scenario_workshop.palette.doc_${node.k === 'on' ? 'on_start' : node.k}`;
+      const text = this.$t(palette);
+      return text !== palette ? { title: node.title, summary: text } : null;
+    },
+    paletteDocKey(item) {
+      return paletteDocKey(item);
+    },
+    // from the reference, the node list or a see-also link: show it at the
+    // top of the Help tab
+    openDoc(key) {
+      if (!key) return;
+      this.docPin = key;
+      this.tab = 'help';
+      this.$nextTick(() => {
+        const box = this.$el.querySelector('.wk-right-scroll');
+        if (box) box.scrollTop = 0;
+      });
+    },
+    // double-clicking a node opens its docs in the Help tab
+    showDocFor(id) {
+      this.inspect = id;
+      this.docPin = null;
+      this.tab = 'help';
+      this.onNodeHoverEnd();
+      this.$nextTick(() => {
+        const box = this.$el.querySelector('.wk-right-scroll');
+        if (box) box.scrollTop = 0;
+      });
+    },
+    onCodeDoc(found) {
+      this.codeDocKey = found ? found.key : null;
+      if (found) this.docPin = null;
+    },
+    onNodeHover({ id, rect }) {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = setTimeout(() => {
+        const node = this.graph.byId[id];
+        const doc = node && this.docForNode(node);
+        if (!doc) return;
+        const x = Math.max(8, Math.min(rect.right + 10, window.innerWidth - 400));
+        const y = Math.max(8, Math.min(rect.top, window.innerHeight - 340));
+        this.hoverDoc = { doc, x, y };
+      }, 550);
+    },
+    onNodeHoverEnd() {
+      clearTimeout(this.hoverTimer);
+      this.hoverDoc = null;
+    },
+    onHelpToggle(key, e) {
+      this.helpOpen = { ...this.helpOpen, [key]: e.target.open };
+      storage(HELP_KEY, this.helpOpen);
     },
 
     // --- files ---------------------------------------------------------------------------
@@ -1595,7 +1763,7 @@ export default {
       const names = new Set(printed.map((f) => f.name));
       const mine = [...saved.filter((l) => !names.has(l.name)), ...printed];
       storage(LIBRARY_KEY, mine);
-      this.library = [...BUILTIN_LIBRARY, ...mine];
+      this.library = [...this.builtinLibrary, ...mine];
       const skipped = data.program.decls.some((d) => d.k !== 'fn' && d.k !== 'note');
       const key = skipped ? 'import_done_partial' : 'import_done';
       this.$toasted.success(this.$t(`page.scenario_workshop.${key}`, { count: printed.length, name }), { duration: 6000 });
@@ -1604,6 +1772,7 @@ export default {
     // --- editor kits ---------------------------------------------------------------------
     showEditors() {
       this.tab = 'help';
+      this.helpOpen = { ...this.helpOpen, editors: true };
       // the panel scrolls itself (v-scrollbar), so move it there directly
       this.$nextTick(() => {
         const target = this.$refs.editorsHelp;
@@ -1943,27 +2112,85 @@ $line: rgba(255, 255, 255, .12);
   color: $primary;
 }
 
+// collapsible parts of the Help tab
+.wk-help-section,
 .wk-ref {
   margin-bottom: 8px;
 
   summary {
+    padding: 4px 0;
+    font-weight: 700;
     cursor: pointer;
   }
+}
 
-  dl {
-    margin: 6px 0 0;
+.wk-help-section {
+  padding-bottom: 4px;
+  border-bottom: solid 1px $line;
+}
+
+.wk-ref-title {
+  margin-top: 14px;
+}
+
+.wk-ref summary {
+  font-weight: 400;
+}
+
+// each name on its own line, whole, its description under it
+.wk-ref-list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wk-ref-item {
+  display: block;
+  width: 100%;
+  padding: 5px 6px;
+  border: none;
+  background: none;
+  color: $white;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &.is-active {
+    background: rgba(255, 255, 255, .07);
   }
 
-  dt {
-    margin-top: 6px;
+  .wk-ref-name {
+    display: block;
     font-family: 'SFMono-Regular', Consolas, monospace;
     font-size: 1.15rem;
+    overflow-wrap: anywhere;
   }
 
-  dd {
-    margin: 2px 0 0 10px;
-    opacity: .75;
+  .wk-ref-summary {
+    display: block;
+    margin-top: 1px;
+    color: $white-alt-1;
+    font-size: 1.15rem;
+    line-height: 1.35;
   }
+}
+
+.wk-doc-empty {
+  font-style: italic;
+}
+
+.wk-hover-card {
+  position: fixed;
+  z-index: 60;
+  width: 380px;
+  max-height: 330px;
+  padding: 9px 12px;
+  overflow: hidden;
+  background: #1b1e24;
+  border: solid 1px rgba(255, 255, 255, .18);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .55);
+  pointer-events: none;
 }
 
 .wk-help-list {
@@ -1996,6 +2223,35 @@ $line: rgba(255, 255, 255, .12);
     &:hover {
       background: rgba(255, 255, 255, .08);
     }
+  }
+}
+
+.wk-quick-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 4px 4px 10px;
+  background: $grey-darker;
+  border-bottom: solid 1px $line;
+  color: $white-alt-1;
+  font-size: 1.15rem;
+}
+
+.wk-quick-close {
+  padding: 0 7px;
+  border: none;
+  background: none;
+  color: $white;
+  font: inherit;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, .1);
   }
 }
 

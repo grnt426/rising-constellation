@@ -28,6 +28,23 @@ defmodule Edict.RuntimeTest do
     for {t, r} <- results, %{"action" => "give", "args" => %{"amount" => a}} <- r.effects, do: {t, a}
   end
 
+  test "random() without keys gives a new number each time an event runs, the same in every replay" do
+    source = "every 1m {
+  log(random())
+}
+score 1"
+
+    rolls = fn ->
+      {results, _} = pulses(runtime!(source), [60, 120, 180])
+      for {_t, r} <- results, %{"value" => v} <- r.logs, do: v
+    end
+
+    first = rolls.()
+    assert length(first) == 3
+    assert length(Enum.uniq(first)) == 3
+    assert rolls.() == first
+  end
+
   test "setup fills in defaults and validates" do
     rt = runtime!("setup {\n  name = \"X\"\n  time_limit = 10m\n}")
     assert rt.config["name"] == "X"
@@ -98,7 +115,7 @@ defmodule Edict.RuntimeTest do
     rt =
       runtime!("""
       score time.left
-      when "capital_1" in player.patents {
+      when "armoring" in player.patents {
         finish("done")
       }
       every 1s {
@@ -107,7 +124,7 @@ defmodule Edict.RuntimeTest do
       """)
 
     {_results, rt} = pulses(rt, [1, 2])
-    {rt, result} = Runtime.pulse(rt, world(300.0, %{"patents" => ["capital_1"]}), 300.0)
+    {rt, result} = Runtime.pulse(rt, world(300.0, %{"patents" => ["armoring"]}), 300.0)
     assert result.finished == %{message: "done"}
     assert give_amounts([{300, result}]) == []
 

@@ -8,7 +8,7 @@
       'is-draft': node.draft,
       'is-flash': flash,
     }]"
-    :style="{ left: `${node.x}px`, top: `${node.y}px`, width: `${node.w}px` }"
+    :style="boxStyle"
     :data-node="node.id"
     role="group"
     :aria-label="ariaLabel">
@@ -23,7 +23,9 @@
     <div
       class="wk-head"
       data-drag="1"
-      :title="node.doc || null"
+      @mouseenter="$emit('hover-doc', { id: node.id, rect: $el.getBoundingClientRect() })"
+      @mouseleave="$emit('hover-end')"
+      @mousedown="$emit('hover-end')"
       @dblclick.stop="onHeadDblClick">
       <select
         v-if="node.headField && node.headField.editor === 'op'"
@@ -266,7 +268,10 @@
 
 <script>
 import { literalText } from './ast';
-import { OPERATORS } from './graph';
+import { OPERATORS, WIDTH } from './graph';
+
+// names (player.agents_removed) are shown whole: these nodes grow to fit
+const FIT_NAME = ['path', 'get'];
 
 export default {
   name: 'graph-node',
@@ -280,6 +285,12 @@ export default {
     return { operators: OPERATORS, editingHead: false };
   },
   computed: {
+    boxStyle() {
+      const at = { left: `${this.node.x}px`, top: `${this.node.y}px` };
+      return FIT_NAME.includes(this.node.shape)
+        ? { ...at, minWidth: `${WIDTH[this.node.shape]}px`, maxWidth: '380px' }
+        : { ...at, width: `${this.node.w}px` };
+    },
     rightOuts() { return this.node.execOuts.filter((o) => o.side === 'right'); },
     bottomOuts() { return this.node.execOuts.filter((o) => o.side === 'bottom'); },
     addLabel() {

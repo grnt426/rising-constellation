@@ -724,8 +724,25 @@ $wk-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
       box-shadow: inset 3px 0 0 $white;
     }
 
-    &.tone-world .wk-palette-hint {
-      font-family: $wk-mono;
+    // a world value: its name whole on top (what the node will say), what
+    // it means under it
+    &.tone-world {
+      flex-direction: column-reverse;
+      justify-content: flex-start;
+      gap: 1px;
+
+      .wk-palette-hint {
+        color: $white;
+        font-family: $wk-mono;
+        font-size: 1.15rem;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
+      .wk-palette-label {
+        color: $white-alt-1;
+        font-size: 1.15rem;
+      }
     }
   }
 
@@ -1010,5 +1027,275 @@ $wk-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+  }
+}
+
+// A <select>'s open list is drawn by the browser on a white background; the
+// workshop's light text color made its choices nearly invisible there.
+.scenario-workshop select option,
+.scenario-workshop select optgroup {
+  background: #fff;
+  color: #000;
+}
+
+// --- code view: suggestions and docs on hover ---------------------------------
+
+.scenario-workshop {
+  .wk-measure {
+    position: absolute;
+    visibility: hidden;
+    white-space: pre;
+    font: inherit;
+  }
+
+  .wk-complete,
+  .wk-hover-doc {
+    position: absolute;
+    z-index: 20;
+    background: #1b1e24;
+    border: solid 1px rgba(255, 255, 255, .18);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .55);
+    color: $white;
+    font-family: inherit;
+  }
+
+  .wk-complete {
+    display: flex;
+    flex-direction: column;
+    width: 340px;
+    max-height: 240px;
+  }
+
+  .wk-complete-list {
+    flex: 0 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: 2px 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  .wk-complete-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 1px 8px;
+    line-height: 20px;
+    cursor: pointer;
+
+    &.is-active {
+      background: rgba($primary, .28);
+    }
+  }
+
+  .wk-complete-kind {
+    flex: 0 0 16px;
+    color: $white-alt-1;
+    text-align: center;
+
+    &.kind-action {
+      color: lighten($primary, 8%);
+    }
+  }
+
+  .wk-complete-label {
+    flex: 0 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .wk-complete-detail {
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: $white-alt-1;
+    font-size: 1.15rem;
+    text-align: right;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .wk-complete-doc {
+    flex: 0 0 auto;
+    max-height: 96px;
+    padding: 5px 9px;
+    overflow-y: auto;
+    border-top: solid 1px rgba(255, 255, 255, .12);
+  }
+
+  .wk-complete-hint {
+    padding: 2px 9px;
+    border-top: solid 1px rgba(255, 255, 255, .08);
+    color: $white-alt-2;
+    font-size: 1.1rem;
+  }
+
+  .wk-hover-doc {
+    max-width: 420px;
+    max-height: 260px;
+    padding: 7px 10px;
+    overflow-y: auto;
+    pointer-events: none;
+  }
+
+  // the engine's Markdown, rendered as text (md-lite.js)
+  .wk-md {
+    font-size: 1.2rem;
+    line-height: 1.45;
+    white-space: normal;
+
+    p {
+      margin: 0 0 4px;
+
+      &.is-li {
+        padding-left: 10px;
+        text-indent: -8px;
+
+        &::before {
+          content: '· ';
+        }
+      }
+    }
+
+    .md-strong {
+      font-weight: 700;
+    }
+
+    .md-code,
+    .wk-md-code {
+      font-family: $wk-mono;
+      color: #e6e1cf;
+    }
+
+    .wk-md-code {
+      margin: 3px 0 5px;
+      padding: 3px 6px;
+      background: rgba(255, 255, 255, .05);
+      white-space: pre-wrap;
+    }
+  }
+}
+
+// --- docs (DocCard.vue): the Help tab and the hover card -------------------------
+
+.scenario-workshop .wk-doc {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: solid 1px rgba(255, 255, 255, .12);
+  font-size: 1.25rem;
+  line-height: 1.45;
+
+  p {
+    margin: 0 0 7px;
+  }
+
+  h4 {
+    margin: 9px 0 3px;
+    color: $white-alt-1;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+  }
+
+  .wk-doc-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    margin-bottom: 4px;
+  }
+
+  .wk-doc-title {
+    margin: 0;
+    font-family: $wk-mono;
+    font-size: 1.45rem;
+    overflow-wrap: anywhere;
+  }
+
+  .wk-doc-kind {
+    padding: 0 6px;
+    border: solid 1px rgba(255, 255, 255, .2);
+    color: $white-alt-1;
+    font-size: 1.05rem;
+  }
+
+  .wk-doc-unknown {
+    color: $color-alert;
+  }
+
+  .wk-doc-details {
+    color: $white-alt-1;
+  }
+
+  .wk-doc-code {
+    margin: 0 0 3px;
+    padding: 4px 7px;
+    background: rgba(255, 255, 255, .05);
+    font-family: $wk-mono;
+    font-size: 1.2rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .wk-doc-inputs {
+    margin: 0;
+
+    dt {
+      font-family: $wk-mono;
+      font-size: 1.2rem;
+    }
+
+    dd {
+      margin: 0 0 4px 12px;
+      color: $white-alt-1;
+    }
+  }
+
+  .wk-doc-example {
+    margin-bottom: 6px;
+  }
+
+  .wk-doc-result,
+  .wk-doc-note {
+    display: inline-block;
+    margin-right: 8px;
+    color: $white-alt-1;
+    font-size: 1.15rem;
+  }
+
+  .wk-doc-result {
+    font-family: $wk-mono;
+  }
+
+  .wk-doc-see {
+    margin-top: 8px;
+  }
+
+  .wk-doc-link {
+    margin: 2px 4px 0 0;
+    padding: 1px 6px;
+    border: solid 1px rgba(255, 255, 255, .2);
+    background: none;
+    color: $white;
+    font-family: $wk-mono;
+    font-size: 1.15rem;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(255, 255, 255, .08);
+    }
+  }
+
+  .wk-doc-more {
+    margin-top: 6px;
+    color: $white-alt-2;
+    font-size: 1.1rem;
+  }
+
+  &.is-compact {
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: none;
   }
 }

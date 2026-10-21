@@ -23,7 +23,7 @@ defmodule Edict.Checker do
   Draft blocks are not checked: they're the editor's scratch space.
   """
 
-  alias Edict.{Catalog, Scenario}
+  alias Edict.{AST, Catalog, Scenario}
 
   @doc "Check a program. Returns a list of diagnostics (errors first)."
   def check(%{k: :program, decls: decls}) do
@@ -256,8 +256,62 @@ defmodule Edict.Checker do
     st
   end
 
+  # A list of patents or mutators: each item on its own, so a slip gets its
+  # "did you mean" and a one-click fix; a patent's internal key ("capital_1")
+  # still works but is better written by name ("armoring").
+  defp setup_value(name, %{k: :list, items: items} = e, st) when name in ["grant_patents", "mutators"] do
+    {known, what} =
+      if name == "mutators", do: {Catalog.mutator_keys(), "mutator"}, else: {Catalog.patent_names(), "patent"}
+
+    {st, bad?} =
+      Enum.reduce(items, {st, false}, fn
+        %{k: :str, v: v} = item, {st, bad?} ->
+          better = if name == "grant_patents", do: Catalog.patent_name(v)
+
+          cond do
+            v in known ->
+              {st, bad?}
+
+            better != nil ->
+              {warn(
+                 st,
+                 "#{AST.quoted(v)} is the game's internal key; write #{inspect(better)}",
+                 item,
+                 fix(item, "v", better)
+               ), bad?}
+
+            true ->
+              {err(
+                 st,
+                 "#{AST.quoted(v)} isn't a #{what}#{suggest(v, known)}",
+                 item,
+                 fix(item, "v", best_match(v, known))
+               ), true}
+          end
+
+        _other, acc ->
+          acc
+      end)
+
+    # what's left (how many) is the setup's own rule
+    if bad?, do: st, else: setup_value(:whole, name, e, st)
+  end
+
+  defp setup_value("patent_discounts", %{k: :map, entries: entries} = e, st) do
+    legacy = for %{key: k} <- entries, (name = Catalog.patent_name(k)) != nil and name != k, do: {k, name}
+
+    st =
+      Enum.reduce(legacy, st, fn {k, name}, st ->
+        warn(st, "#{AST.quoted(k)} is the game's internal key; write #{name}", e)
+      end)
+
+    setup_value(:whole, "patent_discounts", e, st)
+  end
+
+  defp setup_value(name, e, st), do: setup_value(:whole, name, e, st)
+
   # When the value is written out literally, check it against the field now.
-  defp setup_value(name, e, st) do
+  defp setup_value(:whole, name, e, st) do
     with true <- name in Catalog.setup_names(),
          {:ok, value} <- constant(e),
          {:error, [%{message: message} | _]} <- Scenario.config(%{name => value}) do
@@ -549,6 +603,11 @@ defmodule Edict.Checker do
 
       op == "+" and match?({:list, _}, a) and match?({:list, _}, b) ->
         {a, st}
+
+      # a list and something not known until the script runs (a fn's
+      # parameter): it may well be a list too
+      op == "+" and ((match?({:list, _}, a) and not known?(b)) or (match?({:list, _}, b) and not known?(a))) ->
+        {if(match?({:list, _}, a), do: a, else: b), st}
 
       true ->
         bad = Enum.find([{a, l}, {b, r}], fn {t, _} -> known?(t) and t != :number end)

@@ -105,7 +105,11 @@ function boxSize(B, node) {
   const measured = B.ctx.sizes[node.id];
   if (measured) return measured;
   const rows = Math.max(node.inputs.length + (node.fields || []).length, node.execOuts.filter((o) => o.side === 'right').length, 1);
-  return { w: WIDTH[node.shape] || 200, h: HEADER + rows * ROW + 8 };
+  // path and name nodes grow to show the whole name (GraphNode); guess the
+  // width until the canvas measures it
+  const base = WIDTH[node.shape] || 200;
+  const w = ['path', 'get'].includes(node.shape) ? Math.min(380, Math.max(base, 40 + node.title.length * 8)) : base;
+  return { w, h: HEADER + rows * ROW + 8 };
 }
 
 function place(B, node, auto) {
@@ -400,7 +404,9 @@ function drawStmt(B, stmt, at) {
         // that returns a value
         node.output = !B.known.actions[e.fn.name] && returnsValue(B, e.fn.name);
       } else {
-        node.title = 'evaluate';
+        // a value on a line of its own does nothing (often a half-typed name)
+        node.title = 'unused value';
+        node.docKey = 'node:unused_value';
         node.inputs.push({
           key: 'expr', label: 'value', slot: { pid: stmt.id, field: 'expr', index: null }, type: 'any',
         });

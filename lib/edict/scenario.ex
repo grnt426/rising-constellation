@@ -33,6 +33,9 @@ defmodule Edict.Scenario do
         |> Map.merge(fields)
         |> Map.update!("time_limit", &(&1 / 1))
         |> Map.update!("systems", &trunc/1)
+        # patents by name in the script, by internal key for the engine
+        |> Map.update!("grant_patents", fn names -> Enum.map(names, &Catalog.patent_key/1) end)
+        |> Map.update!("patent_discounts", fn d -> Map.new(d, fn {name, f} -> {Catalog.patent_key(name), f} end) end)
 
       {:ok, config}
     else
@@ -75,10 +78,10 @@ defmodule Edict.Scenario do
 
   defp check("rival", v), do: if(is_boolean(v), do: :ok, else: {:error, "must be true or false"})
   defp check("mutators", v), do: keys(v, Catalog.mutator_keys(), 6, "mutator")
-  defp check("grant_patents", v), do: keys(v, Catalog.patent_keys(), 30, "patent")
+  defp check("grant_patents", v), do: keys(v, Catalog.patent_names() ++ Catalog.patent_keys(), 30, "patent")
 
   defp check("patent_discounts", v) when is_map(v) do
-    known = Catalog.patent_keys()
+    known = Catalog.patent_names() ++ Catalog.patent_keys()
 
     cond do
       map_size(v) > 30 ->
@@ -95,7 +98,7 @@ defmodule Edict.Scenario do
     end
   end
 
-  defp check("patent_discounts", _), do: {:error, "must be a record such as {capital_1: 20%}"}
+  defp check("patent_discounts", _), do: {:error, "must be a record such as {armoring: 20%}"}
 
   defp check("seed", v) do
     if is_number(v) or (is_binary(v) and byte_size(v) <= 64),

@@ -30,9 +30,11 @@
           class="wk-palette-item"
           :class="`tone-${item.tone}`"
           draggable="true"
-          :title="item.doc"
+          :title="clickAdds ? item.doc : $t('page.scenario_workshop.palette_add_hint')"
           @dragstart="dragStart($event, item)"
-          @click="$emit('add', item)">
+          @click="clickAdds ? $emit('add', item) : $emit('inspect', item)"
+          @dblclick="clickAdds || $emit('add', item)"
+          @keydown.enter.prevent="$emit('add', item)">
           <span class="wk-palette-label">{{ item.label }}</span>
           <span
             v-if="item.hint"
@@ -87,6 +89,9 @@ export default {
     catalog: { type: Object, required: true },
     userFns: { type: Array, default: () => [] },
     library: { type: Array, default: () => [] },
+    // the quick add adds on a click; the side panel shows the docs on a
+    // click and adds on a double-click (or Enter, or a drag)
+    clickAdds: { type: Boolean, default: false },
   },
   data() {
     return { query: '', open: { events: true, actions: true, world: true, flow: true } };

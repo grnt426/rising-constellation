@@ -114,6 +114,44 @@ defmodule Edict.CheckerTest do
     assert_error("setup {\n  name = \"two\\nlines\"\n}\nscore 1", "must fit on one line")
   end
 
+  test "patents go by the names players read, and the internal keys still work" do
+    names = Edict.Catalog.patent_names()
+    assert "armoring" in names and "precision_cranes" in names and "slsd_captors" in names
+    assert length(names) == length(Enum.uniq(names))
+    assert Edict.Catalog.patent_key("armoring") == "capital_1"
+    assert Edict.Catalog.patent_name("capital_1") == "armoring"
+    assert Edict.Catalog.patent_title("armoring") == "Armoring"
+
+    # no name is another patent's key
+    for name <- names, key = Edict.Catalog.patent_key(name), do: assert(Edict.Catalog.patent_key(name) == key)
+    for key <- Edict.Catalog.patent_keys(), do: refute(key in names and Edict.Catalog.patent_key(key) != key)
+
+    assert errors(~s|setup {\n  grant_patents = ["armoring"]\n  patent_discounts = {precision_cranes: 20%}\n}\nscore 1|) ==
+             []
+
+    [legacy] = diags(~s|setup {\n  grant_patents = ["capital_1"]\n}\nscore 1|)
+    assert legacy.severity == "warning"
+    assert legacy.message =~ ~s(write "armoring")
+    assert %{field: "v", value: "armoring"} = legacy.fix
+
+    [typo] = diags(~s|setup {\n  grant_patents = ["armorng"]\n}\nscore 1|)
+    assert typo.severity == "error"
+    assert typo.message =~ "did you mean armoring"
+    assert %{value: "armoring"} = typo.fix
+
+    # the engine gets its own keys
+    {:ok, config} =
+      Edict.Scenario.config(%{"grant_patents" => ["armoring"], "patent_discounts" => %{"armoring" => 0.2}})
+
+    assert config["grant_patents"] == ["capital_1"]
+    assert config["patent_discounts"] == %{"capital_1" => 0.2}
+  end
+
+  test "+ joins a list with something only known when the script runs" do
+    assert errors("fn best(list) {\n  return max([0] + list)\n}\nscore best([1, 2])") == []
+    assert_error("score [1] + 2", "+ works on numbers, not a list")
+  end
+
   test "comparisons against impossible choices warn" do
     assert Enum.any?(warnings(~s|score count(player.agents, a => a.type == "admiral")|), &(&1 =~ "never equal"))
   end

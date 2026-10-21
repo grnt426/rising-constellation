@@ -186,6 +186,9 @@ function createEdict(catalog) {
   const kwDocs = catalog.keyword_docs || {};
   const rootDocs = catalog.root_docs || {};
   const enums = catalog.enums || {};
+  const patentTitles = enums.patent_titles || {};
+  // patents by the names scripts use, with the title players know
+  const patents = () => (enums.patents || []).map((p) => ({ value: p, detail: patentTitles[p] || 'patent' }));
 
   const sig = (name) => builtins.get(name) || actions.get(name) || null;
 
@@ -662,7 +665,7 @@ function createEdict(catalog) {
     if (frame && frame.kind === 'record' && (prev.v === '{' || prev.v === ',' || prev.t === 'nl')) {
       if (frame.field === 'patent_discounts') {
         return (enums.patents || []).map((p) => ({
-          label: p, kind: 'enum', detail: 'patent', insert: `${p}: \${1:50%}`, snippet: true, sort: '0',
+          label: p, kind: 'enum', detail: patentTitles[p] || 'patent', insert: `${p}: \${1:50%}`, snippet: true, sort: '0',
         }));
       }
       return [];
@@ -803,7 +806,7 @@ function createEdict(catalog) {
       if (frame.callee === 'contains' && index === 1) {
         const argEnd = exprEnd(t, frame.index + 1);
         const pathText = t.slice(frame.index + 1, argEnd).map((x) => x.v).join('');
-        if (pathText === 'player.patents') return list(enums.patents || [], 'patent');
+        if (pathText === 'player.patents') return patents();
       }
     }
     // inside setup: faction = "…", mutators = ["…"], grant_patents = ["…"]
@@ -818,14 +821,14 @@ function createEdict(catalog) {
           value: m.key, detail: `${m.name}${m.polarity ? ` (${m.polarity})` : ''}`, doc: m.description || '',
         }));
       }
-      if (field && field.name === 'grant_patents') return list(enums.patents || [], 'patent');
+      if (field && field.name === 'grant_patents') return patents();
     }
     // "capital_1" in player.patents ; a.type == "…"
     const next = t[k + 1];
     if (next && next.t === 'kw' && next.v === 'in') {
       const end = exprEnd(t, k + 2, true);
       const pathText = t.slice(k + 2, end).map((x) => x.v).join('');
-      if (pathText === 'player.patents') return list(enums.patents || [], 'patent');
+      if (pathText === 'player.patents') return patents();
     }
     if (prev && (prev.v === '==' || prev.v === '!=')) {
       let a = k - 2;
@@ -838,7 +841,76 @@ function createEdict(catalog) {
 
   // --- hover -----------------------------------------------------------------------------------
 
+  // The docs entry for the name under the cursor: {key, range}, where key is
+  // `builtin:give`, `action:notify`, `event:every`, `keyword:let`,
+  // `operator:in`, `setup:time_limit`, `world:player.systems[].population`
+  // or `fn:<a function in this script>`; null for anything else.
+  function docKey(text, offset) {
+    const state = scan(text, Infinity);
+    const tok = state.toks.find((t) => t.s <= offset && offset < t.e)
+      || state.toks.find((t) => t.s < offset && offset === t.e && (t.t === 'ident' || t.t === 'kw'));
+    if (!tok) return null;
+    const range = { start: tok.s, end: tok.e };
+    const k = state.sig.indexOf(tok);
+    const prev = state.sig[k - 1];
+    const next = state.sig[k + 1];
+    const at = (key) => ({ key, range });
+
+    if (tok.t === 'kw') {
+      if (tok.v === 'on') return at(next && next.v === 'end' ? 'event:on_end' : 'event:on_start');
+      if (['every', 'at', 'when'].includes(tok.v)) return at(`event:${tok.v}`);
+      // `in` after `for s` names the loop's list; anywhere else it's the operator
+      if (tok.v === 'in') return at(state.sig[k - 2] && state.sig[k - 2].v === 'for' ? 'keyword:in' : 'operator:in');
+      if (['and', 'or', 'not'].includes(tok.v)) return at(`operator:${tok.v}`);
+      return at(`keyword:${tok.v}`);
+    }
+    if (tok.t === 'op') {
+      if (tok.v === '-' && (!prev || prev.t === 'op' || prev.t === 'nl' || prev.t === 'kw')) return at('operator:negate');
+      return ['+', '-', '*', '/', '==', '!=', '<', '<=', '>', '>='].includes(tok.v) ? at(`operator:${tok.v}`) : null;
+    }
+    if (tok.t !== 'ident') return null;
+    if (prev && prev.t === 'kw' && prev.v === 'on') return at(tok.v === 'end' ? 'event:on_end' : 'event:on_start');
+
+    const scope = scan(text, tok.s);
+    const names = visible(scope);
+    if (prev && prev.v === '.') {
+      let a = k - 1;
+      while (a > 0 && (state.sig[a - 1].t === 'ident' || state.sig[a - 1].v === '.' || state.sig[a - 1].v === ']')) {
+        if (state.sig[a - 1].v === ']') a = indexOfOpen(state.sig, a - 1);
+        else a -= 1;
+      }
+      const ty = typeOf(state, a, k + 1, names);
+      return ty && ty.doc ? at(`world:${ty.doc}`) : null;
+    }
+    const setupFrame = scope.frames.find((f) => f.kind === 'setup');
+    if (setupFrame && next && next.v === '=' && setupFields.has(tok.v)) return at(`setup:${tok.v}`);
+    if (names.has(tok.v)) return null;
+    if (state.fns.has(tok.v)) return at(`fn:${tok.v}`);
+    if (builtins.has(tok.v)) return at(`builtin:${tok.v}`);
+    if (actions.has(tok.v)) return at(`action:${tok.v}`);
+    if (catalog.world[tok.v]) return at(`world:${tok.v}`);
+    return null;
+  }
+
+  // A docs entry (catalog.docs) as Markdown for an editor's hover.
+  function docMarkdown(d) {
+    const lines = [`**${d.title}**${d.kind ? ` · ${d.kind}` : ''}`, '', d.summary];
+    if (d.details) lines.push('', d.details);
+    if (d.usage) lines.push('', '```edict', d.usage, '```');
+    if (d.inputs && d.inputs.length) lines.push('', ...d.inputs.map((i) => `- \`${i.name}\`: ${i.doc}`));
+    if (d.output) lines.push('', `Gives: ${d.output}`);
+    if (d.examples && d.examples.length) {
+      lines.push('', '```edict', ...d.examples.map((x) => (x.result != null ? `${x.code}   # ${x.result}` : x.code)), '```');
+    }
+    return lines.join('\n');
+  }
+
   function hover(text, offset) {
+    // the full docs, where the catalog has them
+    const found = docKey(text, offset);
+    const entry = found && catalog.docs && catalog.docs[found.key];
+    if (entry) return { md: docMarkdown(entry), range: found.range, key: found.key };
+
     const state = scan(text, Infinity);
     const tok = state.toks.find((t) => t.s <= offset && offset < t.e)
       || state.toks.find((t) => t.s < offset && offset === t.e && (t.t === 'ident' || t.t === 'kw'));
@@ -1086,7 +1158,7 @@ function createEdict(catalog) {
   }
 
   return {
-    complete, hover, signature, symbols, definition, diagnose, tokenize: (text) => tokenize(text, keywords),
+    complete, hover, signature, symbols, definition, diagnose, docKey, tokenize: (text) => tokenize(text, keywords),
   };
 }
 

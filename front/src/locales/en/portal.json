@@ -67,7 +67,8 @@
       "system_planner": "System planner",
       "tutorial": "Tutorial",
       "wave_diagnostics": "Rebellion diagnostics",
-      "scenario_workshop": "Scenario Workshop"
+      "scenario_workshop": "Scenario Workshop",
+      "settings_scenario_editor": "Scenario editor settings"
     },
     "sim_empty_slot": "Line {line}, slot {slot}: empty. Choose a ship",
     "sim_slot": "Line {line}, slot {slot}",
@@ -1390,7 +1391,8 @@
       "windowed": "Windowed mode",
       "nav": {
         "general": "General",
-        "crosshair": "Galaxy crosshair"
+        "crosshair": "Galaxy crosshair",
+        "scenario_editor": "Scenario editor"
       },
       "crosshair": {
         "title": "Galaxy crosshair",
@@ -1426,6 +1428,25 @@
           "hex": "Hex code",
           "factions": "Faction colors"
         }
+      },
+      "scenario_editor": {
+        "title": "Scenario editor",
+        "intro": "In the Scenario Workshop’s code view, suggestions appear as you type: the functions, actions, world values and setup fields that fit where you are, each with its docs.",
+        "accept": {
+          "title": "Accept a suggestion with",
+          "tab": "Tab",
+          "enter": "Enter",
+          "shift_enter": "Shift+Enter",
+          "shift_tab": "Shift+Tab"
+        },
+        "suggest": "Suggest as I type (off: only Ctrl+Space shows suggestions)",
+        "keys": {
+          "navigate": "↑ and ↓ move through the suggestions.",
+          "accept": "{key} puts the highlighted one in.",
+          "close": "Esc closes the list.",
+          "open": "Ctrl+Space opens it any time, even with nothing typed."
+        },
+        "note": "Tab also moves between controls for keyboard and screen-reader users, and some browsers and extensions take it: if it gets in your way, pick another key. With Enter, close the list (Esc) to start a new line."
       }
     },
     "standings": {
@@ -1761,7 +1782,7 @@
       "help_values": "The thin wires carry values into a node’s left side. Plain values (numbers, text, choices) are typed straight into the node. Durations read like 15s or 2m, percentages like 25%.",
       "help_code": "Right-click a step or a value and choose “Show as code” to write that part as text, without leaving the nodes; ⤢ turns a line of code back into nodes. Lambdas such as s => s.population always show as code.",
       "help_group": "Select a run of steps in one chain (shift-click them, or shift-drag a box around them), then press Ctrl+G to turn them into a function you can name, reuse and save to your library. Selecting an if or a loop takes its inner steps along.",
-      "help_keys": "Drag the background to pan, scroll to zoom, double-click to add a node, Delete to remove, Alt-click a pin to disconnect it.",
+      "help_keys": "Drag the background to pan, scroll to zoom, double-click to add a node, Delete to remove, Alt-click a pin to disconnect it. In the node list on the left, click a name for its docs and double-click it to add it.",
       "close": "Close",
       "wire_mismatch": "Those two pins don’t fit: order wires join order pins, value wires join value pins.",
       "bad_path": "A path is names joined by dots, such as player.income.credit.",
@@ -1960,7 +1981,32 @@
       "editors_link": "Then, in File, choose Link a file: the workshop follows the file as you save it in your editor, with its nodes, problems and simulation.",
       "editors_open": "Then open the file here (File > Open file, or drop it on the page) to see its nodes, problems and simulation. In Chrome or Edge, the workshop can also follow a file as you save it.",
       "server_busy": "The server is still working on your last few requests. Try again in a moment.",
-      "server_too_many": "That’s a lot of requests in a few minutes. Wait a minute, then try again."
+      "server_too_many": "That’s a lot of requests in a few minutes. Wait a minute, then try again.",
+      "quick_add": "Add a node",
+      "deleted": "Deleted {what}.",
+      "deleted_with_steps": "Deleted {what} and the step in it. | Deleted {what} and the {count} steps in it.",
+      "deleted_nodes": "{count} nodes",
+      "undo_action": "Undo",
+      "suggestions": "Suggestions",
+      "suggest_hint": "{key} to insert · ↑↓ to choose · Esc to close",
+      "doc_unknown": "{name} isn’t something the game knows, so there are no docs for it. Check the spelling; the problem below may name the right one.",
+      "doc_usage": "How to write it",
+      "doc_inputs": "Inputs",
+      "doc_output": "What comes out",
+      "doc_examples": "Examples",
+      "doc_gives": "gives {result}",
+      "doc_see_also": "See also:",
+      "doc_more": "More in the Help tab: double-click the node.",
+      "doc_kind_fn": "your function",
+      "doc_fn_plain": "A function in this script. A comment on the line above its fn becomes this description.",
+      "doc_empty": "Click a node or a name in the code to see its docs here, or pick one from the reference below. Double-click a node to jump here.",
+      "reference_hint": "Click a name to see its docs at the top.",
+      "reference_events": "Events (when things happen)",
+      "reference_operators": "Operators (+, ==, and, in, …)",
+      "reference_keywords": "Words of the language",
+      "reference_nodes": "Nodes",
+      "palette_add_hint": "Click for its docs; double-click, drag or press Enter to add it.",
+      "doc_lib_details": "Adding it copies the function into your scenario, where you can change it; the library keeps its own copy."
     }
   },
   "portal_components": {

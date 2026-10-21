@@ -21,9 +21,11 @@ from and save to `.edict` files, a file can stay linked while it's edited
 elsewhere, and generated editor kits bring the language to VS Code,
 JetBrains IDEs, Notepad++ and any LSP editor. What scripts cost the server
 is measured and bounded (see "What scripts cost"), and script text never
-renders as HTML (see "Script text in the browser"). Tests: 184 in
-`test/edict/` and the API's controller test (Node tests of the editor kits
-included), 11 browser tests; two rounds of synthetic usability sessions shaped the
+renders as HTML (see "Script text in the browser"). Every function,
+action, event, operator and world value has plain-language docs with tested
+examples, on hover and in the Help tab, and the code view suggests what fits.
+Tests: 196 in `test/edict/` and the API's controller test (Node tests of the
+editor kits included), 14 browser tests; two rounds of synthetic usability sessions shaped the
 editor (see the study section).
 
 ## Contents
@@ -33,12 +35,13 @@ editor (see the study section).
 3. [The language](#the-language)
 4. [One program, three views](#one-program-three-views)
 5. [Files and other editors](#files-and-other-editors)
-6. [Security model](#security-model)
-7. [Running a scenario](#running-a-scenario)
-8. [What scripts cost](#what-scripts-cost)
-9. [Validation](#validation)
-10. [Roadmap](#roadmap)
-11. [Where things are](#where-things-are)
+6. [Help while writing](#help-while-writing)
+7. [Security model](#security-model)
+8. [Running a scenario](#running-a-scenario)
+9. [What scripts cost](#what-scripts-cost)
+10. [Validation](#validation)
+11. [Roadmap](#roadmap)
+12. [Where things are](#where-things-are)
 
 ## Why a new language
 
@@ -121,7 +124,7 @@ came, which is how the daily's races already score.
 score time.left
 tiebreak len(player.patents)
 
-when "capital_1" in player.patents {
+when "armoring" in player.patents {
   finish("Armoring researched: the Destroyer is yours.")
 }
 ```
@@ -200,6 +203,12 @@ an action there, with its implementation, is how the language grows.
   `faction`, `systems` (1 to 8), `neighbors` (`"empty"` or `"neutral"`),
   `rival`, `mutators`, `grant_patents`, `patent_discounts`, `seed`. Content
   keys are checked against the game's own catalogs.
+- **Patents by name.** Scripts name patents the way players read them: the
+  English name in snake_case (`"armoring"`, `"precision_cranes"`,
+  `"slsd_captors"`), read from the English locale at compile time
+  (`Edict.Catalog.patent_names/0`). `player.patents` lists those names; setup
+  turns them back into the engine's keys. The internal keys (`capital_1`)
+  still work, with a warning whose fix rewrites them.
 
 ### Mistakes, caught early
 
@@ -281,7 +290,8 @@ surrounding code still uses, since a fn can't hand it back.
 
 A fn can be saved to the author's library (right-click its frame) and
 inserted into any scenario from the node list, where three built-in
-helpers also live (`best`, `escalate`, `level_for_wave`, written in Edict).
+helpers also live (`best`, `escalate`, `level_for_wave`, written in Edict in
+`priv/edict/library/`, each checked by a test).
 Insertion copies the fn, so a scenario never depends on a library entry
 that might change. In the MVP the library is per browser (local storage);
 shared libraries are part of the sharing phase.
@@ -321,7 +331,7 @@ downloads that add Edict to other editors:
 | VS Code, Cursor, VSCodium | highlighting, completion, hover docs, signature help, outline, go to definition, the lexer's checks | a `.vsix` extension (Install from VSIX) |
 | JetBrains IDEs | highlighting; the rest through the language server | the TextMate bundle (Settings > Editor > TextMate Bundles), and the language server with the free LSP4IJ plugin |
 | Neovim, Sublime Text, Zed, Helix, Emacs | the same, through the language server | `node lsp/edict-lsp.js --stdio`, mapped to `*.edict` |
-| Notepad++ | highlighting, name completion, call tips with each function's doc | a user-defined language and an auto-completion file |
+| Notepad++ | highlighting (a light and a dark color scheme), name completion, call tips with each function's doc | a user-defined language and an auto-completion file |
 
 How it is built:
 
@@ -363,6 +373,42 @@ into a throwaway profile); and browser tests for open, save, link (a
 stand-in file handle, since the real picker is native), conflict,
 function export and import, and the kit downloads. Not yet tried by hand:
 LSP4IJ in a JetBrains IDE, and the Notepad++ files in Notepad++.
+
+## Help while writing
+
+Players are assumed to know little or no programming, so the language
+explains itself where they work.
+
+- **Docs for everything** (`Edict.Docs`): 188 entries, one per builtin,
+  action, event, keyword, operator, setup field, world value and kind of
+  node. Each says, in plain words, what it is, how to write it, what goes
+  in, what comes out along the wire ("a list of systems; each is a record
+  with id, name, home…"), with short examples. Every example with a result
+  is run by `test/edict/docs_test.exs` against the interpreter, so the docs
+  can't drift from what the game does. They ship with the catalog to the
+  workshop and to the editor kits (VS Code and LSP hovers show them too).
+- **Where they show.** Hovering a node's header shows a short card;
+  double-clicking a node opens the full entry in the Help tab, and so does a
+  click on a name in the node list (a double-click, a drag or Enter adds
+  it); in the code
+  view, hovering a name shows its card and the name under the caret fills
+  the Help tab. The reference lists every entry, each name on its own line
+  above its summary; clicking one opens it at the top. "How the workshop
+  works" and "Use your own editor" fold away.
+- **Plain answers for mistakes.** A name the game doesn't know shows "isn't
+  something the game knows" with the checker's "did you mean"; a value left
+  standing alone (often a half-typed `player.`) is an "unused value" node
+  that explains itself.
+- **Suggestions in the code view.** The same engine as the editor kits
+  (`priv/edict/editors/core.js`, imported by the workshop) offers what fits
+  where the caret is: fields after a `.`, the choices inside `"…"`, actions
+  and statements in a handler, setup fields in setup. ↑/↓ choose, Esc
+  closes, Ctrl+Space opens the list on demand. **Settings → Scenario
+  editor** picks the key that accepts a suggestion (Tab, Enter,
+  Shift+Enter or Shift+Tab: Tab is also how keyboard and screen-reader
+  users move between controls) and turns suggesting-as-you-type off.
+- **Undo is visible.** Deleting an event or a fn takes its steps with it;
+  the toast says how many and has an Undo button.
 
 ## Security model
 
@@ -447,7 +493,15 @@ it.
 
 ### Side findings
 
-Three problems turned up during this work:
+Problems that turned up during this work:
+
+- **Keyless `random()`, `chance()` and `pick()` repeated every second.**
+  The counter standing in for keys restarted each pulse, so `every 1m { if
+  chance(30%) {…} }` had the same outcome every minute. The counter now
+  carries on from one second to the next (still the same in every replay).
+  Found while writing the docs.
+- **Big numbers in text read `12_500`.** Text used the source printer's
+  digit grouping; it now writes `12500` (`fmt_number` gives `12,500`).
 
 - **Windows line endings broke every script with a comment.** The lexer
   read a comment to the `\n` and kept the `\r` before it, then refused it
@@ -487,7 +541,7 @@ strong halve and double it), and the script's own effects on top. It
 returns the score, a score-over-time chart, a timeline of what fired and
 what it did, and every error with when it first happened and how often.
 The model never researches patents, builds fleets or removes agents, so
-authors can **pretend**: "from 10:00, `player.patents` is `["capital_1"]`"
+authors can **pretend**: "from 10:00, `player.patents` is `["armoring"]`"
 makes a race finish in the simulation. The whole run is sandboxed with a
 total step budget.
 
@@ -874,6 +928,7 @@ language reusable under different **capability profiles**:
 | HTTP API | `lib/portal/controllers/edict_controller.ex` (`/api/edict/catalog`, `examples`, `editors/:kind`, `analyze`, `fragment`, `format`, `simulate`, `playtest`) |
 | Editor kits | `lib/edict/editor_kit.ex` (generator), `priv/edict/editors/` (`core.js` engine, `extension.js` VS Code, `edict-lsp.js` language server, kit READMEs), `mix edict.editors DIR` |
 | Files in the workshop | `front/src/portal/workshop/files.js` (open, save, link) |
+| Docs and suggestions | `lib/edict/docs.ex` (entries, `test/edict/docs_test.exs`), `front/src/portal/workshop/` (`DocCard.vue`, `docs.js`, `completion.js`, `md-lite.js`, `editor-settings.js`), Settings → Scenario editor (`front/src/portal/pages/settings/ScenarioEditor.vue`, `Account.settings.scenario_editor`) |
 | Examples | `priv/edict/examples/*.edict` |
 | Engine seam | `Instance.Mutators.daily_setup/1` and siblings; `Daily.Generator.for_script/3`; `Daily.Boot.boot_definition/3`; `Daily.Director.mint_agent/4` |
 | Editor | `front/src/portal/pages/ScenarioWorkshop.vue`, `front/src/portal/workshop/` (`ast.js` edits, `graph.js` drawing, `GraphCanvas`, `GraphNode`, `CodeEditor`, `Palette`, `SimPanel`, `Tour`) |

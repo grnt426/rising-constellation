@@ -41,7 +41,10 @@ defmodule Edict.Runtime do
             seed: "",
             started?: false,
             finished: nil,
-            fuel_used: 0
+            fuel_used: 0,
+            # keyless random()/chance()/pick() calls so far: each second's
+            # rolls follow on from the last's instead of repeating them
+            rand_n: 0
 
   @max_catch_up 10
   @max_failures 3
@@ -200,7 +203,16 @@ defmodule Edict.Runtime do
   def pulse(%__MODULE__{finished: f} = rt, _world, _t) when f != nil, do: {rt, empty_result()}
 
   def pulse(%__MODULE__{} = rt, world, t) do
-    ctx = Interpreter.new_ctx(fns: rt.fns, globals: rt.globals, world: world, mode: :handler, seed: rt.seed)
+    ctx =
+      Interpreter.new_ctx(
+        fns: rt.fns,
+        globals: rt.globals,
+        world: world,
+        mode: :handler,
+        seed: rt.seed,
+        rand_n: rt.rand_n
+      )
+
     acc = %{ctx: ctx, fired: [], errors: [], finished: nil, starved: 0}
 
     {handlers, acc} =
@@ -254,7 +266,8 @@ defmodule Edict.Runtime do
         globals: globals,
         started?: true,
         finished: if(finished, do: Map.put(finished, :t, t), else: nil),
-        fuel_used: rt.fuel_used + (Limits.fuel_per_pulse() - ctx.fuel)
+        fuel_used: rt.fuel_used + (Limits.fuel_per_pulse() - ctx.fuel),
+        rand_n: ctx.rand_n
     }
 
     {rt,
@@ -390,7 +403,16 @@ defmodule Edict.Runtime do
     {score, score_errors} = measure(rt, rt.score, world)
     {tiebreak, tie_errors} = measure(rt, rt.tiebreak, world)
 
-    ctx = Interpreter.new_ctx(fns: rt.fns, globals: rt.globals, world: world, mode: :handler, seed: rt.seed)
+    ctx =
+      Interpreter.new_ctx(
+        fns: rt.fns,
+        globals: rt.globals,
+        world: world,
+        mode: :handler,
+        seed: rt.seed,
+        rand_n: rt.rand_n
+      )
+
     acc = %{ctx: ctx, fired: [], errors: [], finished: nil, starved: 0}
 
     {handlers, acc} =

@@ -240,7 +240,7 @@ defmodule Edict.Catalog do
     "player.dominions" => "Number of dominions held.",
     "player.population" => "Total population, systems and dominions.",
     "player.agents" => "The player's own agents: Navarchs, Siderians, Erased.",
-    "player.patents" => "Patents researched, by key.",
+    "player.patents" => "Patents researched, by name: [\"armoring\", \"precision_cranes\"].",
     "player.wonders" => "Wonders built, by key.",
     "player.agents_removed" => "Enemy agents removed by the player's Erased.",
     "rival.present" => "Whether there is a rival court (rival = true in setup).",
@@ -290,7 +290,7 @@ defmodule Edict.Catalog do
     {"rival", "bool", false, "Add a rival court: an enemy faction whose agents the scenario can send in."},
     {"mutators", {:list, "text"}, [], "Daily mutators to apply, by key (boons and banes)."},
     {"grant_patents", {:list, "text"}, [], "Patents the player starts with (each with its prerequisites)."},
-    {"patent_discounts", "record", %{}, "Price factors for single patents: {capital_1: 20%} sells it at a fifth."},
+    {"patent_discounts", "record", %{}, "Price factors for single patents: {armoring: 20%} sells it at a fifth."},
     {"seed", "any", nil, "Fixes the generated world. Left out, it comes from the script itself."}
   ]
 
@@ -374,9 +374,68 @@ defmodule Edict.Catalog do
     end)
   end
 
-  @doc "Patent keys a scenario may grant or discount (the Legacy roster the daily runs on)."
+  @doc "The game's internal patent keys (`capital_1`): the Legacy roster the daily runs on."
   def patent_keys do
     Data.Game.Patent.Content.Slow.data() |> Enum.map(&Atom.to_string(&1.key))
+  end
+
+  # Scripts name patents the way players read them: the English name in
+  # snake_case ("Armoring" -> "armoring", "S.L.S.D. Captors" ->
+  # "slsd_captors"), read from the English locale at compile time. The
+  # internal keys still work (the checker suggests the name).
+  @patent_locale Path.expand("front/src/locales/en/data.json", File.cwd!())
+  @external_resource @patent_locale
+  @patent_titles (case File.read(@patent_locale) do
+                    {:ok, json} ->
+                      json
+                      |> Jason.decode!()
+                      |> get_in(["data", "patent"])
+                      |> Kernel.||(%{})
+                      |> Map.new(fn {key, entry} -> {key, entry["name"]} end)
+
+                    {:error, _} ->
+                      %{}
+                  end)
+
+  @doc "Patent names as scripts write them (`armoring`), sorted."
+  def patent_names, do: patent_table() |> Enum.map(&elem(&1, 1)) |> Enum.sort()
+
+  @doc "The script name for a patent, given its name or its internal key; nil if neither."
+  def patent_name(name_or_key), do: Map.get(patent_lookup(), name_or_key, {nil, nil, nil}) |> elem(1)
+
+  @doc "The internal key for a patent, given its name or its internal key; nil if neither."
+  def patent_key(name_or_key), do: Map.get(patent_lookup(), name_or_key, {nil, nil, nil}) |> elem(0)
+
+  @doc "The patent's English title (\"Armoring\"), given its name or key; nil if neither."
+  def patent_title(name_or_key), do: Map.get(patent_lookup(), name_or_key, {nil, nil, nil}) |> elem(2)
+
+  # [{key, name, title}]
+  defp patent_table do
+    cached(:patents, fn ->
+      Enum.map(patent_keys(), fn key ->
+        title = Map.get(@patent_titles, key) || key
+        {key, patent_slug(title), title}
+      end)
+    end)
+  end
+
+  # name or key -> {key, name, title}
+  defp patent_lookup do
+    cached(:patent_lookup, fn ->
+      Enum.reduce(patent_table(), %{}, fn {key, name, _} = row, acc ->
+        acc |> Map.put(key, row) |> Map.put(name, row)
+      end)
+    end)
+  end
+
+  defp patent_slug(title) do
+    title
+    |> String.normalize(:nfd)
+    |> String.replace(~r/[^\x00-\x7F]/u, "")
+    |> String.replace(~r/['.]/, "")
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/, "_")
+    |> String.trim("_")
   end
 
   @doc "Mutator keys a scenario may apply: the implemented ones."

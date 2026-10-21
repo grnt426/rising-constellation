@@ -60,7 +60,8 @@ defmodule Edict.Interpreter do
       globals: Keyword.get(opts, :globals, %{}),
       world: Keyword.get(opts, :world),
       mode: Keyword.get(opts, :mode, :pure),
-      seed: Keyword.get(opts, :seed, "")
+      seed: Keyword.get(opts, :seed, ""),
+      rand_n: Keyword.get(opts, :rand_n, 0)
     }
   end
 
@@ -984,8 +985,9 @@ defmodule Edict.Interpreter do
   end
 
   # A number in [0, 1) fixed by the scenario's seed and the keys. With no keys
-  # the run's own counter stands in, so repeated calls differ but replay the
-  # same way.
+  # the run's own counter stands in (it carries on from one second to the
+  # next, see Edict.Runtime), so repeated calls differ but replay the same
+  # way.
   defp roll([], ctx), do: roll(["seq", ctx.rand_n / 1], %{ctx | rand_n: ctx.rand_n + 1})
 
   defp roll(keys, ctx) do
@@ -1111,7 +1113,7 @@ defmodule Edict.Interpreter do
 
   @doc "How a value reads as text (str(), templates, joining with +)."
   def to_text(v) when is_binary(v), do: v
-  def to_text(v) when is_number(v), do: Printer.plain(v / 1)
+  def to_text(v) when is_number(v), do: Printer.text(v)
   def to_text(true), do: "true"
   def to_text(false), do: "false"
   def to_text(nil), do: "nil"
