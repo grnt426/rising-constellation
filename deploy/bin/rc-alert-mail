@@ -1,0 +1,82 @@
+#!/bin/bash
+#
+# rc-alert-mail — email the operator that a systemd unit failed.
+#
+#   rc-alert-mail <unit>
+#
+# Run by rc-alert@.service, which a unit opts into with
+#   OnFailure=rc-alert@%n.service
+# (rc-db-backup.service does). Sends one plain-text mail through SES with
+# the failure result, the unit's status and its recent log.
+#
+# Delivery: SES with the EC2 instance role, whose policy allows
+# ses:SendEmail on the tetrarchyfalls.com identity from any
+# *@tetrarchyfalls.com sender. contact@ is an inbound alias that the
+# rc-mail-forwarder Lambda forwards to the operator's inbox (the forward
+# map lives in that Lambda's source).
+#
+# Configuration (optional /etc/rc/alert.env):
+#   RC_ALERT_TO          recipient (default contact@tetrarchyfalls.com)
+#   RC_ALERT_FROM        sender (default alerts@tetrarchyfalls.com)
+#   RC_ALERT_REGION      SES region (default us-east-1)
+#   RC_ALERT_CONFIG_SET  SES configuration set, so a bounce reaches the
+#                        rc-mail-events SNS topic (default
+#                        rc-transactional; set it empty to skip)
+#   RC_ALERT_DRY_RUN     set to 1 to print the mail instead of sending it
+#
+# AWS credentials: the instance role via IMDS. Never source
+# /etc/rc/env here: its AWS keys are dead and would shadow the role.
+
+set -euo pipefail
+
+UNIT="${1:?usage: rc-alert-mail <unit>}"
+TO="${RC_ALERT_TO:-contact@tetrarchyfalls.com}"
+FROM="${RC_ALERT_FROM:-alerts@tetrarchyfalls.com}"
+REGION="${RC_ALERT_REGION:-us-east-1}"
+CONFIG_SET="${RC_ALERT_CONFIG_SET-rc-transactional}"
+DRY_RUN="${RC_ALERT_DRY_RUN:-0}"
+
+HOST=$(hostname)
+
+show() { systemctl show -p "$1" --value "$UNIT" 2>/dev/null || true; }
+RESULT=$(show Result)
+STATUS=$(show ExecMainStatus)
+STARTED=$(show ExecMainStartTimestamp)
+ENDED=$(show ExecMainExitTimestamp)
+
+# The last 60 lines cover the failed run (a backup logs ~10) plus some
+# context. The unit runs with systemd-journal, so systemd's own lines
+# ("Failed with result ...") are included.
+LOG=$(journalctl -q -u "$UNIT" -n 60 --no-pager -o short-iso 2>&1 || true)
+
+SUBJECT="[Tetrarchy Falls] $UNIT failed on $HOST (${RESULT:-unknown})"
+BODY="$UNIT failed on $HOST.
+
+Result:      ${RESULT:-unknown} (exit status ${STATUS:-?})
+Started:     ${STARTED:-?}
+Ended:       ${ENDED:-?}
+Alert sent:  $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+Recent log (journalctl -u $UNIT -n 60):
+
+$LOG
+
+On the host:
+  journalctl -u $UNIT -n 200 --no-pager
+  systemctl status $UNIT
+"
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  printf 'To: %s\nFrom: %s\nSubject: %s\n\n%s' "$TO" "$FROM" "$SUBJECT" "$BODY"
+  exit 0
+fi
+
+CONTENT=$(jq -n --arg s "$SUBJECT" --arg b "$BODY" \
+  '{Simple: {Subject: {Data: $s, Charset: "UTF-8"}, Body: {Text: {Data: $b, Charset: "UTF-8"}}}}')
+
+args=(sesv2 send-email --region "$REGION" --from-email-address "$FROM"
+  --destination "ToAddresses=$TO" --content "$CONTENT" --query MessageId --output text)
+[[ -n "$CONFIG_SET" ]] && args+=(--configuration-set-name "$CONFIG_SET")
+
+MESSAGE_ID=$(aws "${args[@]}")
+echo "rc-alert-mail: mailed $TO about $UNIT (SES message $MESSAGE_ID)"

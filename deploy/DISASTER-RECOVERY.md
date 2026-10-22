@@ -58,6 +58,22 @@ during the backup. Tarring the live dir used to make tar exit 1, which
 killed the whole run: 2026-10-04 and 2026-10-21 have no backup at all.
 A failed snapshot step still exits non-zero after the DB upload.
 
+A failed run (a timeout included) emails `contact@tetrarchyfalls.com`,
+which the `rc-mail-forwarder` Lambda forwards to the operator's inbox.
+`rc-db-backup.service` has `OnFailure=rc-alert@%n.service`, which runs
+`/usr/local/bin/rc-alert-mail`. That script sends the result and the
+last 60 log lines through SES, signed with the instance role. Override
+the recipient or sender in `/etc/rc/alert.env` (`RC_ALERT_TO`,
+`RC_ALERT_FROM`). To test the whole path without breaking a backup:
+
+```
+sudo systemd-run --unit=rc-alert-selftest \
+  -p OnFailure=rc-alert@rc-alert-selftest.service.service /bin/false
+```
+
+A backup that never starts (timer disabled, host down) sends nothing.
+The freshness check below still catches that.
+
 Check freshness:
 
 ```

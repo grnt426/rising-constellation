@@ -200,6 +200,9 @@ install -d -o root -g root -m 0755 /etc/rc
 install -m 0755 "$DEPLOY_DIR/bin/rc-db-backup" /usr/local/bin/rc-db-backup
 install -m 0644 "$DEPLOY_DIR/systemd/rc-db-backup.service" /etc/systemd/system/rc-db-backup.service
 install -m 0644 "$DEPLOY_DIR/systemd/rc-db-backup.timer" /etc/systemd/system/rc-db-backup.timer
+# Failure email (rc-db-backup.service has OnFailure=rc-alert@%n.service).
+install -m 0755 "$DEPLOY_DIR/bin/rc-alert-mail" /usr/local/bin/rc-alert-mail
+install -m 0644 "$DEPLOY_DIR/systemd/rc-alert@.service" /etc/systemd/system/rc-alert@.service
 
 if [[ -n "$RC_BACKUP_BUCKET" ]]; then
   printf 'RC_BACKUP_BUCKET=%s\n' "$RC_BACKUP_BUCKET" > /etc/rc/backup.env

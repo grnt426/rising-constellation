@@ -232,6 +232,8 @@ if (-not $SkipHost) {
         "$PSScriptRoot\bin\rc-db-backup-install" `
         "$PSScriptRoot\systemd\rc-db-backup.service" `
         "$PSScriptRoot\systemd\rc-db-backup.timer" `
+        "$PSScriptRoot\bin\rc-alert-mail" `
+        "$PSScriptRoot\systemd\rc-alert@.service" `
         "${SshHost}:$staging/"
     if ($LASTEXITCODE -ne 0) { throw "scp failed" }
 
