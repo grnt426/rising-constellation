@@ -80,6 +80,65 @@ bin/rc eval 'RC.Release.publish_archive(121)'
 Locally: put snapshot files under `tmp/snapshots/<iid>/` and run
 `mix legacy_archive.import <iid> tmp/snapshots/<iid> [--publish]`.
 
+## Snapshot history (long-term)
+
+The archive keeps per-day metrics, not game state, and the game's own
+autosaves are deleted (only the newest 10 stay, and nightly tarballs
+expire after 30 days). For analysis that needs the full state (player
+trends, bot strategy), `rc-snapshot-history` keeps an **hourly** snapshot
+history of every official Legacy match indefinitely:
+
+- **Collect:** an hourly timer (`rc-snapshot-history.timer`, :41) hard-links
+  the earliest autosave of each UTC hour into
+  `/home/rc/snapshot-history/<iid>/staging/`. It also collects every
+  snapshot in the archive keep dir, including the victory-time one.
+- **Pack:** 3 hours after a match day ends, that day's snapshots are packed
+  in time order into `day-NN.tar.zst` with `zstd -19 --long=31`. Each
+  archive is uploaded to
+  `s3://rc-prod-backups-553872001542/legacy-history/<iid>/`, and a local
+  copy stays on the host.
+- **Finish:** when the match ends, the rest is packed and `COMPLETE` is
+  written. Matches that ended before the job existed are backfilled from
+  whatever is still on disk.
+- **Manifest:** `manifest.json` sits next to the archives. It has the
+  match facts (start, victory, end, winner) and one row per snapshot: the
+  file, its archive, `taken_at`, `match_day`, `kind` (`hourly` or `keep`)
+  and `after_victory`.
+
+The format is unchanged and lossless: unpacking gives the game's snapshot
+files byte for byte. Consecutive snapshots differ little, and the long
+window stores each one after the first as a small delta. Measured on
+Broken Beyond, 193 MB of daily snapshots packed to 2.5 MB. Measured on a
+live game, ten 15-minute autosaves (114 MB) packed to 0.43 MB. An hourly
+match should come to tens of MB, at $0.023 per GB-month on S3 Standard.
+
+**Retention needs the prefix-scoped lifecycle.** The bucket's original
+rule expired every object after 30 days. `provision-dr.ps1` now limits
+expiry to `db/` and `snapshots/`. Apply it once with an admin profile:
+
+```
+.\deploy\provision-dr.ps1 -AwsProfile <admin-profile> -LifecycleOnly
+```
+
+Reading a match:
+
+```
+aws s3 cp --recursive s3://rc-prod-backups-553872001542/legacy-history/185/ i185/
+zstd -d --long=31 -c i185/day-07.tar.zst | tar -x -C i185/
+```
+
+`--long=31` is required on decompress, since the archives use a 2 GB
+window (zstd refuses otherwise). Python's `zstandard` needs
+`ZstdDecompressor(max_window_size=2**31)` and can stream members through
+`tarfile` without extracting. Each file is `:erlang.term_to_binary/1` of
+`%{instance_data:, agents_data:}`. Decode it with
+`:erlang.binary_to_term/1` in any rc image (`docker run --entrypoint
+elixir`), and see `RC.Archive.SnapshotStats` for the shape.
+
+A failed run mails contact@ (`OnFailure=rc-alert@%n.service`); see
+`journalctl -u rc-snapshot-history`. Staged links hold at most about a day
+of raw snapshots per live official match: roughly 24 × 11 MB.
+
 ## Spreadsheet export
 
 The match page has an **Export to Excel** button that calls
