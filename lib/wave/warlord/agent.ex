@@ -168,10 +168,8 @@ defmodule Wave.Warlord.Agent do
     case call(data, :player, data.player_id, :get_state) do
       {:ok, player} ->
         data
-        |> step("top_up", fn data ->
-          top_up(data, player)
-          data
-        end)
+        |> step("top_up", &top_up(&1, player))
+        |> step("construction", &construction(&1, player))
         |> pass(player)
         |> Warlord.step_ok("pass")
 
@@ -481,16 +479,34 @@ defmodule Wave.Warlord.Agent do
   # Keep the bot's stock at its floors. Hiring charges the canonical market
   # price, so without this later hires would fail on affordability. Bankruptcy
   # itself is suppressed in Player.detect_bankruptcy.
+  #
+  # Credit is different since the Rebellion pays for its construction: it
+  # gets its starting credit once, on its first pass, and from then on only a
+  # small floor kept for hires (Warlord.credit_target/1), since a standing
+  # floor would refill whatever construction spent below it.
   defp top_up(data, player) do
-    credit = shortfall(player.credit.value, knob(data, "credit_floor", 0))
+    {credit_target, kind} = Warlord.credit_target(data)
+    credit = shortfall(player.credit.value, credit_target)
     technology = shortfall(player.technology.value, knob(data, "technology_floor", 0))
     ideology = shortfall(player.ideology.value, knob(data, "ideology_floor", 0))
 
-    if credit + technology + ideology > 0 do
-      call(data, :player, data.player_id, {:add_resources, credit, technology, ideology})
-    end
+    reply =
+      if credit + technology + ideology > 0,
+        do: call(data, :player, data.player_id, {:add_resources, credit, technology, ideology}),
+        else: :ok
 
-    :ok
+    if kind == :grant and reply == :ok,
+      do: Warlord.mark_granted(data, max(player.credit.value, credit_target)),
+      else: data
+  end
+
+  # What the Rebellion's systems may spend on construction until the next
+  # pass (Warlord.update_construction/3), from the credit as topped up just
+  # now: to the starting credit on the pass it was granted, to the floor after.
+  defp construction(data, player) do
+    {floor, _kind} = Warlord.credit_target(data)
+    topped = data |> Map.get(:construction, %{}) |> Map.get(:grant) || floor
+    Warlord.update_construction(data, max(player.credit.value, topped), player.credit.change)
   end
 
   defp shortfall(value, floor) when is_number(value) and is_number(floor) and value < floor,

@@ -263,6 +263,10 @@ defmodule Instance.StellarSystem.Agent do
 
       if refund > 0 do
         Game.cast(data.instance_id, :player, data.owner.id, {:add_resources, refund, 0, 0})
+
+        # A Rebellion system paid for the upgrade out of the construction
+        # allowance: that is where the refund goes back to.
+        if Wave.Config.bot_system?(data), do: Wave.Budget.give_back(data.instance_id, refund)
       end
     end
 
@@ -527,6 +531,18 @@ defmodule Instance.StellarSystem.Agent do
       end)
       |> Enum.each(fn {:ship_built, item, initial_xp} ->
         Game.cast(instance_id, :character, item.target_id, {:put_ship, item.tile_id, initial_xp})
+      end)
+
+      # The Rebellion paid for what this system's tree ordered
+      # (Wave.Construction): the credit leaves the bot player. A cast — the
+      # player may be calling this system right now.
+      change
+      |> Enum.filter(fn
+        {:construction_paid, _credit} -> true
+        _ -> false
+      end)
+      |> Enum.each(fn {:construction_paid, credit} ->
+        Game.cast(instance_id, :player, data.owner.id, {:pay_construction, credit})
       end)
 
       # Daily "Monumental" race: latch a completed wonder onto the owner's

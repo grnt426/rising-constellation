@@ -478,22 +478,50 @@ defmodule SystemAI.Helper do
     cost <= 0 or state.happiness.value - cost >= @happiness_reserve
   end
 
-  # The buildings among `buildings` the system may start: patented, and not
-  # costing more happiness than it can spare.
+  # The buildings among `buildings` the system may start: patented, not
+  # costing more happiness than it can spare, and, in a rebel system, within
+  # the Rebellion's construction allowance.
   defp allowed(buildings, state) do
+    budget = Wave.Construction.budget(state)
+
     case rebel_economy(state) do
-      nil -> Enum.filter(buildings, &affordable?(state, &1))
-      economy -> Enum.filter(buildings, &(patent_held?(economy.patents, &1, 1) and affordable?(state, &1)))
+      nil ->
+        Enum.filter(buildings, &(affordable?(state, &1) and payable?(budget, &1)))
+
+      economy ->
+        Enum.filter(
+          buildings,
+          &(patent_held?(economy.patents, &1, 1) and affordable?(state, &1) and payable?(budget, &1))
+        )
     end
   end
 
-  @doc "The legal upgrades among `candidates` the system can afford in happiness."
+  @doc """
+  The legal upgrades among `candidates` the system can afford: in happiness,
+  and in a rebel system in credit, out of the Rebellion's construction
+  allowance (`Wave.Construction`).
+  """
   def affordable_upgrades(state, candidates) do
     buildings = Map.new(BuildingsHelper.get_all_buildings(state.instance_id), &{&1.key, &1})
+    budget = Wave.Construction.budget(state)
 
     Enum.filter(candidates, fn tile ->
-      affordable?(state, Map.fetch!(buildings, tile.building_key), tile.building_level + 1)
+      building = Map.fetch!(buildings, tile.building_key)
+      level = tile.building_level + 1
+      affordable?(state, building, level) and payable?(budget, building, level)
     end)
+  end
+
+  # True when the construction allowance `budget` covers `building` at
+  # `level`; a nil budget (a system the Rebellion does not hold) covers anything.
+  defp payable?(budget, building, level \\ 1)
+  defp payable?(nil, _building, _level), do: true
+
+  defp payable?(budget, %{levels: levels}, level) do
+    case Enum.find(levels, &(&1.level == level)) do
+      %{credit: credit} -> credit <= budget
+      nil -> false
+    end
   end
 
   @doc """
@@ -1106,11 +1134,13 @@ defmodule SystemAI.Helper do
   Every happiness building the engine would accept right now, as production
   data `{body_uid, tile_id, key, 1}`: a body with a free tile, a happiness
   building it does not have yet (and no unique rule forbids), and enough free
-  workforce to staff it. A rebel system needs the patent as well.
+  workforce to staff it. A rebel system needs the patent as well, and the
+  credit in the Rebellion's construction allowance.
   """
   def happiness_builds(system) do
     bodies = get_bodies(system)
     free_workforce = system.workforce - system.used_workforce
+    budget = Wave.Construction.budget(system)
 
     bodies
     |> filter_free_bodies()
@@ -1125,7 +1155,7 @@ defmodule SystemAI.Helper do
           body
           |> get_happiness_buildings(system.instance_id, built_keys)
           |> filter_already_built_unique_buildings(body, bodies)
-          |> Enum.filter(&(&1.workforce <= free_workforce and patented?(system, &1)))
+          |> Enum.filter(&(&1.workforce <= free_workforce and patented?(system, &1) and payable?(budget, &1)))
           |> Enum.map(&{body.uid, tile.id, &1.key, 1})
       end
     end)
@@ -1141,15 +1171,27 @@ defmodule SystemAI.Helper do
 
   defp buildable_tiles(body), do: get_free_tiles(body)
 
-  @doc "The legal upgrades (`get_legal_upgrades/1`) of buildings that output happiness."
+  @doc """
+  The legal upgrades (`get_legal_upgrades/1`) of buildings that output
+  happiness; in a rebel system, those the construction allowance covers.
+  """
   def happiness_upgrades(system) do
     happy =
       system.instance_id
       |> BuildingsHelper.get_all_buildings()
       |> Enum.filter(&(is_list(&1.outputs) and :happiness in &1.outputs))
-      |> MapSet.new(& &1.key)
+      |> Map.new(&{&1.key, &1})
 
-    system |> get_legal_upgrades() |> Enum.filter(&MapSet.member?(happy, &1.building_key))
+    budget = Wave.Construction.budget(system)
+
+    system
+    |> get_legal_upgrades()
+    |> Enum.filter(fn tile ->
+      case Map.fetch(happy, tile.building_key) do
+        {:ok, building} -> payable?(budget, building, tile.building_level + 1)
+        :error -> false
+      end
+    end)
   end
 
   def has_building?(tiles, building_atom) do

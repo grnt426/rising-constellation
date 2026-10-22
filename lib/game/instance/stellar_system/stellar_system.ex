@@ -1198,17 +1198,25 @@ defmodule Instance.StellarSystem.StellarSystem do
           ai_next_action = Core.DynamicValue.change_value(ai_next_action, 0.0)
           system_value = compute_value(state)
 
-          case SystemAI.do_action(state, system_value, tree_key) do
-            {:ok, updated_state} ->
-              # A tree may take a building down to put a better one in its
-              # place. The owner's copy of the system then has to follow, as
-              # it does when a player removes a building.
-              change =
-                if compute_value(updated_state) < system_value,
-                  do: MapSet.put(change, :player_update),
-                  else: change
+          # A rebel system pays for what its tree ordered, out of the
+          # Rebellion's construction allowance; a turn it cannot pay for is
+          # dropped (Wave.Construction). Other systems pay nothing.
+          with {:ok, updated_state} <- SystemAI.do_action(state, system_value, tree_key),
+               {:ok, credit} <- Wave.Construction.charge(state, updated_state) do
+            # A tree may take a building down to put a better one in its
+            # place. The owner's copy of the system then has to follow, as
+            # it does when a player removes a building.
+            change =
+              if compute_value(updated_state) < system_value,
+                do: MapSet.put(change, :player_update),
+                else: change
 
-              {change, notifs, %{updated_state | ai_next_action: ai_next_action}}
+            change = if credit > 0, do: MapSet.put(change, {:construction_paid, credit}), else: change
+
+            {change, notifs, %{updated_state | ai_next_action: ai_next_action}}
+          else
+            :unaffordable ->
+              {change, notifs, %{state | ai_next_action: ai_next_action}}
 
             {:error, _reason} ->
               # no update
