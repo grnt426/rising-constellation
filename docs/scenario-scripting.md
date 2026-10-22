@@ -12,6 +12,11 @@ language, how the visual and textual layers stay one program, the security
 model, how a script runs (simulated and live), how it was validated, and
 what comes next.
 
+Status (2026-10-22): scripts also run in Legacy, Tactic and Flash matches:
+players save them to their account (ten each), publish them, and attach them
+to Forge scenarios, where each is checked against the map and runs once per
+player in every match (see "Scripts in matches").
+
 Status (2026-10-21): the MVP is built and tested end to end. Ten of the
 shipped daily objectives are rebuilt as scripts and rank players exactly as
 the hand-written versions do; a script can be simulated in the editor and
@@ -24,9 +29,10 @@ is measured and bounded (see "What scripts cost"), and script text never
 renders as HTML (see "Script text in the browser"). Every function,
 action, event, operator and world value has plain-language docs with tested
 examples, on hover and in the Help tab, and the code view suggests what fits.
-Tests: 196 in `test/edict/` and the API's controller test (Node tests of the
-editor kits included), 14 browser tests; two rounds of synthetic usability sessions shaped the
-editor (see the study section).
+Tests: about 240 in `test/edict/`, `test/rc/scripts_test.exs` and the two API
+controller tests (Node tests of the editor kits and a real two-faction match
+included), 16 browser tests; two rounds of synthetic usability sessions
+shaped the editor (see the study section).
 
 ## Contents
 
@@ -38,10 +44,11 @@ editor (see the study section).
 6. [Help while writing](#help-while-writing)
 7. [Security model](#security-model)
 8. [Running a scenario](#running-a-scenario)
-9. [What scripts cost](#what-scripts-cost)
-10. [Validation](#validation)
-11. [Roadmap](#roadmap)
-12. [Where things are](#where-things-are)
+9. [Scripts in matches](#scripts-in-matches)
+10. [What scripts cost](#what-scripts-cost)
+11. [Validation](#validation)
+12. [Roadmap](#roadmap)
+13. [Where things are](#where-things-are)
 
 ## Why a new language
 
@@ -584,6 +591,201 @@ runner (`Edict.Live`) starts with the clock.
   workshop. A scripted run never writes to the daily leaderboard
   (`Daily.Boot.record_for/2` stands aside; tested).
 
+## Scripts in matches
+
+A script also runs in Legacy, Tactic and Flash matches (Rebel Defense
+included): its author saves it to their account, attaches it to a Forge
+scenario, and every match made from that scenario runs it. Nothing restricts
+which mode a script may join; the checks below warn when a script's setup
+doesn't suit the map.
+
+### One run per player
+
+A match has many players, and a script was written for "the player". The
+rule that keeps every script meaningful in both places: **in a match, a
+script runs once for every player, as if each had their own copy.**
+
+| In a script | In a daily | In a match |
+|---|---|---|
+| `player` | the one player | the player this copy runs for |
+| `var` | the run's state | that player's state; each player has their own |
+| `on start` | the run begins | the player's run begins: the match's start, or when a late joiner first appears |
+| `at 10m`, `every 1h` | the run's clock | the match's clock (running time, pauses excluded); a late joiner skips an `at` already past, and an `every` picks up at its next occurrence, numbered as if it had counted since the start |
+| `give`, `take`, `destabilize` | the player | that player, their own systems |
+| `notify` | the player | that player alone |
+| `finish()` | ends the run | ends that player's run (score counted, `on end` run); the match goes on |
+| `score` | ranks the day | each player's own score, shown to them with their place |
+| `send_agent` | the rival court | refused: a match has no rival court |
+| `time.limit` | the setup's | the match's time limit |
+
+So a daily script keeps its meaning when attached to a match, and a script
+written for matches simulates in the workshop as one player's run.
+
+Three world values describe the match around the player (`Edict.World`):
+
+- `scenario.mode`: `"daily"` (a daily or a playtest), `"legacy"`,
+  `"tactic"` or `"flash"`;
+- `factions`: the factions in play, leader first, each with `name`,
+  `players`, `systems`, `dominions`, `victory_points` and `rank`;
+- `players`: everyone playing, with what the match shows openly: `name`,
+  `faction`, `systems_owned`, `dominions`, `population`. Stocks, incomes and
+  research stay private; `player` has the player's own.
+
+In a daily, `factions` holds the player's faction (and the rival court's)
+and `players` holds the player. For example, a tithe on the leaders:
+
+```
+setup {
+  name = "Tithe of the Leaders"
+  factions = 2
+}
+
+score player.credit
+
+every 6h {
+  if find(factions, f => f.name == player.faction).rank == 1 {
+    take("credit", player.credit * 5%)
+    notify("Your faction leads: 5% of your credit goes to the tithe.", tone: "warning")
+  }
+}
+```
+
+The workshop's **New… → Rules for a match** starts from this.
+
+### Saving and publishing
+
+Scripts are saved to the player's account (`RC.Scripts`, table
+`edict_scripts`), from the workshop's **Scripts** tab or File menu (Ctrl+S
+saves there when the open script is the account's):
+
+- **Ten per account.** The eleventh save is refused until one is deleted.
+- **The server derives everything.** The client sends the tree (or text)
+  and the editor's layout; the name, description, canonical text, its
+  SHA-256 digest and the checker's error count are worked out on the server.
+- **Publishing is a flag, not a copy.** A published script is always
+  exactly the version its author last saved. Publishing needs a script with
+  no mistakes, and saving a published script keeps it that way.
+- **No duplicates.** No two published scripts share a digest (a partial
+  unique index), so publishing an unchanged copy of someone's script is
+  refused, naming the original.
+- **Others** find published scripts in the Scripts tab (search by name),
+  open them read-only, and save a copy to change them (it counts toward
+  their ten). Deleting an account deletes its scripts.
+
+### Attaching to a scenario
+
+The Forge scenario editor's last step has a **Scripts** section: up to three
+scripts, picked from the author's own and the published ones.
+
+**Frozen copies.** Saving the scenario keeps a copy of each script (text,
+digest, name, author) in its `game_data["scripts"]`, taken from the
+version saved at that moment (`RC.Scripts.attach/3`). A match runs that
+copy, so a script edited, unpublished or deleted later never changes or
+breaks a scenario that uses it; saving the scenario again picks up the
+latest version. A script that is no longer available keeps the copy the
+scenario had. Only ids come from the client: text it sends is never kept.
+Anyone who can open the scenario can read its scripts (the scenario page
+lists them, text included), since they are the rules of its matches.
+
+**Checks against the map** (`Edict.Attachment`). The point is not to prove a
+script does what its author meant, only that it starts correctly on this
+map. They run as scripts are picked (`POST /api/edict/check-scenario`) and
+again on save; all are warnings, and the scenario still saves.
+
+- *The setup against the map.* The setup describes the world a script was
+  written for, and in a match the map makes that world, so the two must
+  agree: `factions = 5` on a two-faction map, a `faction` the map doesn't
+  have, a `time_limit` that isn't the match's, `rival = true`, the
+  daily-only `systems` and `neighbors`, and granted or discounted patents
+  that the speed's patent tree lacks (Flash and Tactic trees are smaller).
+- *A dry start.* The script starts once for a model player of every faction
+  on the map (the speed's starting stocks, one home system, the map's
+  factions and size), runs its first two seconds, counts its score and
+  runs `on end`. An error there is reported: `factions[4].name` on a
+  two-faction map fails with "can't read .name of nothing".
+- *Between scripts.* Two scripts that discount the same patent differently
+  are flagged (the lower price applies).
+
+It can't catch the opposite case: a script that hard-codes two factions in a
+way that can't tell a five-faction map apart.
+
+**What a match boots with.** Creating a match from the scenario
+(`RC.Instances.create_instance/3`) merges the attached scripts' setups into
+`game_data["edict"]["setup"]`: every granted patent (each player gets them
+when they join, with their ancestors), the lowest discount per patent, and
+the scripts' mutators added to the map's own. The engine reads it through
+`Instance.Mutators.script_setup/1`, the same path a scripted daily uses.
+
+### The match runner
+
+`Edict.Match` runs the scripts, a task outside the instance's supervision
+tree like the daily's runner. `Instance.Manager` starts it whenever the
+instance starts (a no-op when it already runs), so a resume, a restart, a
+deploy's restore or the autosave cycle's stop/start all bring it back.
+
+- **Once a second** it reads the clock and the standings (one call to the
+  Victory agent), refreshes the roster from the factions every 15 seconds
+  (players join a Legacy match all along), and pulses each player whose run
+  has something due: a timer, a `when` (checked every second) or the score
+  refresh every 10 seconds. A run with nothing due costs nothing: no world
+  read, no sandbox.
+- **Every pulse** is sandboxed like a playtest's, and the match shares a
+  budget of 500,000 steps a second among the runs due (5,000 at least
+  each; a typical pulse takes tens).
+- **State survives restarts.** Every run's vars, timers and score are saved
+  to `edict_match_runs` every few seconds, and at once after any `on start`
+  (which must never run twice), and read back when the runner starts.
+- **What players see.** The in-game scenario panel (folded to one line, a
+  Legacy match runs for weeks) lists each script with the player's score
+  and place; messages arrive as in a playtest, and a player who was away
+  gets their last five on arrival. A script problem shows to the player
+  whose run hit it, once per problem.
+- **The end.** When the match is won, every run still going is finished
+  (score counted, `on end` run, its messages sent, nothing else changed in
+  a finished game) and each script's top three go to everyone.
+
+The Rebellion of a Rebel Defense match is the game's own opponent and gets
+no run. Bots seated as ordinary players do.
+
+### What a match's scripts cost
+
+Measured with `test/edict/resource_bench_test.exs` section 10 (the dev
+container's x86 cores; the production Graviton cores are slower), per match,
+for the work of one second including the 10-second score refresh:
+
+| Script | 12 players | 60 players | 100 players |
+|---|---|---|---|
+| The match template (a 6-hour timer) | 0.0 ms | 0.2 ms | 0.3 ms |
+| Two `when`s over all players, a 1-second timer | 0.4 ms | 5.4 ms | 12.3 ms |
+| A runaway loop, every second | 28 ms | 30 ms | 32 ms |
+
+The runaway script is held to the match's shared budget and is switched off
+after three failed seconds, as in a playtest. Saved state is under 1 KB per
+hundred players for these scripts (vars are capped at 256 KB per run).
+
+**Found and fixed while measuring:** the runners copy a run's runtime into
+the sandbox every pulse, and the sandbox's 16 MB cap counts that copy. The
+runtime used to carry the whole program and, in each handler, its whole
+declaration, so a large script (the bench's 200 `every` handlers) needed a
+32 MB heap and was killed on every pulse, in a playtest as in a match. The
+runtime now keeps only what a pulse uses (handler bodies, not the program),
+and the same script runs in a 6 MB heap; `sandbox_escape_test.exs` keeps it
+that way. A run whose pulse still kills its sandbox five times is switched
+off for that player, as a playtest's script is.
+
+### Not done yet
+
+- **The simulator models a daily.** It runs one player for at most 45
+  minutes against the model economy, with that player's faction alone in
+  `factions`. A match's hours-long timers don't fire there; the attach-time
+  dry start is the check that a script boots on a real map.
+- **No shared state between players.** Each player's vars are their own; a
+  "first to reach X wins a bonus" rule needs a `shared var` (planned).
+- **No custom victory.** `finish()` ends one player's run, never the match.
+- **Messages to absent players** are kept only as the last five per player
+  (shown on arrival); a script can't write to the faction chat.
+- Script copy (panel, Forge section) is English only, like the workshop.
+
 ## What scripts cost
 
 The question this answers: what happens to the production box (one AWS
@@ -886,12 +1088,15 @@ and the simulator can't say in advance that a goal is out of reach of the
 
 **Phase 2: sharing and community dailies.**
 
-- Scripts stored server-side (a `scenario_scripts` table: author, name,
-  source, layout, visibility), identified by a digest of their canonical
-  text so a leaderboard belongs to exactly one version.
-- Publishing: a script goes public through review (automated checks plus a
-  moderation queue for names and messages, since scenario text reaches other
-  players), with per-script leaderboards keyed on the digest.
+- Done (2026-10-22): scripts saved to the account (`edict_scripts`, keyed by
+  the digest of their canonical text), publishing (no duplicates, always
+  the saved version), and scripts in matches (see "Scripts in matches").
+- Still to do: a moderation queue for published names and messages (today
+  they are cleaned of control and direction characters and shown as plain
+  text, but not reviewed), and per-script leaderboards keyed on the digest.
+- For matches: `shared var` (state common to every player's run), a way to
+  end the match or name a winner, simulating a match (several players, a
+  map's factions, its length), messages to the faction chat.
 - Shared function libraries, with copy-on-insert kept as the rule.
 - Community dailies: a curated script can be a day's challenge, run through
   the same runner, recording into `daily_entries`.
@@ -925,13 +1130,16 @@ language reusable under different **capability profiles**:
 | Piece | Path |
 |---|---|
 | Language core | `lib/edict/` (`lexer`, `parser`, `ast`, `printer`, `checker`, `catalog`, `interpreter`, `runtime`, `sandbox`, `limits`, `effects`, `world`, `scenario`, `source_map`, `simulator`, `live`, `edict.ex`) |
-| HTTP API | `lib/portal/controllers/edict_controller.ex` (`/api/edict/catalog`, `examples`, `editors/:kind`, `analyze`, `fragment`, `format`, `simulate`, `playtest`) |
+| HTTP API | `lib/portal/controllers/edict_controller.ex` (`/api/edict/catalog`, `examples`, `editors/:kind`, `analyze`, `fragment`, `format`, `simulate`, `playtest`, `check-scenario`), `lib/portal/controllers/script_controller.ex` (`/api/edict/scripts`, `published`, `:id`, `:id/publish`) |
+| Saved scripts | `lib/rc/scripts.ex`, `lib/rc/scripts/script.ex`, migration `20261022000001_create_edict_scripts` (`edict_scripts`, `edict_match_runs`) |
+| Scripts in matches | `lib/edict/attachment.ex` (frozen copies, checks against a map, a match's merged setup), `lib/edict/match.ex` (the runner); started from `Instance.Manager.start/2`; `Instance.Mutators.script_setup/1`; `Portal.ScenarioController` (attach on save, `script_checks`) |
+| Forge and lists | `front/src/portal/components/ScenarioScripts.vue` (the editor's Scripts section), `ScriptedBadge.vue` (Forge list, new-game picker, lobby rows, scenario page), `front/src/portal/pages/create/ScenarioDetail.vue` (the scripts' text) |
 | Editor kits | `lib/edict/editor_kit.ex` (generator), `priv/edict/editors/` (`core.js` engine, `extension.js` VS Code, `edict-lsp.js` language server, kit READMEs), `mix edict.editors DIR` |
 | Files in the workshop | `front/src/portal/workshop/files.js` (open, save, link) |
 | Docs and suggestions | `lib/edict/docs.ex` (entries, `test/edict/docs_test.exs`), `front/src/portal/workshop/` (`DocCard.vue`, `docs.js`, `completion.js`, `md-lite.js`, `editor-settings.js`), Settings → Scenario editor (`front/src/portal/pages/settings/ScenarioEditor.vue`, `Account.settings.scenario_editor`) |
 | Examples | `priv/edict/examples/*.edict` |
 | Engine seam | `Instance.Mutators.daily_setup/1` and siblings; `Daily.Generator.for_script/3`; `Daily.Boot.boot_definition/3`; `Daily.Director.mint_agent/4` |
 | Editor | `front/src/portal/pages/ScenarioWorkshop.vue`, `front/src/portal/workshop/` (`ast.js` edits, `graph.js` drawing, `GraphCanvas`, `GraphNode`, `CodeEditor`, `Palette`, `SimPanel`, `Tour`) |
-| In game | `front/src/game/components/ScenarioFeed.vue`, the scenario variant of `DailyResultBanner.vue` |
-| Tests | `test/edict/` (parser, interpreter, runtime, checker, examples, parity, sandbox escape, live, editor kit; `editors/*.test.js` run by `editor_kit_test.exs`), `test/portal/controllers/edict_controller_test.exs`, `e2e/tests/scenario-workshop.spec.js` |
+| In game | `front/src/game/components/ScenarioFeed.vue` (playtests, and a match's standings), the scenario variant of `DailyResultBanner.vue` |
+| Tests | `test/edict/` (parser, interpreter, runtime, checker, examples, parity, sandbox escape, live, attachment, match, editor kit; `editors/*.test.js` run by `editor_kit_test.exs`), `test/rc/scripts_test.exs`, `test/portal/controllers/{edict,script}_controller_test.exs`, `e2e/tests/scenario-workshop.spec.js`, `e2e/tests/scenario-scripts.spec.js` |
 | Usability sessions | `e2e/usability-harness.js` (`node usability-harness.js <port> <outdir>`, then drive it with `curl -d '{"cmd":"shot"}'` …) |

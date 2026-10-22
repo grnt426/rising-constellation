@@ -706,6 +706,34 @@
         "wave_rebel_start_empty": "Paint two factions on the map first.",
         "wave_error_two_factions": "Rebel Defense needs exactly two painted factions: the players' and the Rebellion's.",
         "wave_error_pick_rebel": "Pick which faction the Rebellion takes."
+      },
+      "scenario_scripts": {
+        "title": "Scripts",
+        "hint": "Scripts add rules to every match of this scenario: Legacy, Tactic or Flash. Each runs once for every player, as if each had their own copy. They are checked against this map as you pick them.",
+        "remove": "Remove",
+        "remove_named": "Remove {name}",
+        "checking": "Checking it against this map…",
+        "check_failed": "The check couldn't run. Saving still works.",
+        "fits": "Starts correctly on this map.",
+        "none": "No scripts attached.",
+        "attach": "Attach a script",
+        "attach_one": "Attach",
+        "attached": "Attached",
+        "max": "A scenario attaches {max} scripts at most.",
+        "tab_mine": "My scripts",
+        "tab_published": "Published",
+        "close": "Close",
+        "search": "Search by name",
+        "loading": "Loading…",
+        "empty_mine": "You haven't saved any scripts yet.",
+        "empty_published": "No published scripts match.",
+        "to_workshop": "Write one in the Scenario Workshop.",
+        "published": "published",
+        "has_errors": "Has a mistake to fix first: it would not run. | Has {count} mistakes to fix first: it would not run.",
+        "privacy": "Saving keeps a copy of each script as it is now; save again to pick up a newer version. Anyone who can open this scenario can read its scripts.",
+        "saved_with_warnings": "Saved, with a warning about its scripts on this map. | Saved, with {count} warnings about its scripts on this map.",
+        "detail_title": "Scripts",
+        "detail_hint": "Rules this scenario adds to its matches, as their authors wrote them."
       }
     },
     "fight_simulator": {
@@ -2006,7 +2034,53 @@
       "reference_keywords": "Words of the language",
       "reference_nodes": "Nodes",
       "palette_add_hint": "Click for its docs; double-click, drag or press Enter to add it.",
-      "doc_lib_details": "Adding it copies the function into your scenario, where you can change it; the library keeps its own copy."
+      "doc_lib_details": "Adding it copies the function into your scenario, where you can change it; the library keeps its own copy.",
+      "tab_scripts": "Scripts",
+      "file_account_save": "Save to my scripts",
+      "file_account_save_new": "Save to my scripts (new)",
+      "file_account_open": "My scripts and published ones…",
+      "account": {
+        "open": "Open:",
+        "by": "by {name}",
+        "published": "Published",
+        "private": "Private",
+        "theirs": "Someone else's script: save a copy to change it.",
+        "unsaved": "Changes not saved to your account",
+        "saved": "Saved to your account",
+        "save": "Save",
+        "save_new": "Save as new",
+        "save_copy": "Save a copy",
+        "publish": "Publish",
+        "publish_hint": "Let other players open it and attach it to their scenarios.",
+        "publish_save_first": "Save your changes first: what you publish is what you saved.",
+        "unpublish": "Unpublish",
+        "published_note": "Others see the version you saved last. Scenarios that attached it keep the copy they took until their author saves them again.",
+        "not_saved": "This script isn't saved to your account. Saved scripts can be attached to your Forge scenarios and published.",
+        "save_first": "Save to my scripts",
+        "full": "You keep {limit} scripts at most: delete one to save another.",
+        "mine": "My scripts ({count} of {limit})",
+        "mine_empty": "None saved yet.",
+        "errors": "{count} mistake | {count} mistakes",
+        "open_one": "Open",
+        "delete": "Delete",
+        "delete_named": "Delete {name}",
+        "delete_confirm": "Delete \"{name}\" from your account? Scenarios that attached it keep their copy.",
+        "published_title": "Published scripts",
+        "search": "Search by name",
+        "published_empty": "No published scripts match.",
+        "load_failed": "Your scripts couldn't be loaded.",
+        "failed": "That didn't work. Try again in a moment.",
+        "saved_toast": "Saved \"{name}\" to your scripts.",
+        "discard_confirm": "Open another script? Your changes to \"{name}\" are not saved to your account.",
+        "publish_confirm": "Publish \"{name}\"? Other players will be able to read it and attach it to their scenarios. You can unpublish it later.",
+        "published_toast": "Published \"{name}\".",
+        "unpublished_toast": "\"{name}\" is private again.",
+        "refused_limit": "You already keep {limit} scripts, the most an account can. Delete one first.",
+        "refused_errors": "A published script must have no mistakes: fix them first (see Problems), or unpublish it.",
+        "refused_duplicate": "This is the same script as \"{name}\" by {author}, which is already published. Change it to publish your own.",
+        "refused_invalid": "It couldn't be saved: {detail}"
+      },
+      "template_match": "Rules for a match (attach to a Forge scenario)"
     }
   },
   "portal_components": {
@@ -2025,6 +2099,10 @@
     },
     "loading": {
       "loading": "Loading"
+    },
+    "scripted_badge": {
+      "label": "Scripted: this scenario runs scripts that add rules to its matches",
+      "named": "Scripted: {names}"
     }
   }
 }

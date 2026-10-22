@@ -49,7 +49,9 @@ defmodule Portal.EdictController do
   defp slot_limits(:simulate, conn),
     do: [{{:edict_simulate, account_id(conn)}, 2}, {:edict_simulate, System.schedulers_online()}]
 
-  defp slot_limits(name, conn) when name in [:analyze, :fragment], do: [{{:edict_analyze, account_id(conn)}, 2}]
+  defp slot_limits(name, conn) when name in [:analyze, :fragment, :check_scenario],
+    do: [{{:edict_analyze, account_id(conn)}, 2}]
+
   defp slot_limits(_name, _conn), do: []
 
   defp account_id(conn), do: Guardian.Plug.current_resource(conn).id
@@ -186,6 +188,34 @@ defmodule Portal.EdictController do
   end
 
   def playtest(conn, _params), do: unprocessable(conn, "send source and profile_id")
+
+  # POST /api/edict/check-scenario  %{game_data, scripts: [id], scenario_id?}
+  #
+  # The scenario editor's check while the author picks scripts: the scripts
+  # as saving the scenario would attach them (RC.Scripts.attach/3), each
+  # checked against the map (Edict.Attachment.check/1). Scripts come back
+  # without their text.
+  def check_scenario(conn, %{"game_data" => game_data} = params) when is_map(game_data) do
+    previous =
+      with id when not is_nil(id) <- params["scenario_id"],
+           {scenario, via} <- RC.Scenarios.fetch_scenario_by_ref(to_string(id)),
+           true <- RC.Scenarios.viewable?(scenario, via, Guardian.Plug.current_resource(conn)) do
+        scenario.game_data
+      else
+        _ -> nil
+      end
+
+    frozen = RC.Scripts.attach(params["scripts"], account_id(conn), previous)
+    checks = Edict.Attachment.check(Map.put(game_data, "scripts", frozen))
+
+    json(conn, %{
+      scripts: Enum.map(frozen, &Map.drop(&1, ["source"])),
+      checks: checks,
+      max_scripts: Edict.Attachment.max_scripts()
+    })
+  end
+
+  def check_scenario(conn, _params), do: unprocessable(conn, "send game_data and scripts")
 
   defp program_from(%{"source" => source}) when is_binary(source) do
     case Parser.parse(source) do

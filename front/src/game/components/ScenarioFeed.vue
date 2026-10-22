@@ -5,8 +5,45 @@
     role="log"
     aria-live="polite"
     :aria-label="$t('scenario_feed.label')">
+    <!-- a scripted match: each script's standing for this player, folded
+         to one line by default (a Legacy match runs for weeks) -->
     <div
-      v-if="status"
+      v-if="matchEntries"
+      class="scenario-status is-match">
+      <div
+        v-for="(e, i) in matchEntries"
+        :key="i"
+        class="scenario-status-row">
+        <span class="scenario-kind">{{ $t('scenario_feed.scenario') }}</span>
+        <span class="scenario-name">{{ e.name }}</span>
+        <span
+          v-if="e.race && !e.finished"
+          class="scenario-score">{{ $t('scenario_feed.race_short') }}</span>
+        <span
+          v-else
+          class="scenario-score">
+          <strong>{{ formatScore(e.score) }}</strong>
+          <template v-if="e.rank">{{ $t('scenario_feed.place', { rank: e.rank, of: e.of }) }}</template>
+          <template v-if="e.finished"> · {{ $t('scenario_feed.finished') }}</template>
+        </span>
+        <button
+          v-if="i === 0"
+          type="button"
+          class="scenario-back"
+          :aria-expanded="String(!folded)"
+          @click="toggleFold">{{ folded ? $t('scenario_feed.more') : $t('scenario_feed.less') }}</button>
+      </div>
+      <template v-if="!folded">
+        <div
+          v-for="(e, i) in matchEntries"
+          v-show="e.description"
+          :key="`d${i}`"
+          class="scenario-goal">{{ e.name }}: {{ e.description }}</div>
+        <div class="scenario-goal">{{ $t('scenario_feed.match_hint') }}</div>
+      </template>
+    </div>
+    <div
+      v-else-if="status"
       class="scenario-status">
       <div class="scenario-status-row">
         <span class="scenario-kind">{{ $t('scenario_feed.playtest') }}</span>
@@ -54,13 +91,29 @@ const SHOWN_MS = {
   error: 14000, warning: 10000, good: 8000, info: 8000, echo: 6000,
 };
 
+const FOLD_KEY = 'scenario.feed.folded';
+
+function readFolded() {
+  try {
+    return localStorage.getItem(FOLD_KEY) !== '0';
+  } catch (e) {
+    return true;
+  }
+}
+
 export default {
   name: 'scenario-feed',
   data() {
-    return { now: Date.now(), timer: null, leaving: false };
+    return {
+      now: Date.now(), timer: null, leaving: false, folded: readFolded(),
+    };
   },
   computed: {
     status() { return this.$store.state.game.scenarioStatus; },
+    matchEntries() {
+      const s = this.status;
+      return s && s.kind === 'match' && Array.isArray(s.entries) && s.entries.length ? s.entries : null;
+    },
     messages() {
       return this.$store.state.game.scenarioMessages
         .filter((m) => this.now - m.at < (SHOWN_MS[m.tone] || SHOWN_MS.info))
@@ -72,6 +125,14 @@ export default {
   },
   beforeDestroy() { clearInterval(this.timer); },
   methods: {
+    toggleFold() {
+      this.folded = !this.folded;
+      try {
+        localStorage.setItem(FOLD_KEY, this.folded ? '1' : '0');
+      } catch (e) {
+        // blocked storage: the panel just forgets
+      }
+    },
     tone(m) { return ['info', 'good', 'warning', 'error', 'echo'].includes(m.tone) ? m.tone : 'info'; },
     dismiss(id) { this.$store.commit('game/discardScenarioMessage', id); },
     // the same exit as the menu's Quit: end the run server-side, leave, and

@@ -176,6 +176,31 @@ defmodule Edict.Catalog do
             "fleet" => @fleet
           }}
 
+  @faction {:record,
+            %{
+              "name" => "text",
+              "players" => "number",
+              "systems" => "number",
+              "dominions" => "number",
+              "victory_points" => "number",
+              "rank" => "number"
+            }}
+
+  # what anyone in the match could see of another player
+  @someone {:record,
+            %{
+              "name" => "text",
+              "faction" => "text",
+              "systems_owned" => "number",
+              "dominions" => "number",
+              "population" => "number"
+            }}
+
+  @modes ["daily", "legacy", "tactic", "flash"]
+
+  @doc "What `scenario.mode` can be: a daily (or a playtest), or a match at one of the three speeds."
+  def modes, do: @modes
+
   @world %{
     "time" =>
       {:record,
@@ -214,9 +239,12 @@ defmodule Edict.Catalog do
       {:record,
        %{
          "name" => "text",
+         "mode" => {:enum, @modes},
          "systems" => "number",
          "time_limit" => "number"
-       }}
+       }},
+    "factions" => {:list, @faction},
+    "players" => {:list, @someone}
   }
 
   # Plain-language names for every value a script can read: the editor
@@ -248,8 +276,22 @@ defmodule Edict.Catalog do
     "rival.agents_sent" => "Agents the rival court has sent so far.",
     "rival.agents_left" => "Rival agents still in play.",
     "scenario.name" => "This scenario's name.",
-    "scenario.systems" => "Systems in the starting sector.",
+    "scenario.mode" => "What is being played: \"daily\" (a daily or a playtest), \"legacy\", \"tactic\" or \"flash\".",
+    "scenario.systems" => "Systems in the starting sector (in a match, on the whole map).",
     "scenario.time_limit" => "The scenario's run length, in seconds.",
+    "factions" => "The factions in play, the leader first: .name, .players, .systems, .victory_points …",
+    "factions[].name" => "The faction's name, as player.faction gives it: \"tetrarchy\".",
+    "factions[].players" => "How many players the faction has.",
+    "factions[].systems" => "How many systems the faction owns.",
+    "factions[].dominions" => "How many dominions the faction holds.",
+    "factions[].victory_points" => "The faction's victory points.",
+    "factions[].rank" => "The faction's place in the standings: 1 leads.",
+    "players" => "Everyone playing, the player included: .name, .faction, .systems_owned …",
+    "players[].name" => "The player's name.",
+    "players[].faction" => "The player's faction.",
+    "players[].systems_owned" => "How many systems the player owns.",
+    "players[].dominions" => "How many dominions the player holds.",
+    "players[].population" => "The player's total population.",
     # each item of a list, written with [] (s in `for s in player.systems`)
     "player.systems[].id" => "The system's id (what system: takes).",
     "player.systems[].name" => "The system's name.",
@@ -291,10 +333,12 @@ defmodule Edict.Catalog do
     {"mutators", {:list, "text"}, [], "Daily mutators to apply, by key (boons and banes)."},
     {"grant_patents", {:list, "text"}, [], "Patents the player starts with (each with its prerequisites)."},
     {"patent_discounts", "record", %{}, "Price factors for single patents: {armoring: 20%} sells it at a fifth."},
-    {"seed", "any", nil, "Fixes the generated world. Left out, it comes from the script itself."}
+    {"seed", "any", nil, "Fixes the generated world. Left out, it comes from the script itself."},
+    {"factions", "number", nil,
+     "How many factions the scenario is written for. Attached to a map with a different number, it warns."}
   ]
 
-  @setup_bounds %{"time_limit" => {300, 2700}, "systems" => {1, 8}}
+  @setup_bounds %{"time_limit" => {300, 2700}, "systems" => {1, 8}, "factions" => {1, 8}}
 
   # --- accessors ------------------------------------------------------------------------
 

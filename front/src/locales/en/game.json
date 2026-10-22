@@ -2814,6 +2814,13 @@
     "score": "Score",
     "playtest": "Playtest",
     "race": "Race: scored by the time left when you finish",
-    "back": "Back to workshop"
+    "back": "Back to workshop",
+    "scenario": "Scenario",
+    "race_short": "Race",
+    "place": " · {rank} of {of}",
+    "finished": "done",
+    "more": "More",
+    "less": "Less",
+    "match_hint": "This match runs scenario scripts: rules the scenario's author added. Each player has their own score."
   }
 }

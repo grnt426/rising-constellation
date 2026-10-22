@@ -596,4 +596,32 @@ defmodule Edict.SandboxEscapeTest do
       assert error.message == "unknown function nope"
     end
   end
+
+  describe "the sandbox's own cap doesn't switch off honest scripts" do
+    # The runners copy the runtime into the sandbox every pulse (a playtest's
+    # one run, a match's run per player), and the heap cap counts the copy.
+    # A runtime that carried its whole tree twice made a 200-handler script
+    # need a 32 MB heap; it must fit the default cap.
+    test "a big script's runtime fits when copied in, as the runners pass it" do
+      handler = """
+      every 1s {
+        let s = 0
+        for i in range(1, 25) {
+          s = s + i
+        }
+      }
+      """
+
+      source = Enum.map_join(1..200, "\n", fn _ -> handler end)
+
+      {:ok, program} = Parser.parse(source)
+      {:ok, rt} = Runtime.new(program)
+      world = %{"time" => %{"elapsed" => 1.0, "left" => 100.0, "limit" => 101.0}, "player" => %{}}
+
+      for _ <- 1..3 do
+        assert {:ok, {_rt, %{errors: errors}}} = Sandbox.run(fn -> Runtime.pulse(rt, world, 1.0) end)
+        assert Enum.all?(errors, &(&1.message =~ "steps")), inspect(errors)
+      end
+    end
+  end
 end

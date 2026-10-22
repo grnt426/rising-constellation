@@ -178,4 +178,63 @@ score 1"
     assert [%{message: message}] = result.errors
     assert message =~ "changes the game"
   end
+
+  describe "matches: joining late, saving and restoring" do
+    @timers """
+    var gifts = 0
+    on start {
+      give("credit", 1)
+    }
+    at 30s {
+      give("credit", 2)
+    }
+    every 1m as n {
+      gifts = gifts + 1
+      give("credit", 100 * n)
+    }
+    score gifts
+    """
+
+    test "a late joiner starts, skips past timers and counts every on the match's clock" do
+      rt = @timers |> runtime!() |> Runtime.skip_to(150.0)
+      assert Runtime.due?(rt, 150.0)
+
+      {results, _rt} = pulses(rt, [150, 180, 240])
+      # on start at once; at 30s never; every 1m from its next occurrence,
+      # numbered as if counting since the start (3m is the third)
+      assert give_amounts(results) == [{150, 1.0}, {180, 300.0}, {240, 400.0}]
+    end
+
+    test "due? is false between timers, true when one is due or a when exists" do
+      rt = runtime!("every 1m {\n  give(\"credit\", 1)\n}")
+      {rt, _} = Runtime.pulse(rt, world(60.0), 60.0)
+      refute Runtime.due?(rt, 61.0)
+      assert Runtime.due?(rt, 120.0)
+      assert runtime!("when player.credit > 5 {\n}") |> Runtime.due?(1.0)
+    end
+
+    test "a dump restored on a fresh runtime carries on exactly where it stopped" do
+      {first, rt} = pulses(runtime!(@timers), [0, 30, 60])
+      restored = @timers |> runtime!() |> Runtime.restore(Runtime.dump(rt))
+
+      # a restored run neither repeats its start nor its past timers
+      {after_restore, restored} = pulses(restored, [60, 90, 120])
+      {straight, rt} = pulses(rt, [60, 90, 120])
+      assert give_amounts(after_restore) == give_amounts(straight)
+      assert give_amounts(first) == [{0, 1.0}, {30, 2.0}, {60, 100.0}]
+      assert give_amounts(after_restore) == [{120, 200.0}]
+      assert restored.globals == rt.globals
+
+      # the dump is plain data that survives the trip through storage
+      dump = Runtime.dump(rt)
+      assert dump == dump |> :erlang.term_to_binary() |> :erlang.binary_to_term([:safe])
+    end
+
+    test "a pulse's steps can be capped below the usual budget" do
+      rt = runtime!("every 1s {\n  let i = 0\n  while true {\n    i = i + 1\n  }\n}")
+      {_rt, result} = Runtime.pulse(rt, world(1.0), 1.0, fuel: 5_000)
+      assert [%{message: message} | _] = result.errors
+      assert message =~ "steps"
+    end
+  end
 end

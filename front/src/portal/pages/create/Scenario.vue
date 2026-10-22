@@ -652,6 +652,13 @@
             </button>
           </div>
 
+          <div class="panel-aside-bloc">
+            <scenario-scripts
+              :game-data="scenario.game_data"
+              :scenario-id="mode === 'edit' ? scenario.id : null"
+              @change="setScripts" />
+          </div>
+
           <div
             v-if="mode === 'edit' && scenario.author"
             class="panel-aside-info">
@@ -756,6 +763,7 @@
 import galaxyView from '@/utils/galaxy-view';
 
 import DefaultLayout from '@/portal/layouts/Default.vue';
+import ScenarioScripts from '@/portal/components/ScenarioScripts.vue';
 import VueSlider from 'vue-slider-component';
 
 import newSeed from '@/portal/utils';
@@ -918,9 +926,10 @@ export default {
         this.waiting = true;
 
         try {
-          await this.$axios.post('/scenarios', { scenario: this.scenario });
+          const { data } = await this.$axios.post('/scenarios', { scenario: this.scenario });
           // Server renders the thumbnail from persisted game_data.
           this.$toasted.success(this.$t('page.create.scenario_editor.toast_created'));
+          this.warnScripts(data);
           this.$router.push('/create/scenarios');
         } catch (err) {
           this.$toastError(this.$t('page.create.common.error_generic'));
@@ -934,8 +943,9 @@ export default {
         this.waiting = true;
 
         try {
-          await this.$axios.put(`/scenarios/${this.scenario.id}`, { scenario: this.scenario });
+          const { data } = await this.$axios.put(`/scenarios/${this.scenario.id}`, { scenario: this.scenario });
           this.$toasted.success(this.$t('page.create.scenario_editor.toast_saved'));
+          this.warnScripts(data);
           this.$router.push('/create/scenarios');
         } catch (err) {
           this.$toastError(this.$t('page.create.common.error_generic'));
@@ -957,6 +967,20 @@ export default {
         this.$toastError(this.$t('page.create.common.error_generic'));
       }
       this.waiting = false;
+    },
+    // Attached scripts: the editor keeps their ids; saving freezes each one's
+    // current version on the server.
+    setScripts(list) {
+      this.$set(this.scenario.game_data, 'scripts', list);
+    },
+    // A save still goes through when a script doesn't suit the map; the
+    // author hears about it once more on the way out.
+    warnScripts(saved) {
+      const checks = (saved && saved.script_checks) || [];
+      const count = checks.reduce((n, c) => n + c.diagnostics.length, 0);
+      if (count) {
+        this.$toasted.show(this.$tc('page.create.scenario_scripts.saved_with_warnings', count, { count }), { duration: 8000 });
+      }
     },
     formatDate(iso) {
       if (!iso) return '';
@@ -1284,6 +1308,7 @@ export default {
   },
   components: {
     DefaultLayout,
+    ScenarioScripts,
     VueSlider,
   },
 };

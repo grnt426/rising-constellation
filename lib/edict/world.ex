@@ -6,8 +6,9 @@ defmodule Edict.World do
   exactly like `Edict.Catalog.world/0` describes, so the script can't tell a
   live game from the simulator's model. Only what the catalog lists is
   copied: the player's own stocks, incomes, systems, agents, patents and
-  wonders, the clock, and the rival court's counters. Nothing about other
-  players, nothing from the engine's internals.
+  wonders, the clock, the rival court's counters, and of everyone else only
+  what the match shows openly (`factions`, `players`: names, factions,
+  systems, victory points). Nothing from the engine's internals.
 
   `build/2` takes any map shaped like `Instance.Player.Player` (struct or
   plain map), which is also how the parity tests feed it.
@@ -21,6 +22,12 @@ defmodule Edict.World do
     * `:intelligence` — `%{system_id => counter-intelligence}` for the
       player's systems (the player-side summary doesn't carry it)
     * `:rival` — `%{faction, sent, left}` when the scenario has a rival court
+    * `:mode` — `"daily"` (the default), `"legacy"`, `"tactic"` or `"flash"`
+    * `:factions` — the standings, as `faction/2` builds them (default: the
+      player's faction alone)
+    * `:players` — everyone in the match, as `someone/1` builds them
+      (default: the player alone)
+    * `:systems` — `scenario.systems` (default: the setup's)
   """
   def build(player, opts) do
     clock = Keyword.fetch!(opts, :clock)
@@ -30,6 +37,7 @@ defmodule Edict.World do
 
     systems = get(player, :stellar_systems, [])
     dominions = get(player, :dominions, [])
+    me = someone(player)
 
     %{
       "time" => %{
@@ -66,9 +74,44 @@ defmodule Edict.World do
       },
       "scenario" => %{
         "name" => Map.get(config, "name", ""),
-        "systems" => f(Map.get(config, "systems", 1)),
+        "mode" => Keyword.get(opts, :mode, "daily"),
+        "systems" => f(Keyword.get(opts, :systems) || Map.get(config, "systems", 1)),
         "time_limit" => f(clock.limit)
-      }
+      },
+      "factions" =>
+        Keyword.get(opts, :factions) ||
+          [faction(%{key: get(player, :faction, ""), player_count: 1, system_count: length(systems)}, 1)],
+      "players" => Keyword.get(opts, :players) || [me]
+    }
+  end
+
+  @doc """
+  One faction of `factions`, from a `Victory.Faction` (or any map with
+  `key`, `player_count`, `system_count`, `dominion_count`,
+  `victory_points`) and its place in the standings.
+  """
+  def faction(standing, rank) do
+    %{
+      "name" => text(get(standing, :key, "")),
+      "players" => f(get(standing, :player_count, 0)),
+      "systems" => f(get(standing, :system_count, 0)),
+      "dominions" => f(get(standing, :dominion_count, 0)),
+      "victory_points" => f(get(standing, :victory_points, 0)),
+      "rank" => f(rank)
+    }
+  end
+
+  @doc "One item of `players`: what the match shows of a player, from their player state."
+  def someone(player) do
+    systems = get(player, :stellar_systems, [])
+    dominions = get(player, :dominions, [])
+
+    %{
+      "name" => text(get(player, :name, "")),
+      "faction" => text(get(player, :faction, "")),
+      "systems_owned" => f(length(systems)),
+      "dominions" => f(length(dominions)),
+      "population" => f(Enum.reduce(systems ++ dominions, 0, &(num(get(&1, :workforce, 0)) + &2)))
     }
   end
 

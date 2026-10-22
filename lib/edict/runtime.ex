@@ -31,8 +31,11 @@ defmodule Edict.Runtime do
   alias Edict.{Interpreter, Limits, Printer}
   alias Edict.Interpreter.Error
 
-  defstruct program: nil,
-            config: %{},
+  # Lean on purpose: hosts copy the runtime into a sandbox every pulse, and
+  # the sandbox's heap cap counts the copy (a 200-handler script carrying its
+  # whole tree twice needed a 32 MB heap; without it, 6 MB). So no program
+  # here, and each handler keeps its body, not its whole declaration.
+  defstruct config: %{},
             globals: %{},
             fns: %{},
             score: nil,
@@ -64,7 +67,6 @@ defmodule Edict.Runtime do
          {:ok, handlers} <- init_handlers(decls, fns, globals, seed) do
       {:ok,
        %__MODULE__{
-         program: program,
          config: config,
          globals: globals,
          fns: fns,
@@ -73,6 +75,22 @@ defmodule Edict.Runtime do
          handlers: handlers,
          seed: seed
        }}
+    end
+  end
+
+  @doc """
+  The setup fields a script sets itself, before defaults fill the rest:
+  `{:ok, %{name => value}}` or `{:error, errors}`. (Checks against a map
+  need to tell "time_limit = 30m" from a time limit left out.)
+  """
+  def setup_fields(%{k: :program, decls: decls}) do
+    fns = for %{k: :fn, name: name} = d <- decls, into: %{}, do: {name, d}
+    stmts = for %{k: :setup, body: body} <- decls, s <- body, do: s
+    ctx = Interpreter.new_ctx(fuel: Limits.fuel_for_setup(), fns: fns, mode: :setup)
+
+    case Interpreter.run_setup(stmts, ctx) do
+      {:ok, fields, _ctx} -> {:ok, fields}
+      {:error, error, _ctx} -> {:error, [diag(error)]}
     end
   end
 
@@ -168,7 +186,7 @@ defmodule Edict.Runtime do
   defp handler(%{k: :when} = d, _eval_time), do: {:ok, Map.merge(base(d, :when), %{cond: d.cond, armed?: true})}
 
   defp base(d, kind),
-    do: %{id: d.id, kind: kind, label: label(d), body: d.body, count: 0, failures: 0, off?: false, decl: d}
+    do: %{id: d.id, kind: kind, label: label(d), body: d.body, count: 0, failures: 0, off?: false, at: Map.get(d, :at)}
 
   # How a handler reads in a timeline: its head as written ("every 3m from
   # 10m as visit", "at 21m", "when player.credit > 1000"), so two timers can
@@ -192,17 +210,111 @@ defmodule Edict.Runtime do
   defp at_least(v, min, _node, _msg) when v >= min, do: :ok
   defp at_least(_v, _min, node, msg), do: {:error, %Error{message: msg, node_id: node.id, at: Map.get(node, :at)}}
 
+  # --- joining late, and surviving restarts ---------------------------------------
+
+  @doc """
+  Start a run partway through: a player who joins a match at `t` (seconds
+  since the match began). `on start` still runs for them, on their first
+  pulse. An `at` already past never runs, and an `every` waits for its next
+  occurrence on the match's clock, numbered as if it had been counting
+  since the start (`as n` reads the same for every player).
+  """
+  def skip_to(%__MODULE__{} = rt, t) when is_number(t) and t > 0 do
+    handlers =
+      Enum.map(rt.handlers, fn
+        %{kind: :at, time: time} = h when time < t ->
+          %{h | count: 1}
+
+        %{kind: :every, next_due: next, interval: interval} = h when next < t ->
+          skipped = Float.ceil((t - next) / interval)
+          %{h | next_due: next + skipped * interval, count: h.count + trunc(skipped)}
+
+        h ->
+          h
+      end)
+
+    %{rt | handlers: handlers}
+  end
+
+  def skip_to(rt, _t), do: rt
+
+  @doc """
+  Whether a pulse at `t` would run anything: `on start` not yet run, an `at`
+  or an `every` due, or any `when` (conditions are checked every pulse). A
+  host with many runs skips reading the world for the others.
+  """
+  def due?(%__MODULE__{finished: f}, _t) when f != nil, do: false
+
+  def due?(%__MODULE__{handlers: handlers}, t) do
+    Enum.any?(handlers, fn
+      %{off?: true} -> false
+      %{kind: :start, count: 0} -> true
+      %{kind: :at, count: 0, time: time} -> t >= time
+      %{kind: :every, next_due: next, until: until} -> next <= t and (until == nil or next <= until)
+      %{kind: :when} -> true
+      _ -> false
+    end)
+  end
+
+  @doc """
+  What a run has changed since `new/2`, as plain data a host can store: the
+  vars, each handler's counters, whether it started or finished. `restore/2`
+  puts it back on a fresh runtime of the same program.
+  """
+  def dump(%__MODULE__{} = rt) do
+    %{
+      globals: rt.globals,
+      started?: rt.started?,
+      finished: rt.finished,
+      fuel_used: rt.fuel_used,
+      rand_n: rt.rand_n,
+      handlers:
+        Map.new(rt.handlers, fn h ->
+          {h.id, Map.take(h, [:count, :failures, :off?, :next_due, :armed?])}
+        end)
+    }
+  end
+
+  @doc "Put a `dump/1` back on a fresh runtime of the same program (handlers matched by node id)."
+  def restore(%__MODULE__{} = rt, %{handlers: saved} = dump) when is_map(saved) do
+    handlers =
+      Enum.map(rt.handlers, fn h ->
+        case Map.get(saved, h.id) do
+          %{} = counters -> Map.merge(h, Map.take(counters, Map.keys(h)))
+          nil -> h
+        end
+      end)
+
+    %{
+      rt
+      | globals: Map.get(dump, :globals, rt.globals),
+        started?: Map.get(dump, :started?, false),
+        finished: Map.get(dump, :finished),
+        fuel_used: Map.get(dump, :fuel_used, 0),
+        rand_n: Map.get(dump, :rand_n, 0),
+        handlers: handlers
+    }
+  end
+
+  def restore(rt, _dump), do: rt
+
   # --- pulses ------------------------------------------------------------------
 
   @doc """
-  Run every handler that is due at `t` (seconds since the start). Returns
+  Run every handler that is due at `t` (seconds since the start). `opts`:
+  `:fuel`, the steps this pulse may take (default `Limits.fuel_per_pulse/0`;
+  a match shares a budget among its players). Returns
   `{runtime, result}` where result has `:effects` (in order), `:fired`
   (`%{id, kind, n}`), `:errors`, `:logs` and `:finished` (nil, or
   `%{message}` when the script called finish()).
   """
-  def pulse(%__MODULE__{finished: f} = rt, _world, _t) when f != nil, do: {rt, empty_result()}
+  def pulse(rt, world, t, opts \\ [])
 
-  def pulse(%__MODULE__{} = rt, world, t) do
+  def pulse(%__MODULE__{finished: f} = rt, _world, _t, _opts) when f != nil, do: {rt, empty_result()}
+
+  def pulse(%__MODULE__{} = rt, world, t, opts) do
+    budget = Keyword.get(opts, :fuel, Limits.fuel_per_pulse())
+
     ctx =
       Interpreter.new_ctx(
         fns: rt.fns,
@@ -210,7 +322,8 @@ defmodule Edict.Runtime do
         world: world,
         mode: :handler,
         seed: rt.seed,
-        rand_n: rt.rand_n
+        rand_n: rt.rand_n,
+        fuel: budget
       )
 
     acc = %{ctx: ctx, fired: [], errors: [], finished: nil, starved: 0}
@@ -266,7 +379,7 @@ defmodule Edict.Runtime do
         globals: globals,
         started?: true,
         finished: if(finished, do: Map.put(finished, :t, t), else: nil),
-        fuel_used: rt.fuel_used + (Limits.fuel_per_pulse() - ctx.fuel),
+        fuel_used: rt.fuel_used + (budget - ctx.fuel),
         rand_n: ctx.rand_n
     }
 
@@ -388,7 +501,7 @@ defmodule Edict.Runtime do
     message =
       if off?, do: error.message <> " (this handler failed #{failures} times and is now off)", else: error.message
 
-    err = %{message: message, node_id: error.node_id || h.id, at: error.at || Map.get(h.decl, :at), t: t, handler: h.id}
+    err = %{message: message, node_id: error.node_id || h.id, at: error.at || h.at, t: t, handler: h.id}
     {%{h | failures: failures, off?: off?}, %{acc | errors: [err | acc.errors]}}
   end
 

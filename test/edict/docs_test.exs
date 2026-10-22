@@ -4,7 +4,7 @@ defmodule Edict.DocsTest do
   alias Edict.{Catalog, Checker, Docs, Interpreter, Lexer, Parser, Runtime}
 
   # A world shaped like Edict.World's output: two systems, three agents, a
-  # rival court, five minutes into a 30-minute run.
+  # rival court, five minutes into a 30-minute run, in a two-faction match.
   @world %{
     "time" => %{"elapsed" => 300.0, "left" => 1500.0, "limit" => 1800.0},
     "player" => %{
@@ -77,7 +77,30 @@ defmodule Edict.DocsTest do
       "agents_removed" => 2.0
     },
     "rival" => %{"present" => true, "faction" => "myrmezir", "agents_sent" => 5.0, "agents_left" => 3.0},
-    "scenario" => %{"name" => "Frontier Watch", "systems" => 2.0, "time_limit" => 1800.0}
+    "scenario" => %{"name" => "Frontier Watch", "mode" => "legacy", "systems" => 2.0, "time_limit" => 1800.0},
+    # the match around the player: two factions, the player's in the lead
+    "factions" => [
+      %{
+        "name" => "cardan",
+        "players" => 3.0,
+        "systems" => 14.0,
+        "dominions" => 4.0,
+        "victory_points" => 5.0,
+        "rank" => 1.0
+      },
+      %{
+        "name" => "myrmezir",
+        "players" => 2.0,
+        "systems" => 9.0,
+        "dominions" => 2.0,
+        "victory_points" => 2.0,
+        "rank" => 2.0
+      }
+    ],
+    "players" => [
+      %{"name" => "Vela", "faction" => "cardan", "systems_owned" => 2.0, "dominions" => 1.0, "population" => 23.0},
+      %{"name" => "Osk", "faction" => "myrmezir", "systems_owned" => 4.0, "dominions" => 0.0, "population" => 31.0}
+    ]
   }
 
   # A scenario with no name or seed in its setup rolls with this seed, so

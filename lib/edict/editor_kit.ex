@@ -113,7 +113,11 @@ defmodule Edict.EditorKit do
     "time" => "The clock, in seconds: `time.elapsed`, `time.left`, `time.limit`.",
     "player" => "The player: stocks, income, systems, agents, patents and wonders.",
     "rival" => "The rival court (`rival = true` in setup): `present`, `faction`, `agents_sent`, `agents_left`.",
-    "scenario" => "This scenario: `name`, `systems`, `time_limit`."
+    "scenario" => "This scenario: `name`, `mode`, `systems`, `time_limit`.",
+    "factions" =>
+      "The factions in play, the leader first; each has `name`, `players`, `systems`, `dominions`, `victory_points`, `rank`.",
+    "players" =>
+      "Everyone playing, the player included; each has `name`, `faction`, `systems_owned`, `dominions`, `population`."
   }
 
   @doc "Everything an editor needs to know about the language, as JSON-ready data."

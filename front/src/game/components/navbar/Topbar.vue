@@ -144,7 +144,9 @@
 
     <daily-result-banner v-if="isDaily && dailyResult" />
 
-    <scenario-feed v-if="isDaily" />
+    <!-- shows itself when a script has something to say: a playtest, or a
+         match whose scenario attaches scripts -->
+    <scenario-feed />
 
     <div
       class="victory-banner"

@@ -30,6 +30,7 @@
                   v-tooltip="$t('page.wave.short_rules')">
                   {{ $t('page.wave.name') }}
                 </span>
+                <scripted-badge :metadata="scenario.game_metadata" />
                 <h2>{{ scenario.game_metadata.name }}</h2>
                 <em>
                   {{ $t(`map.size.${scenario.game_metadata.size}.toast`) }},
@@ -78,6 +79,7 @@
 import Loading from '@/portal/mixins/Loading';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
+import ScriptedBadge from '@/portal/components/ScriptedBadge.vue';
 
 // Largest scenario a non-admin may start a game from. Mirrors the
 // server-side cap in Portal.InstanceController (@max_scenario_systems);
@@ -121,6 +123,7 @@ export default {
   },
   components: {
     LoadingMask,
+    ScriptedBadge,
   },
 };
 </script>

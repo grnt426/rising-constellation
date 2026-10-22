@@ -33,6 +33,7 @@ defmodule Edict.Scenario do
         |> Map.merge(fields)
         |> Map.update!("time_limit", &(&1 / 1))
         |> Map.update!("systems", &trunc/1)
+        |> Map.update!("factions", &(&1 && trunc(&1)))
         # patents by name in the script, by internal key for the engine
         |> Map.update!("grant_patents", fn names -> Enum.map(names, &Catalog.patent_key/1) end)
         |> Map.update!("patent_discounts", fn d -> Map.new(d, fn {name, f} -> {Catalog.patent_key(name), f} end) end)
@@ -67,6 +68,14 @@ defmodule Edict.Scenario do
 
   defp check("systems", v) do
     {lo, hi} = Catalog.setup_bounds()["systems"]
+
+    if is_number(v) and v == Float.round(v / 1) and v >= lo and v <= hi,
+      do: :ok,
+      else: {:error, "must be a whole number from #{lo} to #{hi}"}
+  end
+
+  defp check("factions", v) do
+    {lo, hi} = Catalog.setup_bounds()["factions"]
 
     if is_number(v) and v == Float.round(v / 1) and v >= lo and v <= hi,
       do: :ok,

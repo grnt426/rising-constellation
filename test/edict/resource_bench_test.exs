@@ -288,11 +288,32 @@ defmodule Edict.ResourceBenchTest do
       {rt, result, r1 - r0}
     end
 
-    {sb_ms, sb_max} =
-      time_reps(fn -> {:ok, _} = Sandbox.run(sandbox_fun) end, reps)
+    # the sandbox may kill an adversarial pulse (its heap cap counts shared
+    # binaries and is enforced at GC): that's a result, not a crash
+    killed = :counters.new(1, [])
 
-    {:ok, {_rt, result, sb_reds}} = Sandbox.run(sandbox_fun)
-    n_errors = length(result.errors)
+    {sb_ms, sb_max} =
+      time_reps(
+        fn ->
+          case Sandbox.run(sandbox_fun) do
+            {:ok, _} -> :ok
+            {:error, _} -> :counters.add(killed, 1, 1)
+          end
+        end,
+        reps
+      )
+
+    {sb_reds, n_errors} =
+      case Sandbox.run(sandbox_fun) do
+        {:ok, {_rt, result, reds}} -> {reds, length(result.errors)}
+        {:error, reason} -> {0, "killed: #{reason}"}
+      end
+
+    n_errors =
+      case :counters.get(killed, 1) do
+        0 -> n_errors
+        k -> "#{n_errors} (#{k}/#{reps} killed)"
+      end
 
     %{
       bare_ms: bare_ms,
@@ -1398,4 +1419,163 @@ defmodule Edict.ResourceBenchTest do
   end
 
   defp pct(x), do: f1(x * 100) <> "%"
+
+  # ---------------------------------------------------------------------------
+  # 10. a scripted match: one run per player, every second (Edict.Match)
+  # ---------------------------------------------------------------------------
+
+  @match_scripts [
+    {"match template (every 6h)",
+     """
+     setup {
+       name = "Tithe"
+       factions = 2
+     }
+     score player.credit
+     on start {
+       notify("This match runs " + scenario.name + ": " + str(len(factions)) + " factions.")
+     }
+     every 6h {
+       if find(factions, f => f.name == player.faction).rank == 1 {
+         take("credit", player.credit * 5%)
+       }
+     }
+     """},
+    {"busy (when + players)",
+     """
+     var ticks = 0
+     score sum(players, p => p.population) + ticks
+     every 1s {
+       ticks = ticks + 1
+     }
+     when sum(player.systems, s => s.population) > 1_000_000_000 {
+       notify("never")
+     }
+     when count(players, p => p.faction == player.faction) > 1000 {
+       notify("never")
+     }
+     """},
+    {"worst (spends its share)",
+     """
+     every 1s {
+       let i = 0
+       while true {
+         i = i + 1
+       }
+     }
+     score 1
+     """}
+  ]
+
+  test "10. a scripted match: one run per player, every second" do
+    hr()
+    p("10. SCRIPTED MATCH  (Edict.Match: each script runs once per player; a pulse per player whose run")
+    p("    has something due, each in its own sandbox, world built per player; steps shared: 500k/s per match)")
+    p("    cost = wall ms of one second's work for the whole match (serial, so ~= CPU ms)")
+    hr()
+
+    row([
+      {"script", 28, :l},
+      {"players", 8, :r},
+      {"fuel/run", 9, :r},
+      {"pulse ms", 9, :r},
+      {"refresh ms", 11, :r},
+      {"avg ms/s", 9, :r},
+      {"% core", 8, :r},
+      {"saved state", 12, :r}
+    ])
+
+    for {label, source} <- @match_scripts, n <- [12, 30, 60, 100] do
+      rt0 = runtime!(source)
+
+      players =
+        for i <- 1..n,
+            do: Map.merge(fake_player(4, 8), %{id: i, name: "P#{i}", faction: Enum.at([:ark, :cardan], rem(i, 2))})
+
+      everyone = Enum.map(players, &World.someone/1)
+
+      standings = [
+        World.faction(%{key: :ark, player_count: div(n, 2), system_count: 2 * n}, 1),
+        World.faction(%{key: :cardan, player_count: n - div(n, 2), system_count: 2 * n}, 2)
+      ]
+
+      fuel = Edict.Match.fuel_per_run(n)
+
+      second = fn runs, t ->
+        Enum.map(Enum.zip(players, runs), fn {player, rt} ->
+          world =
+            World.build(player,
+              clock: %{elapsed: t, left: 7200.0 - t, limit: 7200.0},
+              config: rt.config,
+              mode: "flash",
+              factions: standings,
+              players: everyone,
+              systems: 269
+            )
+
+          if Runtime.due?(rt, t) do
+            {:ok, {rt, _res, _score}} =
+              Sandbox.run(fn ->
+                {rt, res} = Runtime.pulse(rt, world, t, fuel: fuel)
+                {rt, res, Runtime.peek_score(rt, world)}
+              end)
+
+            rt
+          else
+            rt
+          end
+        end)
+      end
+
+      # every 10 s the runner reads every player and counts their score,
+      # whatever is due
+      refresh = fn runs ->
+        Enum.each(Enum.zip(players, runs), fn {player, rt} ->
+          world =
+            World.build(player,
+              clock: %{elapsed: 1.0, left: 7199.0, limit: 7200.0},
+              config: rt.config,
+              mode: "flash",
+              factions: standings,
+              players: everyone,
+              systems: 269
+            )
+
+          {:ok, _} = Sandbox.run(fn -> Runtime.peek_score(rt, world) end)
+        end)
+      end
+
+      # the first second runs every on start; measure the one after it (a
+      # runaway script is still running then: it's switched off after its
+      # third failed second)
+      runs = second.(List.duplicate(rt0, n), 0.0)
+      {pulse_ms, _} = time_reps(fn -> second.(runs, 1.0) end, 5)
+      {refresh_ms, _} = time_reps(fn -> refresh.(runs) end, 5)
+      median_ms = pulse_ms + refresh_ms / 10
+
+      state =
+        runs
+        |> Enum.with_index()
+        |> Map.new(fn {rt, i} -> {i, %{dump: Runtime.dump(rt), score: 1.0, tiebreak: nil}} end)
+        |> then(&:erlang.term_to_binary(%{v: 1, runs: %{"d" => &1}}, compressed: 6))
+        |> byte_size()
+
+      row([
+        {label, 28, :l},
+        {n, 8, :r},
+        {commas(fuel), 9, :r},
+        {f1(pulse_ms), 9, :r},
+        {f1(refresh_ms), 11, :r},
+        {f1(median_ms), 9, :r},
+        {pct(median_ms / 1000), 8, :r},
+        {kb(state), 12, :r}
+      ])
+    end
+
+    p("")
+    p("pulse ms: one second's due runs; refresh ms: the score refresh every 10 s (every player);")
+    p("avg = pulse + refresh / 10. A run with nothing due costs nothing between refreshes (the match")
+    p("template idles between its 6-hour timers); `when` handlers make every player due every second;")
+    p("a runaway script spends its share of the match's 500k steps for three seconds, then is off.")
+  end
 end

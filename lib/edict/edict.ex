@@ -2,10 +2,11 @@ defmodule Edict do
   @moduledoc """
   Edict: the scenario scripting language.
 
-  A scenario script describes a single-player challenge in the daily's mold:
-  the world it starts from (`setup`), how players are ranked (`score`,
-  `tiebreak`) and what happens while they play (handlers: `on start`,
-  `every`, `at`, `when`, `on end`). Players write it as text or as a node
+  A scenario script describes a challenge in the daily's mold: the world it
+  starts from (`setup`), how players are ranked (`score`, `tiebreak`) and
+  what happens while they play (handlers: `on start`, `every`, `at`, `when`,
+  `on end`). It runs as a daily of its own (a playtest) or attached to a
+  Forge scenario, once for every player of a match. Players write it as text or as a node
   graph in the Scenario Workshop; both are views of one tree (`Edict.AST`).
 
   The design, the security model and the roadmap are in
@@ -21,7 +22,14 @@ defmodule Edict do
     * `Edict.Sandbox` — the process backstop;
     * `Edict.Simulator` — the editor's dry run against a model player;
     * `Edict.World` — the live game's data, as a script sees it;
-    * `Edict.Scenario` — setup validation.
+    * `Edict.Scenario` — setup validation;
+    * `Edict.Live` — runs a playtest (a daily of one player);
+    * `Edict.Attachment` — scripts attached to a Forge scenario, checked
+      against its map;
+    * `Edict.Match` — runs them in a Legacy, Tactic or Flash match, once per
+      player.
+
+  Scripts saved to an account, and publishing them: `RC.Scripts`.
   """
 
   alias Edict.{AST, Checker, Parser, Printer}

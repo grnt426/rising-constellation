@@ -1891,6 +1891,21 @@ defmodule Edict.Docs do
       output: nil,
       examples: [%{code: ~S|seed = "spring-cup"|, result: nil, note: nil}],
       see_also: ["builtin:random", "setup:name"]
+    },
+    "setup:factions" => %{
+      title: "factions",
+      kind: "setup field",
+      summary:
+        "How many factions the scenario is written for. Attached to a map with a different number, the scenario editor warns.",
+      details:
+        "Only checked against a match's map: a daily always has the player's faction, and the rival court's when there is one. The factions list says which are in play.",
+      usage: "factions = 2",
+      inputs: [%{name: "factions", doc: "A whole number from 1 to 8. Left out, any number."}],
+      output: nil,
+      examples: [
+        %{code: "factions = 2", result: nil, note: nil}
+      ],
+      see_also: ["world:factions", "setup:faction"]
     }
   }
 
@@ -2221,13 +2236,208 @@ defmodule Edict.Docs do
     "world:scenario.systems" => %{
       title: "scenario.systems",
       kind: "world value",
-      summary: "How many systems the starting sector holds, as setup gives it.",
+      summary:
+        "How many systems the starting sector holds, as setup gives it. In a match: the systems on the whole map.",
       details: nil,
       usage: "scenario.systems",
       inputs: [],
-      output: "A whole number from 1 to 8, like 2.",
+      output: "A whole number, like 2.",
       examples: [%{code: "scenario.systems", result: "2", note: nil}],
       see_also: ["setup:systems", "world:player.systems_owned"]
+    },
+    "world:scenario.mode" => %{
+      title: "scenario.mode",
+      kind: "world value",
+      summary:
+        "What is being played: \"daily\" (a daily or a playtest), or a match: \"legacy\", \"tactic\" or \"flash\".",
+      details:
+        "The same script runs in all of them. In a match it runs once for each player, as if each had their own copy: player is that player, and its vars are theirs.",
+      usage: "scenario.mode",
+      inputs: [],
+      output: "Text: \"daily\", \"legacy\", \"tactic\" or \"flash\".",
+      examples: [
+        %{code: "scenario.mode", result: "\"legacy\"", note: nil},
+        %{code: "scenario.mode != \"daily\"", result: "true", note: "in a match"}
+      ],
+      see_also: ["world:factions", "world:players"]
+    },
+    "world:factions" => %{
+      title: "factions",
+      kind: "world value",
+      summary: "The factions in play, the leading one first.",
+      details:
+        "Each is a record: name, players, systems, dominions, victory_points and rank. In a daily it holds the player's faction, and the rival court's when there is one.",
+      usage: "factions",
+      inputs: [],
+      output: "A list of factions; each is a record with name, players, systems, dominions, victory_points and rank.",
+      examples: [
+        %{code: "len(factions)", result: "2", note: nil},
+        %{code: "factions[0].name", result: "\"cardan\"", note: "the leader"},
+        %{code: "find(factions, f => f.name == player.faction).rank", result: "1", note: "the player's faction's place"}
+      ],
+      see_also: ["world:factions[].victory_points", "setup:factions", "world:players"]
+    },
+    "world:factions[].name" => %{
+      title: "factions[].name",
+      kind: "world value",
+      summary: "The faction's name, written the way player.faction gives it.",
+      details: nil,
+      usage: "f.name, for a faction f of factions",
+      inputs: [],
+      output: "Text, like \"cardan\".",
+      examples: [
+        %{code: "map(factions, f => f.name)", result: "[\"cardan\", \"myrmezir\"]", note: nil}
+      ],
+      see_also: ["world:player.faction"]
+    },
+    "world:factions[].players" => %{
+      title: "factions[].players",
+      kind: "world value",
+      summary: "How many players the faction has.",
+      details: nil,
+      usage: "f.players, for a faction f of factions",
+      inputs: [],
+      output: "A whole number, like 3.",
+      examples: [
+        %{code: "factions[0].players", result: "3", note: nil},
+        %{code: "sum(factions, f => f.players)", result: "5", note: "everyone in the match"}
+      ],
+      see_also: ["world:players"]
+    },
+    "world:factions[].systems" => %{
+      title: "factions[].systems",
+      kind: "world value",
+      summary: "How many systems the faction owns.",
+      details: nil,
+      usage: "f.systems, for a faction f of factions",
+      inputs: [],
+      output: "A whole number, like 9.",
+      examples: [
+        %{code: "factions[1].systems", result: "9", note: nil}
+      ],
+      see_also: ["world:player.systems_owned"]
+    },
+    "world:factions[].dominions" => %{
+      title: "factions[].dominions",
+      kind: "world value",
+      summary: "How many dominions the faction holds.",
+      details: nil,
+      usage: "f.dominions, for a faction f of factions",
+      inputs: [],
+      output: "A whole number, like 4.",
+      examples: [
+        %{code: "factions[0].dominions", result: "4", note: nil}
+      ],
+      see_also: ["world:player.dominions"]
+    },
+    "world:factions[].victory_points" => %{
+      title: "factions[].victory_points",
+      kind: "world value",
+      summary: "The faction's victory points: what decides who wins the match.",
+      details: nil,
+      usage: "f.victory_points, for a faction f of factions",
+      inputs: [],
+      output: "A whole number, like 5.",
+      examples: [
+        %{code: "factions[0].victory_points", result: "5", note: nil},
+        %{code: "max(map(factions, f => f.victory_points))", result: "5", note: "the leader's"}
+      ],
+      see_also: ["world:factions[].rank"]
+    },
+    "world:factions[].rank" => %{
+      title: "factions[].rank",
+      kind: "world value",
+      summary: "The faction's place in the standings: 1 leads. Ties are broken the way the game breaks them.",
+      details: nil,
+      usage: "f.rank, for a faction f of factions",
+      inputs: [],
+      output: "A whole number, like 2.",
+      examples: [
+        %{code: "factions[1].rank", result: "2", note: nil},
+        %{code: "find(factions, f => f.rank == 1).name", result: "\"cardan\"", note: nil}
+      ],
+      see_also: ["world:factions[].victory_points"]
+    },
+    "world:players" => %{
+      title: "players",
+      kind: "world value",
+      summary: "Everyone playing, the player included.",
+      details:
+        "Each is a record with what the match shows openly: name, faction, systems_owned, dominions and population. Credits, incomes and research stay private; player has the player's own.",
+      usage: "players",
+      inputs: [],
+      output: "A list of players; each is a record with name, faction, systems_owned, dominions and population.",
+      examples: [
+        %{code: "len(players)", result: "2", note: nil},
+        %{code: "count(players, p => p.faction == player.faction)", result: "1", note: "the player's own faction"},
+        %{code: "max_by(players, p => p.systems_owned).name", result: "\"Osk\"", note: nil}
+      ],
+      see_also: ["world:player.name", "world:factions"]
+    },
+    "world:players[].name" => %{
+      title: "players[].name",
+      kind: "world value",
+      summary: "The player's name.",
+      details: nil,
+      usage: "p.name, for a player p of players",
+      inputs: [],
+      output: "Text, like \"Osk\".",
+      examples: [
+        %{code: "players[1].name", result: "\"Osk\"", note: nil}
+      ],
+      see_also: ["world:player.name"]
+    },
+    "world:players[].faction" => %{
+      title: "players[].faction",
+      kind: "world value",
+      summary: "The player's faction.",
+      details: nil,
+      usage: "p.faction, for a player p of players",
+      inputs: [],
+      output: "Text, like \"myrmezir\".",
+      examples: [
+        %{code: "players[1].faction", result: "\"myrmezir\"", note: nil}
+      ],
+      see_also: ["world:factions[].name"]
+    },
+    "world:players[].systems_owned" => %{
+      title: "players[].systems_owned",
+      kind: "world value",
+      summary: "How many systems the player owns.",
+      details: nil,
+      usage: "p.systems_owned, for a player p of players",
+      inputs: [],
+      output: "A whole number, like 4.",
+      examples: [
+        %{code: "sum(players, p => p.systems_owned)", result: "6", note: nil}
+      ],
+      see_also: ["world:player.systems_owned"]
+    },
+    "world:players[].dominions" => %{
+      title: "players[].dominions",
+      kind: "world value",
+      summary: "How many dominions the player holds.",
+      details: nil,
+      usage: "p.dominions, for a player p of players",
+      inputs: [],
+      output: "A whole number, like 1.",
+      examples: [
+        %{code: "players[0].dominions", result: "1", note: nil}
+      ],
+      see_also: ["world:player.dominions"]
+    },
+    "world:players[].population" => %{
+      title: "players[].population",
+      kind: "world value",
+      summary: "The player's total population, systems and dominions.",
+      details: nil,
+      usage: "p.population, for a player p of players",
+      inputs: [],
+      output: "A number, like 31.",
+      examples: [
+        %{code: "players[1].population", result: "31", note: nil}
+      ],
+      see_also: ["world:player.population"]
     },
     "world:scenario.time_limit" => %{
       title: "scenario.time_limit",

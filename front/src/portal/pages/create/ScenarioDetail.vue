@@ -5,7 +5,10 @@
       class="fluid-panel">
       <v-scrollbar class="panel-aside">
         <div class="panel-aside-bloc forge-detail-head">
-          <h1>{{ scenario.game_metadata.name }}</h1>
+          <h1>
+            <scripted-badge :metadata="scenario.game_metadata" />
+            {{ scenario.game_metadata.name }}
+          </h1>
           <em>
             {{ $t(`map.size.${scenario.game_metadata.size}.toast`) }}
             <span
@@ -84,6 +87,24 @@
           </div>
         </div>
 
+        <div
+          v-if="scripts.length"
+          class="panel-aside-info forge-detail-scripts">
+          <h2>{{ $t('page.create.scenario_scripts.detail_title') }}</h2>
+          <p class="forge-detail-scripts-hint">{{ $t('page.create.scenario_scripts.detail_hint') }}</p>
+          <details
+            v-for="(s, i) in scripts"
+            :key="`${s.id}-${i}`">
+            <summary>
+              <strong>{{ s.name }}</strong>
+              <span v-if="s.author"> · {{ $t('page.create.common.by') }} {{ s.author }}</span>
+            </summary>
+            <p v-if="s.description">{{ s.description }}</p>
+            <!-- the script's own text, as text -->
+            <pre class="forge-script-source">{{ s.source }}</pre>
+          </details>
+        </div>
+
         <hr class="separator">
 
         <div class="panel-aside-bloc">
@@ -129,6 +150,7 @@ import Loading from '@/portal/mixins/Loading';
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import GalaxyPreview from '@/portal/components/GalaxyPreview.vue';
+import ScriptedBadge from '@/portal/components/ScriptedBadge.vue';
 
 export default {
   name: 'create-scenario-detail',
@@ -140,6 +162,11 @@ export default {
     };
   },
   computed: {
+    // the scripts the scenario runs in every match (frozen copies, with text)
+    scripts() {
+      const list = this.scenario && this.scenario.game_data && this.scenario.game_data.scripts;
+      return Array.isArray(list) ? list.filter((s) => s && typeof s.source === 'string') : [];
+    },
     scenarioSize() {
       return this.scenario.game_data.size || this.scenario.game_metadata.size;
     },
@@ -200,6 +227,40 @@ export default {
     DefaultLayout,
     LoadingMask,
     GalaxyPreview,
+    ScriptedBadge,
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.forge-detail-scripts {
+  h2 {
+    margin: 0 0 4px;
+    font-size: 1.4rem;
+    text-transform: uppercase;
+  }
+
+  details {
+    margin-top: 8px;
+  }
+
+  summary {
+    cursor: pointer;
+  }
+}
+
+.forge-detail-scripts-hint {
+  opacity: 0.7;
+}
+
+.forge-script-source {
+  max-height: 320px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 1.15rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+</style>

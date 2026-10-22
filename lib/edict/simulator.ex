@@ -235,7 +235,8 @@ defmodule Edict.Simulator do
         "dominions" => 0.0,
         "population" => home["population"],
         "agents" => [],
-        "patents" => model.config["grant_patents"],
+        # the engine's keys in the config, the names scripts use in the world
+        "patents" => Enum.map(model.config["grant_patents"], &(Catalog.patent_name(&1) || &1)),
         "wonders" => [],
         "agents_removed" => 0.0
       },
@@ -247,9 +248,44 @@ defmodule Edict.Simulator do
       },
       "scenario" => %{
         "name" => model.config["name"],
+        "mode" => "daily",
         "systems" => model.config["systems"] / 1,
         "time_limit" => limit / 1
-      }
+      },
+      # a daily: the player's faction, and the rival court's when there is one
+      "factions" =>
+        [
+          %{
+            "name" => model.faction,
+            "players" => 1.0,
+            "systems" => 1.0,
+            "dominions" => 0.0,
+            "victory_points" => 0.0,
+            "rank" => 1.0
+          }
+        ] ++
+          if(model.config["rival"],
+            do: [
+              %{
+                "name" => "rival",
+                "players" => 1.0,
+                "systems" => 0.0,
+                "dominions" => 0.0,
+                "victory_points" => 0.0,
+                "rank" => 2.0
+              }
+            ],
+            else: []
+          ),
+      "players" => [
+        %{
+          "name" => "You",
+          "faction" => model.faction,
+          "systems_owned" => 1.0,
+          "dominions" => 0.0,
+          "population" => home["population"]
+        }
+      ]
     }
 
     Enum.reduce(model.overrides, base, fn {path, value}, world -> put_in(world, path, value) end)

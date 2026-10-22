@@ -277,11 +277,17 @@ defmodule Edict.Live do
         %{faction: Instance.Mutators.daily_puppet_faction(state.instance_id), sent: length(state.minted), left: left}
       end
 
+    # a daily's factions: the player's, and the rival court's when there is one
+    factions =
+      [World.faction(%{key: player.faction, player_count: 1, system_count: length(player.stellar_systems)}, 1)] ++
+        if(rival, do: [World.faction(%{key: rival.faction, player_count: 1}, 2)], else: [])
+
     World.build(player,
       clock: %{elapsed: elapsed, left: state.limit - elapsed, limit: state.limit},
       config: state.rt.config,
       intelligence: intelligence,
-      rival: rival
+      rival: rival,
+      factions: factions
     )
   end
 

@@ -38,6 +38,7 @@
                 <option value="">{{ $t('page.scenario_workshop.new') }}…</option>
                 <option value="__blank">{{ $t('page.scenario_workshop.blank') }}</option>
                 <option value="__race">{{ $t('page.scenario_workshop.template_race') }}</option>
+                <option value="__match">{{ $t('page.scenario_workshop.template_match') }}</option>
               </select>
             </label>
             <label class="wk-examples">
@@ -220,7 +221,7 @@
             class="wk-tabs"
             role="tablist">
             <button
-              v-for="t in ['simulate', 'problems', 'help']"
+              v-for="t in ['simulate', 'problems', 'help', 'scripts']"
               :key="t"
               type="button"
               role="tab"
@@ -284,6 +285,18 @@
                   @click="applyFix(d.fix)">{{ $t('page.scenario_workshop.fix', { value: d.fix.value }) }}</button>
               </div>
             </div>
+
+            <account-scripts
+              v-else-if="tab === 'scripts'"
+              ref="accountScripts"
+              :current="account"
+              :dirty="accountDirty"
+              :saving="accountSaving"
+              @save="saveToAccount"
+              @open="openAccountScript"
+              @publish="publishAccount(true)"
+              @unpublish="publishAccount(false)"
+              @deleted="onAccountDeleted" />
 
             <div
               v-else
@@ -415,6 +428,7 @@ import { createEdict } from 'edict-editors/core';
 import Palette, { worldPaths } from '@/portal/workshop/Palette.vue';
 import SimPanel from '@/portal/workshop/SimPanel.vue';
 import WorkshopTour from '@/portal/workshop/Tour.vue';
+import AccountScripts from '@/portal/workshop/AccountScripts.vue';
 
 const WORKSPACE_KEY = 'edict.workspace.v1';
 const LIBRARY_KEY = 'edict.library.v1';
@@ -430,11 +444,37 @@ const EDITOR_KITS = [
 ];
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-// Starting points that aren't examples: a blank scenario, and a blank race
-// (a race scores the time left and ends with finish(), see the doc).
+// Starting points that aren't examples: a blank scenario, a blank race (a
+// race scores the time left and ends with finish(), see the doc), and rules
+// for a match (attached to a Forge scenario, run once per player).
 const TEMPLATES = {
   __blank: {
     source: 'setup {\n  name = "My scenario"\n  time_limit = 20m\n}\n\nscore player.credit\n',
+  },
+  __match: {
+    source: `# Rules for a Legacy, Tactic or Flash match. Save it to your scripts, then
+# attach it to a Forge scenario: it runs once for every player, as if each
+# had their own copy (player is that player, its vars are theirs).
+setup {
+  name = "My match rules"
+  description = "Every 6 hours, the faction in the lead pays a tithe."
+  factions = 2
+}
+
+# Each player's own score, shown to them in the game.
+score player.credit
+
+on start {
+  notify("This match runs " + scenario.name + ": " + str(len(factions)) + " factions are in play.")
+}
+
+every 6h {
+  if find(factions, f => f.name == player.faction).rank == 1 {
+    take("credit", player.credit * 5%)
+    notify("Your faction leads: 5% of your credit goes to the tithe.", tone: "warning")
+  }
+}
+`,
   },
   __race: {
     source: '# A race: the run ends when the goal is met, and players are ranked by the\n# time they had left (0 if they never got there).\nsetup {\n  name = "My race"\n  time_limit = 20m\n}\n\nscore time.left\n\n# Ties go to the higher number here (change it to what should break ties).\ntiebreak player.credit\n\nwhen player.credit >= 1_000_000 {\n  finish("Goal reached!")\n}\n',
@@ -463,7 +503,7 @@ function storage(key, value) {
 export default {
   name: 'scenario-workshop',
   components: {
-    DefaultLayout, GraphCanvas, CodeEditor, DocCard, Palette, SimPanel, WorkshopTour,
+    AccountScripts, DefaultLayout, GraphCanvas, CodeEditor, DocCard, Palette, SimPanel, WorkshopTour,
   },
   data() {
     return {
@@ -507,6 +547,11 @@ export default {
       playtesting: false,
       // a file followed while it's edited elsewhere: {handle, name, text, modified, writing}
       link: null,
+      // the script as the account has it: {id, name, mine, published_at,
+      // author, source (its text when last saved or opened)}, or null for a
+      // script not saved to the account
+      account: null,
+      accountSaving: false,
       linkTimer: null,
       dropping: false,
       downloading: null,
@@ -536,6 +581,7 @@ export default {
       return row && row.expr.k === 'str' ? row.expr.v : this.$t('page.scenario_workshop.untitled');
     },
     errorCount() { return this.diagnostics.filter((d) => d.severity === 'error').length; },
+    accountDirty() { return !!this.account && this.account.source !== this.source; },
     editorSettings() { return this.$store.getters['portal/scenarioEditor']; },
     // the docs: the language's entries over ones made from the catalog
     allDocs() { return this.catalog ? { ...fallbackDocs(this.catalog), ...(this.catalog.docs || {}) } : {}; },
@@ -675,6 +721,7 @@ export default {
       const source = template ? template.source : ex && ex.source;
       if (!source) return;
       const hadWork = this.history.length > 0;
+      this.account = null;
       await this.loadSource(source);
       // switching replaces the scenario; undo brings the old one back
       if (hadWork) this.$toasted.show(this.$t('page.scenario_workshop.switched', { name: this.scenarioName }), { duration: 6000 });
@@ -709,6 +756,7 @@ export default {
         const { data } = await this.$axios.post('/edict/analyze', { program: saved.program });
         this.program = data.program;
         this.layout = saved.layout || { pos: {}, code: {} };
+        this.account = saved.account || null;
         this.applySync(data);
         return true;
       } catch (e) {
@@ -747,7 +795,7 @@ export default {
     },
     saveSoon() {
       clearTimeout(this.saveTimer);
-      this.saveTimer = setTimeout(() => storage(WORKSPACE_KEY, { program: this.program, layout: this.layout }), 600);
+      this.saveTimer = setTimeout(() => storage(WORKSPACE_KEY, { program: this.program, layout: this.layout, account: this.account }), 600);
     },
 
     // --- history -----------------------------------------------------------
@@ -1397,6 +1445,7 @@ export default {
       if (mod && !e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (this.link) this.saveToLink();
+        else if (this.account && this.account.mine) this.saveToAccount({ asNew: false });
         else this.saveFile();
         return;
       }
@@ -1608,6 +1657,12 @@ export default {
         },
         { key: 'import_fns', label: t('import_functions'), run: () => this.$refs.fnsInput.click() },
         { key: 'editors', label: t('editors'), run: () => this.showEditors() },
+        {
+          key: 'account_save',
+          label: this.account && this.account.mine ? t('account_save') : t('account_save_new'),
+          run: () => this.saveToAccount({ asNew: !(this.account && this.account.mine) }),
+        },
+        { key: 'account_open', label: t('account_open'), run: () => { this.tab = 'scripts'; } },
       );
       this.menu = { x: r.left, y: r.bottom + 2, items };
     },
@@ -1638,6 +1693,7 @@ export default {
         return;
       }
       if (this.link) this.unlink();
+      this.account = null;
       await this.loadSource(text);
       this.$toasted.show(this.$t('page.scenario_workshop.opened', { name }), { duration: 6000 });
     },
@@ -1767,6 +1823,99 @@ export default {
       const skipped = data.program.decls.some((d) => d.k !== 'fn' && d.k !== 'note');
       const key = skipped ? 'import_done_partial' : 'import_done';
       this.$toasted.success(this.$t(`page.scenario_workshop.${key}`, { count: printed.length, name }), { duration: 6000 });
+    },
+
+    // --- scripts saved to the account -------------------------------------------------
+    // The server derives the name, text and checks from the tree; the layout
+    // rides along so the graph opens as it was left.
+    async saveToAccount({ asNew }) {
+      if (this.accountSaving) return;
+      if (this.loading) await this.loading;
+      await this.currentSource();
+      const mine = this.account && this.account.mine && !asNew;
+      this.accountSaving = true;
+      try {
+        const body = { program: this.program, layout: this.layout };
+        const { data } = mine
+          ? await this.$axios.put(`/edict/scripts/${this.account.id}`, body)
+          : await this.$axios.post('/edict/scripts', body);
+        this.account = this.accountFrom(data.script);
+        this.saveSoon();
+        this.$toasted.success(this.$t('page.scenario_workshop.account.saved_toast', { name: data.script.name }));
+        if (this.$refs.accountScripts) this.$refs.accountScripts.refresh();
+      } catch (e) {
+        this.accountRefused(e);
+      } finally {
+        this.accountSaving = false;
+      }
+    },
+    async openAccountScript(summary) {
+      if (this.accountDirty && !window.confirm(this.$t('page.scenario_workshop.account.discard_confirm', { name: this.account.name }))) return;
+      try {
+        const { data } = await this.$axios.get(`/edict/scripts/${summary.id}`);
+        if (this.link) this.unlink();
+        this.pushHistory();
+        if (await this.restore({ program: data.script.program, layout: data.script.layout })) {
+          this.account = this.accountFrom(data.script);
+          this.selection = [];
+          this.sim.report = null;
+          this.saveSoon();
+          this.$nextTick(() => this.$refs.canvas && this.$refs.canvas.fit());
+          this.$toasted.show(this.$t('page.scenario_workshop.opened', { name: data.script.name }), { duration: 4000 });
+        }
+      } catch (e) {
+        this.$toasted.error(this.$t('page.scenario_workshop.account.failed'));
+      }
+    },
+    async publishAccount(publish) {
+      if (!this.account || !this.account.mine || this.accountSaving) return;
+      if (publish && !window.confirm(this.$t('page.scenario_workshop.account.publish_confirm', { name: this.account.name }))) return;
+      this.accountSaving = true;
+      try {
+        const url = `/edict/scripts/${this.account.id}/publish`;
+        const { data } = publish ? await this.$axios.put(url) : await this.$axios.delete(url);
+        this.account = { ...this.accountFrom(data.script), source: this.account.source };
+        this.saveSoon();
+        const key = publish ? 'published_toast' : 'unpublished_toast';
+        this.$toasted.success(this.$t(`page.scenario_workshop.account.${key}`, { name: data.script.name }));
+        if (this.$refs.accountScripts) this.$refs.accountScripts.refresh();
+      } catch (e) {
+        this.accountRefused(e);
+      } finally {
+        this.accountSaving = false;
+      }
+    },
+    onAccountDeleted(script) {
+      if (this.account && this.account.id === script.id) {
+        this.account = null;
+        this.saveSoon();
+      }
+    },
+    accountFrom(script) {
+      return {
+        id: script.id,
+        name: script.name,
+        mine: script.mine,
+        published_at: script.published_at,
+        author: script.author,
+        source: script.source,
+      };
+    },
+    // The server's refusals, in words (names in them are plain text).
+    accountRefused(e) {
+      const body = (e && e.response && e.response.data) || {};
+      const say = (key, args) => this.$toasted.error(this.$t(`page.scenario_workshop.account.${key}`, args), { duration: 9000 });
+      switch (body.message) {
+        case 'script_limit': return say('refused_limit', { limit: body.limit });
+        case 'script_has_errors': return say('refused_errors');
+        case 'script_duplicate':
+          return say('refused_duplicate', {
+            name: body.script && body.script.name,
+            author: body.script && body.script.author ? body.script.author.name : '?',
+          });
+        case 'script_invalid': return say('refused_invalid', { detail: body.detail });
+        default: return say('failed');
+      }
     },
 
     // --- editor kits ---------------------------------------------------------------------
@@ -2089,7 +2238,8 @@ $line: rgba(255, 255, 255, .12);
 }
 
 .wk-problems,
-.wk-help {
+.wk-help,
+.wk-account {
   padding: 10px 12px;
 
   p {

@@ -141,6 +141,16 @@ defmodule Instance.Mutators do
   @doc "True on a day run by a scenario script (Edict) rather than a catalog objective."
   def daily_scripted?(instance_id), do: is_map(daily_setup(instance_id))
 
+  @doc "True on a match whose scenario attaches scripts (Edict.Match runs them)."
+  def match_scripted?(instance_id), do: meta(instance_id, :match_scripted) == true
+
+  @doc """
+  The scenario-script setup the engine applies (grants, discounts): a scripted
+  day's, else a scripted match's merged setup (`game_data["edict"]["setup"]`,
+  see `Edict.Attachment.instance_setup/1`), else nil.
+  """
+  def script_setup(instance_id), do: daily_setup(instance_id) || meta(instance_id, :match_setup)
+
   # The day's setup speaks in strings (it comes from jsonb); the engine wants
   # the content's atoms. Only keys that name existing content come through,
   # by lookup, so nothing from the setup ever becomes a new atom.
@@ -152,11 +162,12 @@ defmodule Instance.Mutators do
   defp content_atoms(_instance_id, _module, _keys), do: []
 
   @doc """
-  Patents the day hands the player up front (before their ancestors are
-  added): the script's `grant_patents`, else the catalog objective's grants.
+  Patents the day (or a scripted match) hands each player up front (before
+  their ancestors are added): the script's `grant_patents`, else the catalog
+  objective's grants.
   """
   def daily_granted_patents(instance_id) do
-    case daily_setup(instance_id) do
+    case script_setup(instance_id) do
       %{"grant_patents" => keys} -> content_atoms(instance_id, Data.Game.Patent, keys)
       _ -> instance_id |> daily_objective() |> Daily.Objective.granted_patents()
     end
@@ -164,7 +175,7 @@ defmodule Instance.Mutators do
 
   @doc "Whether the day's granted patents stay out of the per-patent price increase."
   def daily_markup_free?(instance_id) do
-    case daily_setup(instance_id) do
+    case script_setup(instance_id) do
       %{"markup_free" => free} -> free == true
       _ -> instance_id |> daily_objective() |> Daily.Objective.markup_free_grants?()
     end
@@ -172,7 +183,7 @@ defmodule Instance.Mutators do
 
   @doc "Price factors the day puts on single patents, as `%{patent_key => factor}`."
   def daily_patent_discounts(instance_id) do
-    case daily_setup(instance_id) do
+    case script_setup(instance_id) do
       %{"patent_discounts" => discounts} when is_map(discounts) ->
         keys = content_atoms(instance_id, Data.Game.Patent, Map.keys(discounts))
         Map.new(keys, fn key -> {key, discounts[Atom.to_string(key)] / 1} end)
