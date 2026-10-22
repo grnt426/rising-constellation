@@ -15,7 +15,9 @@ what comes next.
 Status (2026-10-22): scripts also run in Legacy, Tactic and Flash matches:
 players save them to their account (ten each), publish them, and attach them
 to Forge scenarios, where each is checked against the map and runs once per
-player in every match (see "Scripts in matches").
+player in every match (see "Scripts in matches"). A `shared var` holds one
+value for the whole match, `end_match()` ends it with a named winner, and
+the in-game leaderboard ranks every player by each script's score.
 
 Status (2026-10-21): the MVP is built and tested end to end. Ten of the
 shipped daily objectives are rebuilt as scripts and rank players exactly as
@@ -30,8 +32,8 @@ renders as HTML (see "Script text in the browser"). Every function,
 action, event, operator and world value has plain-language docs with tested
 examples, on hover and in the Help tab, and the code view suggests what fits.
 Tests: about 240 in `test/edict/`, `test/rc/scripts_test.exs` and the two API
-controller tests (Node tests of the editor kits and a real two-faction match
-included), 16 browser tests; two rounds of synthetic usability sessions
+controller tests (Node tests of the editor kits and two real two-faction
+matches included), 18 browser tests; two rounds of synthetic usability sessions
 shaped the editor (see the study section).
 
 ## Contents
@@ -609,17 +611,40 @@ script runs once for every player, as if each had their own copy.**
 |---|---|---|
 | `player` | the one player | the player this copy runs for |
 | `var` | the run's state | that player's state; each player has their own |
+| `shared var` | an ordinary var | one value for the whole match: every player's run reads and changes the same one |
 | `on start` | the run begins | the player's run begins: the match's start, or when a late joiner first appears |
 | `at 10m`, `every 1h` | the run's clock | the match's clock (running time, pauses excluded); a late joiner skips an `at` already past, and an `every` picks up at its next occurrence, numbered as if it had counted since the start |
 | `give`, `take`, `destabilize` | the player | that player, their own systems |
 | `notify` | the player | that player alone |
 | `finish()` | ends the run | ends that player's run (score counted, `on end` run); the match goes on |
-| `score` | ranks the day | each player's own score, shown to them with their place |
+| `end_match(message, winner: faction)` | ends the run, like `finish()` | ends the match for everyone; the named faction wins (left out, the match's own rules pick) |
+| `score` | ranks the day | each player's own score, shown to them with their place and to everyone on the leaderboard's Scenario tab |
 | `send_agent` | the rival court | refused: a match has no rival court |
 | `time.limit` | the setup's | the match's time limit |
 
 So a daily script keeps its meaning when attached to a match, and a script
 written for matches simulates in the workshop as one player's run.
+
+**Shared state and the end of a match.** Two parts exist for matches. A
+`shared var` holds one value for everyone; each second the players' runs
+take turns in a fixed order, each turn starting from the value the turns
+before it left, so exactly one player can claim something. `end_match()`
+ends the match for everyone and can name the winning faction; the first
+call wins. Together they make "first to X wins":
+
+```
+shared var champion = ""
+
+when champion == "" and player.systems_owned >= 30 {
+  champion = player.name
+  end_match(player.name + " holds thirty systems.", winner: player.faction)
+}
+```
+
+The engine records the result as a `"scenario"` victory
+(`Instance.Victory.Agent` `{:scripted_end, faction}`): the named faction
+first in the final ranking, then the standings as they were. Rankings,
+the archive and the Discord victory post follow as for any other victory.
 
 Three world values describe the match around the player (`Edict.World`):
 
@@ -740,9 +765,14 @@ deploy's restore or the autosave cycle's stop/start all bring it back.
   and place; messages arrive as in a playtest, and a player who was away
   gets their last five on arrival. A script problem shows to the player
   whose run hit it, once per problem.
-- **The end.** When the match is won, every run still going is finished
-  (score counted, `on end` run, its messages sent, nothing else changed in
-  a finished game) and each script's top three go to everyone.
+- **The leaderboard.** Every 10 seconds the runner sends everyone each
+  script's scores (scripts that keep one), and the in-game leaderboard
+  shows them in a Scenario tab. Scores are public: the scenario's author
+  chose what they count, and the Forge says so when a script is attached.
+- **The end.** When the match is won (by the game's rules or by
+  `end_match()`), every run still going is finished (score counted, `on end`
+  run, its messages sent, nothing else changed in a finished game) and each
+  script's top three go to everyone.
 
 The Rebellion of a Rebel Defense match is the game's own opponent and gets
 no run. Bots seated as ordinary players do.
@@ -779,9 +809,6 @@ off for that player, as a playtest's script is.
   minutes against the model economy, with that player's faction alone in
   `factions`. A match's hours-long timers don't fire there; the attach-time
   dry start is the check that a script boots on a real map.
-- **No shared state between players.** Each player's vars are their own; a
-  "first to reach X wins a bonus" rule needs a `shared var` (planned).
-- **No custom victory.** `finish()` ends one player's run, never the match.
 - **Messages to absent players** are kept only as the last five per player
   (shown on arrival); a script can't write to the faction chat.
 - Script copy (panel, Forge section) is English only, like the workshop.
@@ -1094,9 +1121,9 @@ and the simulator can't say in advance that a goal is out of reach of the
 - Still to do: a moderation queue for published names and messages (today
   they are cleaned of control and direction characters and shown as plain
   text, but not reviewed), and per-script leaderboards keyed on the digest.
-- For matches: `shared var` (state common to every player's run), a way to
-  end the match or name a winner, simulating a match (several players, a
-  map's factions, its length), messages to the faction chat.
+- For matches (done 2026-10-22: `shared var`, `end_match()`, the
+  leaderboard tab): simulating a match (several players, a map's factions,
+  its length), messages to the faction chat.
 - Shared function libraries, with copy-on-insert kept as the rule.
 - Community dailies: a curated script can be a day's challenge, run through
   the same runner, recording into `daily_entries`.

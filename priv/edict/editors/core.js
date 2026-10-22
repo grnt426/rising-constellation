@@ -504,6 +504,7 @@ function createEdict(catalog) {
     ['score', 'score ${1:player.credit}', 'How players are ranked: higher is better.'],
     ['tiebreak', 'tiebreak ${1:player.income.credit}', 'Breaks ties between equal scores: higher ranks first.'],
     ['var', 'var ${1:name} = ${2:0}', 'State the scenario keeps between events.'],
+    ['shared var', 'shared var ${1:name} = ${2:0}', 'In a match, one value for every player (each keeps their own var otherwise).'],
     ['fn', 'fn ${1:name}(${2:value}) {\n\t$0\n}', 'A named function, callable from anywhere.'],
     ['on start', 'on start {\n\t$0\n}', 'Runs once, as the run begins.'],
     ['on end', 'on end {\n\t$0\n}', 'Runs once when the run ends, after the score is counted.'],

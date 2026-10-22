@@ -212,4 +212,22 @@ defmodule Edict.ParserTest do
     assert {:ok, decoded} = AST.from_json(json)
     assert strip(decoded) == strip(program)
   end
+
+  test "shared var: parsed, printed and carried through JSON; trees without the flag read as plain vars" do
+    source = "shared var champion = \"\"\n\nvar mine = 0\n\nscore mine\n"
+    program = parse!(source)
+    assert [%{k: :var, name: "champion", shared: true}, %{k: :var, name: "mine", shared: false}, _] = program.decls
+    assert Edict.Printer.print(program) == source
+
+    json = program |> Jason.encode!() |> Jason.decode!()
+    assert {:ok, decoded} = AST.from_json(json)
+    assert strip(decoded) == strip(program)
+
+    # the editor's older trees have no flag
+    old = update_in(json, ["decls"], fn decls -> Enum.map(decls, &Map.delete(&1, "shared")) end)
+    assert {:ok, %{decls: [%{shared: false}, %{shared: false}, _]}} = AST.from_json(old)
+
+    assert {:error, %{message: message}} = Edict.Parser.parse("shared fn f() {\n}")
+    assert message =~ "expected var"
+  end
 end

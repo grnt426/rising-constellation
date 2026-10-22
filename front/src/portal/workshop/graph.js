@@ -185,9 +185,11 @@ function drawDecl(B, decl, at) {
       });
       break;
     case 'var':
-      node.title = 'var';
+      node.title = decl.shared ? 'shared var' : 'var';
       node.tone = 'data';
       node.fields.push({ key: 'name', value: decl.name, editor: 'name' });
+      // in a match: one value for every player instead of one each
+      node.fields.push({ key: 'shared', value: decl.shared === true, editor: 'flag' });
       node.inputs.push({
         key: 'expr', label: 'starts at', slot: { pid: decl.id, field: 'expr', index: null }, type: 'any',
       });

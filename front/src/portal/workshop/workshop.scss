@@ -459,6 +459,20 @@ $wk-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     font-weight: 600;
   }
 
+  // a yes/no on a node (a var shared by all players)
+  .wk-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: $white-alt-1;
+    cursor: pointer;
+
+    input {
+      width: auto;
+      margin: 0;
+    }
+  }
+
   .wk-label {
     flex: 0 0 auto;
     max-width: 90px;

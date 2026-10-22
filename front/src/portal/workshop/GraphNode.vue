@@ -110,8 +110,18 @@
       :key="`f-${field.key}`"
       class="wk-row wk-field">
       <span class="wk-label">{{ fieldLabel(field) }}</span>
+      <label
+        v-if="field.editor === 'flag'"
+        class="wk-flag">
+        <input
+          type="checkbox"
+          :checked="field.value"
+          :aria-label="fieldLabel(field)"
+          @change="$emit('field', { id: node.id, key: field.key, value: $event.target.checked })">
+        {{ $t(`page.scenario_workshop.flag_${field.key}`) }}
+      </label>
       <select
-        v-if="field.editor === 'op'"
+        v-else-if="field.editor === 'op'"
         :value="field.value"
         :aria-label="$t('page.scenario_workshop.operator')"
         @change="$emit('field', { id: node.id, key: field.key, value: $event.target.value })">

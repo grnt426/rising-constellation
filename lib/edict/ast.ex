@@ -23,13 +23,14 @@ defmodule Edict.AST do
 
   # kind => {category, fields}. Field types:
   #   :expr, {:opt, :expr}, :exprs, :block, {:opt, :block}, :name, {:opt, :name},
-  #   :names, :text, :number, :bool, {:enum, [...]}, :named_args, :entries, :parts
+  #   :names, :text, :number, :bool, :flag (a bool, false when left out),
+  #   {:enum, [...]}, :named_args, :entries, :parts
   @kinds %{
     # declarations
     "setup" => {:setup, :decl, [body: :block]},
     "score" => {:score, :decl, [expr: :expr]},
     "tiebreak" => {:tiebreak, :decl, [expr: :expr]},
-    "var" => {:var, :decl, [name: :name, expr: :expr]},
+    "var" => {:var, :decl, [name: :name, expr: :expr, shared: :flag]},
     "fn" => {:fn, :decl, [name: :name, params: :names, body: :block]},
     "on" => {:on, :decl, [event: {:enum, ["start", "end"]}, body: :block]},
     "every" =>
@@ -237,6 +238,10 @@ defmodule Edict.AST do
   end
 
   defp decode_field(:bool, b, _depth, ids, _kind, _field) when is_boolean(b), do: {b, ids}
+
+  # a yes/no that older trees leave out: false
+  defp decode_field(:flag, nil, _depth, ids, _kind, _field), do: {false, ids}
+  defp decode_field(:flag, b, _depth, ids, _kind, _field) when is_boolean(b), do: {b, ids}
 
   defp decode_field({:enum, allowed}, value, _depth, ids, kind, field) do
     if value in allowed, do: {value, ids}, else: bad("#{kind}.#{field} has an unknown value")

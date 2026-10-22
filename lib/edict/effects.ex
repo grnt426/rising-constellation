@@ -13,6 +13,7 @@ defmodule Edict.Effects do
     * text is cleaned for display: control characters and text-direction
       overrides removed, length capped. Clients render it as plain text;
     * `send_agent` needs a scenario with a rival court;
+    * `end_match`'s winner must be one of the factions in play;
     * messages are rate-limited across pulses, so a script can't flood the
       player.
 
@@ -38,7 +39,7 @@ defmodule Edict.Effects do
 
     {accepted, refused, state} =
       Enum.reduce(effects, {[], [], state}, fn effect, {ok, bad, state} ->
-        case check(effect, own, home, config, state, t) do
+        case check(effect, own, home, config, state, t, world) do
           {:ok, clean, state} -> {[clean | ok], bad, state}
           {:error, reason} -> {ok, [%{effect: effect, reason: reason} | bad], state}
         end
@@ -47,7 +48,7 @@ defmodule Edict.Effects do
     {Enum.reverse(accepted), Enum.reverse(refused), state}
   end
 
-  defp check(%{"action" => action, "args" => args} = effect, own, home, config, state, t) when is_map(args) do
+  defp check(%{"action" => action, "args" => args} = effect, own, home, config, state, t, world) when is_map(args) do
     case action do
       a when a in ["give", "take"] ->
         with {:ok, resource} <- one_of(args["resource"], Edict.Catalog.resources()),
@@ -71,6 +72,12 @@ defmodule Edict.Effects do
 
         with {:ok, m} <- message, do: {:ok, %{effect | "args" => %{"message" => m}}, state}
 
+      "end_match" ->
+        with {:ok, m} <- optional_message(args["message"]),
+             {:ok, winner} <- faction_in_play(Map.get(args, "winner"), world) do
+          {:ok, %{effect | "args" => %{"message" => m, "winner" => winner}}, state}
+        end
+
       "destabilize" ->
         with {:ok, amount} <- bounded(args["amount"], 0, 100),
              {:ok, system} <- own_system(Map.get(args, "system"), own, home) do
@@ -90,7 +97,23 @@ defmodule Edict.Effects do
     end
   end
 
-  defp check(_effect, _own, _home, _config, _state, _t), do: {:error, "malformed effect"}
+  defp check(_effect, _own, _home, _config, _state, _t, _world), do: {:error, "malformed effect"}
+
+  defp optional_message(nil), do: {:ok, nil}
+  defp optional_message(m), do: message(m)
+
+  # A named winner must be a faction in play (as `factions` lists them).
+  defp faction_in_play(nil, _world), do: {:ok, nil}
+
+  defp faction_in_play(name, world) when is_binary(name) do
+    names = world |> Map.get("factions") |> List.wrap() |> Enum.map(&Map.get(&1, "name"))
+
+    if name in names,
+      do: {:ok, name},
+      else: {:error, "#{Edict.AST.quoted(name)} isn't a faction in this match"}
+  end
+
+  defp faction_in_play(_, _world), do: {:error, "winner: must be a faction's name"}
 
   defp own_systems(world) do
     world

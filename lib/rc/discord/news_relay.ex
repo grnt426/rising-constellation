@@ -516,6 +516,7 @@ defmodule RC.Discord.NewsRelay do
 
   defp victory_type_label("win_on_time"), do: "Time-limit victory"
   defp victory_type_label("victory_track"), do: "Victory track complete"
+  defp victory_type_label("scenario"), do: "Scenario victory"
   defp victory_type_label(other), do: to_string(other || "Victory")
 
   defp create(content, channel_id, context) do

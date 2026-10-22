@@ -74,6 +74,8 @@ defmodule Edict.EditorKit do
     "tiebreak" => "**tiebreak** *value*: breaks ties between equal scores. Higher ranks first.",
     "var" =>
       "**var** *name* = *value*: state the scenario keeps between events. It starts at its value and handlers can change it.",
+    "shared" =>
+      "**shared var** *name* = *value*: in a match, one value for every player's run (each player's run otherwise keeps its own vars). In a daily, an ordinary var.",
     "let" => "**let** *name* = *value*: a name for a value, inside a handler or a function.",
     "fn" =>
       "**fn** *name*(*a*, *b*) { … }: a function, callable from anywhere, by position or by name: `area(h: 3, w: 4)`.",

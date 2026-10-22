@@ -110,6 +110,8 @@ defmodule Edict.Catalog do
      "Show the player a message. Tone colors it: info, good or warning."},
     {"finish", "run", [{"message", "text", :optional}], [],
      "End the run now. The score is counted at once (time.left is the time left), then the on end handlers run."},
+    {"end_match", "run", [{"message", "text", :optional}], [{"winner", "text"}],
+     "End the match now, for every player. winner: names the winning faction; left out, the match's own rules pick it. In a daily it ends the run, like finish()."},
     {"destabilize", "systems", [{"amount", "number"}], [{"system", "number"}],
      "Lower a system's stability by an amount (the player's first system unless system: names one)."},
     {"send_agent", "rival", [{"type", {:enum, ["erased"]}}], [{"level", "number"}, {"system", "number"}],

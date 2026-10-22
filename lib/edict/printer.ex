@@ -34,7 +34,9 @@ defmodule Edict.Printer do
   defp decl_body(%{k: :setup, body: body}), do: "setup " <> block(body, 0)
   defp decl_body(%{k: :score, expr: e}), do: "score " <> expr(e, 0)
   defp decl_body(%{k: :tiebreak, expr: e}), do: "tiebreak " <> expr(e, 0)
-  defp decl_body(%{k: :var, name: name, expr: e}), do: "var #{name} = " <> expr(e, 0)
+
+  defp decl_body(%{k: :var, name: name, expr: e} = d),
+    do: if(Map.get(d, :shared) == true, do: "shared ", else: "") <> "var #{name} = " <> expr(e, 0)
 
   defp decl_body(%{k: :fn, name: name, params: params, body: body}),
     do: "fn #{name}(#{Enum.join(params, ", ")}) " <> block(body, 0)

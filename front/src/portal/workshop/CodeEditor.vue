@@ -141,7 +141,7 @@ function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-const KEYWORDS = new Set(['setup', 'score', 'tiebreak', 'var', 'let', 'fn', 'return', 'if', 'then', 'else', 'for', 'in',
+const KEYWORDS = new Set(['setup', 'score', 'tiebreak', 'var', 'shared', 'let', 'fn', 'return', 'if', 'then', 'else', 'for', 'in',
   'while', 'break', 'continue', 'on', 'every', 'at', 'when', 'as', 'from', 'until', 'draft', 'and', 'or', 'not',
   'true', 'false', 'nil']);
 

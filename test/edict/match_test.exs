@@ -84,6 +84,65 @@ defmodule Edict.MatchTest do
     end
   end
 
+  # A two-faction Flash match from `scenario`: created, published, one
+  # player per faction registered, started (its runner starts with it).
+  # Subscribed to both players' channels and the global one.
+  defp start_match(conn, owner, owner_conn, scenario) do
+    {:ok, %{instance: instance}} =
+      RC.Instances.create_instance(
+        %{
+          "description" => "d",
+          "name" => "Scripted match",
+          "opening_date" => "2010-04-17T14:00:00Z",
+          "registration_type" => "pre_registration",
+          "registration_status" => "open",
+          "game_type" => "official",
+          "public" => true,
+          "start_setting" => "auto",
+          "factions" => [%{"key" => "tetrarchy", "capacity" => 10}, %{"key" => "myrmezir", "capacity" => 10}]
+        },
+        scenario,
+        owner.id
+      )
+
+    iid = instance.id
+    registered = RC.Instances.get_instance_with_registration(iid)
+    assert json_response(put(owner_conn, Routes.instance_path(owner_conn, :publish, iid)), 200)
+
+    players =
+      for {faction, name} <- Enum.zip(registered.factions, ["ann", "bo"]) do
+        account = account!(name)
+        profile = profile!(account)
+
+        assert json_response(
+                 post(login(build_conn(), account), Routes.registration_path(conn, :join, profile.id), %{
+                   instance_id: iid,
+                   faction_id: faction.id
+                 }),
+                 200
+               )
+
+        profile
+      end
+
+    for p <- players, do: Portal.Endpoint.subscribe("instance:player:#{iid}:#{p.id}")
+    Portal.Endpoint.subscribe(GlobalChannel.topic(iid))
+
+    Process.sleep(100)
+    assert json_response(put(owner_conn, Routes.instance_path(owner_conn, :start, iid)), 200)
+    on_exit(fn -> Instance.Manager.destroy(iid) end)
+    {iid, players, instance}
+  end
+
+  # a scenario that attaches `source`, saved by `owner`
+  defp scripted_scenario(owner, source) do
+    {:ok, script} = RC.Scripts.create(owner.id, %{"source" => source})
+    scenario = valid_scenario_fixture()
+    game_data = Map.put(scenario.game_data, "scripts", RC.Scripts.attach([script.id], owner.id))
+    {:ok, scenario} = RC.Scenarios.update_scenario(scenario, %{game_data: game_data})
+    scenario
+  end
+
   test "a scenario's script runs once per player in a real match, and survives a restart", %{conn: conn} do
     owner = account!("owner", "admin")
     owner_conn = login(conn, owner)
@@ -112,51 +171,8 @@ defmodule Edict.MatchTest do
     assert source == script.source
 
     # --- the match ---------------------------------------------------------------------
-    {:ok, %{instance: instance}} =
-      RC.Instances.create_instance(
-        %{
-          "description" => "d",
-          "name" => "Scripted match",
-          "opening_date" => "2010-04-17T14:00:00Z",
-          "registration_type" => "pre_registration",
-          "registration_status" => "open",
-          "game_type" => "official",
-          "public" => true,
-          "start_setting" => "auto",
-          "factions" => [%{"key" => "tetrarchy", "capacity" => 10}, %{"key" => "myrmezir", "capacity" => 10}]
-        },
-        scenario,
-        owner.id
-      )
-
-    iid = instance.id
+    {iid, players, instance} = start_match(conn, owner, owner_conn, scenario)
     assert instance.game_data["edict"]["setup"]["grant_patents"] == [Edict.Catalog.patent_key("precision_cranes")]
-
-    instance = RC.Instances.get_instance_with_registration(iid)
-    assert json_response(put(owner_conn, Routes.instance_path(owner_conn, :publish, iid)), 200)
-
-    players =
-      for {faction, name} <- Enum.zip(instance.factions, ["ann", "bo"]) do
-        account = account!(name)
-        profile = profile!(account)
-
-        assert json_response(
-                 post(login(build_conn(), account), Routes.registration_path(conn, :join, profile.id), %{
-                   instance_id: iid,
-                   faction_id: faction.id
-                 }),
-                 200
-               )
-
-        profile
-      end
-
-    for p <- players, do: Portal.Endpoint.subscribe("instance:player:#{iid}:#{p.id}")
-    Portal.Endpoint.subscribe(GlobalChannel.topic(iid))
-
-    Process.sleep(100)
-    assert json_response(put(owner_conn, Routes.instance_path(owner_conn, :start, iid)), 200)
-    on_exit(fn -> Instance.Manager.destroy(iid) end)
 
     # the grants reached every player as they were created
     assert Instance.Mutators.match_scripted?(iid)
@@ -216,5 +232,68 @@ defmodule Edict.MatchTest do
                    20_000
 
     assert eventually(fn -> Edict.Match.load(iid)[:ended] end)
+  end
+
+  @claim """
+  setup {
+    name = "Claim"
+  }
+
+  shared var champion = ""
+
+  var points = 1
+
+  score points
+
+  when champion == "" {
+    champion = player.name
+    points = 100
+  }
+
+  every 3s {
+    end_match("Claimed by " + champion + ".", winner: player.faction)
+  }
+  """
+
+  test "a shared var lets exactly one player claim, end_match names the winner, the board ranks everyone",
+       %{conn: conn} do
+    owner = account!("owner", "admin")
+    {iid, players, _instance} = start_match(conn, owner, login(conn, owner), scripted_scenario(owner, @claim))
+    names = Map.new(players, &{&1.id, &1.name})
+
+    # the leaderboard: one player claimed (100), the other didn't (1)
+    assert_receive %Phoenix.Socket.Broadcast{
+                     topic: "instance:global:" <> _,
+                     payload: %{scenario_board: [%{name: "Claim", race: false, rows: [first, second]}]}
+                   },
+                   15_000
+
+    assert {first.score, second.score} == {100.0, 1.0}
+    assert first.name == names[first.player_id] and second.name == names[second.player_id]
+
+    # the claimer's run ends the match, naming their faction the winner
+    assert_receive %Phoenix.Socket.Broadcast{
+                     topic: "instance:global:" <> _,
+                     payload: %{scenario_message: %{text: "Claim: the match ends. Claimed by " <> claimer}}
+                   },
+                   15_000
+
+    assert claimer == first.name <> "."
+
+    {:ok, victory} =
+      eventually(fn ->
+        case Game.call(iid, :victory, :master, :get_state) do
+          {:ok, %{winner: w}} = ok when w != nil -> ok
+          _ -> nil
+        end
+      end)
+
+    assert Atom.to_string(victory.winner) == first.faction
+    assert %{victory_type: "scenario"} = eventually(fn -> RC.Repo.get_by(RC.Instances.Victory, instance_id: iid) end)
+
+    # every run is finished, and the shared var was saved with them
+    saved = eventually(fn -> if Edict.Match.load(iid)[:ended], do: Edict.Match.load(iid) end)
+    assert [%{"champion" => champion}] = Map.values(saved.shared)
+    assert champion == first.name
   end
 end

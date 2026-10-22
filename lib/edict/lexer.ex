@@ -21,6 +21,7 @@ defmodule Edict.Lexer do
     "score" => :kw_score,
     "tiebreak" => :kw_tiebreak,
     "var" => :kw_var,
+    "shared" => :kw_shared,
     "let" => :kw_let,
     "fn" => :kw_fn,
     "return" => :kw_return,

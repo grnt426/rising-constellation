@@ -948,7 +948,29 @@ defmodule Edict.Docs do
           note: nil
         }
       ],
-      see_also: ["event:on_end", "world:time.left", "node:score"]
+      see_also: ["event:on_end", "world:time.left", "node:score", "action:end_match"]
+    },
+    "action:end_match" => %{
+      title: "end_match",
+      kind: "action",
+      summary: "Ends the match now, for every player, and can name the winning faction.",
+      details:
+        "winner: takes a faction's name, as factions lists them; left out, the match's own rules pick the winner (the most victory points). Every player's run is finished and scored. The first end_match wins. In a daily it ends the run, like finish().",
+      usage: "end_match([message], [winner: faction])",
+      inputs: [
+        %{name: "message", doc: "Optional. Text shown to everyone as the match ends."},
+        %{name: "winner", doc: "Optional. The winning faction's name, like player.faction."}
+      ],
+      output: @step,
+      examples: [
+        %{
+          code:
+            ~s|when player.systems_owned >= 30 {\n  end_match(player.name + " holds thirty systems.", winner: player.faction)\n}|,
+          result: nil,
+          note: "the first faction to reach 30 systems wins"
+        }
+      ],
+      see_also: ["action:finish", "keyword:shared", "world:factions"]
     },
     "action:destabilize" => %{
       title: "destabilize",
@@ -1163,6 +1185,25 @@ defmodule Edict.Docs do
       output: nil,
       examples: [%{code: ~s|var raids = 0\n\nevery 2m {\n  raids = raids + 1\n}|, result: nil, note: nil}],
       see_also: ["node:var", "keyword:let"]
+    },
+    "keyword:shared" => %{
+      title: "shared var",
+      kind: "keyword",
+      summary: "A var with one value for every player of a match, so players' runs can see what the others did.",
+      details:
+        "In a match the script runs once per player and each keeps its own vars; a shared var is the exception. Each second the players' runs take turns, and each turn sees what the turns before it changed. In a daily it is an ordinary var.",
+      usage: "shared var name = starting value",
+      inputs: [],
+      output: nil,
+      examples: [
+        %{
+          code:
+            ~s|shared var champion = ""\n\nwhen champion == "" and player.systems_owned >= 20 {\n  champion = player.name\n  give("credit", 1_000_000)\n}|,
+          result: nil,
+          note: "the first player to 20 systems gets the bonus, and no one after"
+        }
+      ],
+      see_also: ["keyword:var", "action:end_match", "world:players"]
     },
     "keyword:let" => %{
       title: "let",
@@ -3113,7 +3154,7 @@ defmodule Edict.Docs do
       kind: "part",
       summary: "A value the scenario keeps from one event to the next, like a counter.",
       details:
-        "starts at sets its value as the run begins; it can't read the game yet. Events change it with a set step, while scores and conditions can only read it. If an event's steps fail, their changes are undone.",
+        "starts at sets its value as the run begins; it can't read the game yet. Events change it with a set step; scores and conditions only read it. In a match each player has their own, unless shared is ticked: then there is one for everyone.",
       usage: "var name = starting value",
       inputs: [
         %{name: "name", doc: "The var's name: letters, digits and _, starting with a letter."},

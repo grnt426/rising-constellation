@@ -190,6 +190,9 @@ const defaultState = () => {
     // A scenario script's name and score as they stand: a playtest's, or in
     // a match ({kind: 'match', entries, recent}) each script's for this player.
     scenarioStatus: null,
+    // A scripted match's leaderboard: [{name, race, rows: [{rank, player_id,
+    // name, faction, score, finished}]}], one per script that keeps a score.
+    scenarioBoard: null,
     character_market: {},
     faction: {},
     // Enemy fleets / agents reported to the faction (chat `[[spot:id]]`
@@ -719,6 +722,10 @@ const gameStore = {
 
       if (payload.scenario_message) {
         this.commit('game/addScenarioMessage', payload.scenario_message);
+      }
+
+      if (Array.isArray(payload.scenario_board)) {
+        state.scenarioBoard = Object.freeze(payload.scenario_board);
       }
 
       if (payload.player_player) {

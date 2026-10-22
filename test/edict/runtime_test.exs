@@ -230,6 +230,45 @@ score 1"
       assert dump == dump |> :erlang.term_to_binary() |> :erlang.binary_to_term([:safe])
     end
 
+    test "shared vars: a host passes one copy from run to run; alone they're plain vars" do
+      source = """
+      shared var champion = ""
+      var mine = 0
+      when champion == "" {
+        champion = player.name
+        mine = 100
+      }
+      score mine
+      """
+
+      [a, b] = for _ <- 1..2, do: runtime!(source)
+      assert a.shared == ["champion"]
+      assert Runtime.shared(a) == %{"champion" => ""}
+
+      # the match's copy goes into each turn and comes back out of it
+      world = fn name -> %{world(1.0) | "player" => %{"name" => name}} end
+      {a, _} = a |> Runtime.put_shared(%{"champion" => ""}) |> Runtime.pulse(world.("Ann"), 1.0)
+      copy = Runtime.shared(a)
+      assert copy == %{"champion" => "Ann"}
+      {b, _} = b |> Runtime.put_shared(copy) |> Runtime.pulse(world.("Bo"), 1.0)
+
+      # only the first turn claimed it
+      assert a.globals["mine"] == 100
+      assert b.globals["mine"] == 0
+      assert Runtime.shared(b) == %{"champion" => "Ann"}
+      # names that aren't shared vars are ignored
+      assert Runtime.put_shared(b, %{"mine" => 5}).globals["mine"] == 0
+    end
+
+    test "end_match ends the run like finish, and says the match should end" do
+      rt = runtime!(~s|at 5s {\n  end_match("Over.", winner: "cardan")\n  give("credit", 1)\n}\nscore 1|)
+      {rt, result} = Runtime.pulse(rt, world(5.0), 5.0)
+      assert result.finished == %{message: "Over.", end_match: %{winner: "cardan"}}
+      assert rt.finished.end_match == %{winner: "cardan"}
+      {_rt, later} = Runtime.pulse(rt, world(6.0), 6.0)
+      assert later.effects == []
+    end
+
     test "a pulse's steps can be capped below the usual budget" do
       rt = runtime!("every 1s {\n  let i = 0\n  while true {\n    i = i + 1\n  }\n}")
       {_rt, result} = Runtime.pulse(rt, world(1.0), 1.0, fuel: 5_000)

@@ -7,7 +7,10 @@ defmodule Edict.Match do
   **One run per player.** Each script runs once for every player, as if
   each had their own copy: `player` is that player, its `var`s are theirs,
   `notify` reaches them alone, `give` fills their stocks, `finish()` ends
-  their run (the match goes on). What a script knows of everyone else is
+  their run (the match goes on). A `shared var` is the exception: one value
+  for the whole match. Players' runs take turns each second, in a fixed
+  order, and each turn sees what the turns before it changed. `end_match()`
+  ends the match for everyone, with the faction it names as the winner. What a script knows of everyone else is
   what the match shows openly (`factions`, `players`; `Edict.World`). A
   player who joins late starts their run then: `on start` runs for them, an
   `at` already past doesn't, an `every` picks up at its next occurrence on
@@ -76,6 +79,12 @@ defmodule Edict.Match do
     started_us: 0,
     last_status: nil,
     last_t: 0.0,
+    # each script's `shared var`s, one copy for the match: %{digest => values}
+    shared: %{},
+    # faction names as scripts write them => the engine's keys (for end_match)
+    faction_keys: %{},
+    # end_match() was called: the Victory agent is ending the match
+    ending: false,
     ended: false,
     dirty: false,
     saved_at: 0,
@@ -146,7 +155,7 @@ defmodule Edict.Match do
       cond do
         saved[:ended] -> :ended
         scripts == [] -> {:error, :no_runnable_script}
-        true -> start_state(instance_id, game_data, speed, factor, scripts)
+        true -> start_state(instance_id, game_data, speed, factor, scripts, Map.get(saved, :shared, %{}))
       end
     else
       nil -> {:error, :no_instance}
@@ -154,7 +163,7 @@ defmodule Edict.Match do
     end
   end
 
-  defp start_state(instance_id, game_data, speed, factor, scripts) do
+  defp start_state(instance_id, game_data, speed, factor, scripts, saved_shared) do
     {:ok,
      %__MODULE__{
        instance_id: instance_id,
@@ -164,6 +173,7 @@ defmodule Edict.Match do
        systems: length(List.wrap(game_data["systems"])),
        rebel_faction: Wave.Lobby.wave?(game_data) && get_in(game_data, ["wave", "bot_faction"]),
        scripts: scripts,
+       shared: initial_shared(scripts, saved_shared),
        started_us: System.os_time(:microsecond),
        saved_at: System.monotonic_time(:millisecond)
      }}
@@ -195,6 +205,13 @@ defmodule Edict.Match do
   end
 
   defp prepare_script(_), do: []
+
+  # each script's shared vars: as saved, else as the script starts them
+  defp initial_shared(scripts, saved) do
+    Map.new(scripts, fn script ->
+      {script.digest, Map.merge(Runtime.shared(script.template), Map.get(saved, script.digest, %{}))}
+    end)
+  end
 
   defp restore_runs(script, saved) do
     runs =
@@ -270,7 +287,12 @@ defmodule Edict.Match do
   # --- a pulse -----------------------------------------------------------------------
 
   defp pulse(state, t, victory) do
-    state = state |> refresh_roster(victory, t) |> Map.put(:standings, standings(victory))
+    state =
+      state
+      |> refresh_roster(victory, t)
+      |> Map.put(:standings, standings(victory))
+      |> Map.put(:faction_keys, Map.new(victory.factions, &{Atom.to_string(&1.key), &1.key}))
+
     status? = state.last_status == nil or t - state.last_status >= @status_every
 
     due =
@@ -292,6 +314,7 @@ defmodule Edict.Match do
 
     if status? do
       Enum.each(state.roster, &push_status(state, &1.id))
+      push_board(state)
       %{state | last_status: t}
     else
       state
@@ -329,6 +352,8 @@ defmodule Edict.Match do
       end
 
     world = world(state, script, player, t)
+    # this turn starts from the match's copy of the shared vars
+    run = %{run | rt: Runtime.put_shared(run.rt, Map.get(state.shared, script.digest, %{}))}
 
     work = fn ->
       {rt, result} =
@@ -345,15 +370,17 @@ defmodule Edict.Match do
       {:ok, {rt, result, score}} ->
         started? = Enum.any?(result.fired, &(&1.kind == :start))
         run = %{run | rt: rt, score: score}
+        # ... and hands it on to the next turn
+        state = %{state | shared: Map.put(state.shared, script.digest, Runtime.shared(rt))}
         {run, state} = apply_effects(state, script, pid, run, result.effects, world, t)
         {run, state} = report_errors(state, script, pid, run, result.errors)
         # an on start that ran must never run again: save at once
         state = %{state | dirty: true, save_now: state.save_now or started?}
 
-        if result.finished do
-          finish_run(state, script, pid, run, world, t, result.finished)
-        else
-          put_run(state, script, pid, run)
+        case result.finished do
+          nil -> put_run(state, script, pid, run)
+          %{end_match: ending} = f -> state |> finish_run(script, pid, run, world, t, f) |> end_match(script, ending, f)
+          f -> finish_run(state, script, pid, run, world, t, f)
         end
 
       {:error, reason} ->
@@ -519,7 +546,11 @@ defmodule Edict.Match do
   defp topic(state, pid), do: "instance:player:#{state.instance_id}:#{pid}"
 
   defp send_status(state, pid) do
-    if Enum.any?(state.roster, &(&1.id == pid)), do: push_status(state, pid)
+    if Enum.any?(state.roster, &(&1.id == pid)) do
+      push_status(state, pid)
+      PlayerChannel.broadcast_change(topic(state, pid), %{scenario_board: board(state)})
+    end
+
     state
   end
 
@@ -578,7 +609,8 @@ defmodule Edict.Match do
             _ -> "complete. Your score: #{fmt(result.score)}."
           end
 
-        state = say(state, pid, script.name, text, "good")
+        # end_match() tells everyone at once (end_match/4)
+        state = if Map.has_key?(finished, :end_match), do: state, else: say(state, pid, script.name, text, "good")
         state = put_run(%{state | dirty: true, save_now: true}, script, pid, run)
         push_status(state, pid)
         state
@@ -586,6 +618,61 @@ defmodule Edict.Match do
       {:error, reason} ->
         {run, state} = report_errors(state, script, pid, run, [%{message: Sandbox.describe(reason)}])
         put_run(state, script, pid, %{run | rt: %{run.rt | finished: %{message: nil, t: t}}})
+    end
+  end
+
+  # end_match(): the Victory agent ends the match (a "scenario" victory),
+  # with the named faction first; the next pass sees the winner and
+  # finishes every run (`finalize/2`). The first call wins.
+  defp end_match(%{ending: true} = state, _script, _ending, _finished), do: state
+
+  defp end_match(state, script, %{winner: winner}, finished) do
+    key = winner && Map.get(state.faction_keys, winner)
+    Game.cast(state.instance_id, :victory, :master, {:scripted_end, key})
+
+    text =
+      case finished do
+        %{message: m} when is_binary(m) and m != "" -> "#{script.name}: the match ends. #{sentence(m)}"
+        _ -> "#{script.name}: the match ends."
+      end
+
+    GlobalChannel.broadcast_change(GlobalChannel.topic(state.instance_id), %{
+      scenario_message: %{text: Effects.clean_text(text), tone: "good"}
+    })
+
+    Logger.info("[edict] match #{state.instance_id}: #{script.name} ended the match (winner #{inspect(key)})")
+    %{state | ending: true, dirty: true, save_now: true}
+  end
+
+  # The leaderboard tab: every player's score in each script that keeps one,
+  # best first. Scores are public: the scenario's author chose them.
+  defp push_board(state) do
+    GlobalChannel.broadcast_change(GlobalChannel.topic(state.instance_id), %{scenario_board: board(state)})
+  end
+
+  @doc false
+  def board(state) do
+    who = Map.new(state.roster, &{&1.id, &1})
+
+    for script <- state.scripts, script.template.score != nil do
+      rows =
+        script.runs
+        |> Enum.filter(fn {pid, run} -> is_number(run.score) and Map.has_key?(who, pid) end)
+        |> Enum.sort_by(fn {_pid, run} -> {-run.score, -(run.tiebreak || 0)} end)
+        |> Enum.take(200)
+        |> Enum.with_index(1)
+        |> Enum.map(fn {{pid, run}, rank} ->
+          %{
+            rank: rank,
+            player_id: pid,
+            name: who[pid].name,
+            faction: who[pid].faction,
+            score: run.score,
+            finished: run.rt.finished != nil
+          }
+        end)
+
+      %{name: script.name, race: script.race?, rows: rows}
     end
   end
 
@@ -616,6 +703,7 @@ defmodule Edict.Match do
       end)
 
     Enum.each(state.scripts, &announce(state, &1))
+    push_board(state)
     %{state | ended: true, dirty: true}
   end
 
@@ -680,6 +768,7 @@ defmodule Edict.Match do
     data = %{
       v: 1,
       ended: state.ended,
+      shared: state.shared,
       runs:
         Map.new(state.scripts, fn script ->
           {script.digest,

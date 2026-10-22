@@ -730,7 +730,7 @@
         "to_workshop": "Write one in the Scenario Workshop.",
         "published": "published",
         "has_errors": "Has a mistake to fix first: it would not run. | Has {count} mistakes to fix first: it would not run.",
-        "privacy": "Saving keeps a copy of each script as it is now; save again to pick up a newer version. Anyone who can open this scenario can read its scripts.",
+        "privacy": "Saving keeps a copy of each script as it is now; save again to pick up a newer version. Anyone who can open this scenario can read its scripts, and in a match every player sees each script's scores on the leaderboard.",
         "saved_with_warnings": "Saved, with a warning about its scripts on this map. | Saved, with {count} warnings about its scripts on this map.",
         "detail_title": "Scripts",
         "detail_hint": "Rules this scenario adds to its matches, as their authors wrote them."
@@ -1147,7 +1147,8 @@
         "no_snapshots_notice": "No daily snapshots survive for this match, so only event and score data is shown.",
         "victory_type": {
           "victory_track": "Victory points target reached",
-          "win_on_time": "Won on time"
+          "win_on_time": "Won on time",
+          "scenario": "Ended by the scenario's rules"
         },
         "tabs": {
           "overview": "Overview",
@@ -2080,7 +2081,8 @@
         "refused_duplicate": "This is the same script as \"{name}\" by {author}, which is already published. Change it to publish your own.",
         "refused_invalid": "It couldn't be saved: {detail}"
       },
-      "template_match": "Rules for a match (attach to a Forge scenario)"
+      "template_match": "Rules for a match (attach to a Forge scenario)",
+      "flag_shared": "shared by all players"
     }
   },
   "portal_components": {

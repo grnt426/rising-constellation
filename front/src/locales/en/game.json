@@ -2220,7 +2220,13 @@
       "technology": "Technology",
       "technology_title": "Scientific centers rankings",
       "workforce": "Population",
-      "workforce_title": "Ranking of the largest systems"
+      "workforce_title": "Ranking of the largest systems",
+      "scenario": "Scenario",
+      "scenario_title": "Scenario leaderboard",
+      "scenario_hint": "Scores kept by this match's scenario scripts, the rules its author added. Higher ranks first.",
+      "scenario_race": "A race: scored by the time left when a player finishes.",
+      "scenario_empty": "No scores yet.",
+      "scenario_finished": "done"
     },
     "faction_diplomacy": {
       "title": "Diplomacy",

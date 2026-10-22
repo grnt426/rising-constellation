@@ -7,8 +7,13 @@
 //    the map as it is picked (a script written for five factions on a
 //    two-faction map warns), saves anyway, and the scenario list marks the
 //    scenario as scripted.
+// 3. A var node can be shared by all players: the node's box and the text's
+//    `shared var` are one setting.
+// 4. In a match, the leaderboard gets a Scenario tab with each script's
+//    scores (fed here the way the match runner pushes them).
 const { test, expect } = require('@playwright/test');
 const { Api } = require('../helpers/api');
+const { seedGameCookies, waitConnected } = require('../helpers/game');
 
 const PLAYER = { email: 'user1@abc', password: 'user1dev' };
 
@@ -135,5 +140,66 @@ test('the Forge editor attaches a script, warns when it does not suit the map, a
     await expect(page.locator('.forge-script-source')).toContainText('factions = 5');
   } finally {
     await page.request.delete(`/api/scenarios/${created.id}`, { headers });
+  }
+});
+
+test('a var shared by all players: the node box and `shared var` are one setting', async ({ page, baseURL }) => {
+  await signIn(page, baseURL);
+  await openWorkshop(page);
+  await page.locator('.wk-views button', { hasText: 'Both' }).click();
+
+  await page.locator('.wk-input').fill('shared var champion = ""\n\nvar points = 0\n\nscore points\n');
+  const shared = page.locator('.wk-node:has(.wk-title:text-is("shared var"))');
+  await expect(shared).toBeVisible({ timeout: 10000 });
+  await expect(shared.locator('.wk-flag input')).toBeChecked();
+  const plain = page.locator('.wk-node:has(.wk-title:text-is("var"))');
+  await expect(plain.locator('.wk-flag input')).not.toBeChecked();
+
+  // ticking the box on the other var writes it into the text
+  await plain.locator('.wk-flag input').check();
+  await expect.poll(() => page.locator('.wk-input').inputValue(), { timeout: 10000 }).toContain('shared var points = 0');
+});
+
+test('a scripted match adds a Scenario tab to the leaderboard', async ({ page, baseURL }) => {
+  const api = new Api(page.request, baseURL);
+  await api.login('admin@abc', 'admindev');
+  await api.login(PLAYER.email, PLAYER.password);
+  const fixture = await api.createAgentFixture(PLAYER.email);
+  try {
+    const reg = await api.registrationToken(PLAYER.email, fixture.instance_id);
+    const start = await api.gameStartPayload(PLAYER.email, fixture.instance_id, reg.token);
+    await seedGameCookies(page.context(), baseURL, start);
+    await page.goto('/portal/game');
+    await waitConnected(page);
+
+    // the board as the match runner pushes it
+    await page.evaluate(() => {
+      const { $store } = document.querySelector('#app').__vue__;
+      const me = $store.state.game.player;
+      $store.commit('game/update', {
+        scenario_board: [{
+          name: 'Claim',
+          race: false,
+          rows: [
+            { rank: 1, player_id: me.id, name: me.name, faction: me.faction, score: 1250, finished: false },
+            { rank: 2, player_id: -1, name: 'Rival <b>x</b>', faction: me.faction, score: 1, finished: true },
+          ],
+        }],
+      });
+      // open the leaderboard as the top bar's button does
+      document.querySelector('#app').__vue__.$root.$emit('togglePanel', 'ranking');
+    });
+
+    const tab = page.locator('.panel-navbar button[aria-label="Scenario"]');
+    await expect(tab).toBeVisible({ timeout: 10000 });
+    await tab.click();
+    const board = page.locator('.scenario-board');
+    await expect(board).toContainText('Claim');
+    await expect(board.locator('tr').first()).toContainText('1,250');
+    // player names are text, never markup
+    await expect(board.locator('tr').nth(1)).toContainText('Rival <b>x</b>');
+    await expect(board.locator('tr').nth(1)).toContainText('done');
+  } finally {
+    await api.finishInstance('admin@abc', fixture.instance_id).catch(() => {});
   }
 });

@@ -1022,6 +1022,10 @@ export default {
     onField({ id, key, value }) {
       const node = this.index.byId[id];
       const v = String(value).trim();
+      if (key === 'shared') {
+        this.apply(setFields(this.program, id, { shared: value === true }));
+        return;
+      }
       if (key === 'path') {
         if (!/^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(v)) {
           this.$toasted.error(this.$t('page.scenario_workshop.bad_path'));
@@ -1850,6 +1854,8 @@ export default {
       }
     },
     async openAccountScript(summary) {
+      // a load still in flight (New…, an example) would land after this one
+      if (this.loading) await this.loading;
       if (this.accountDirty && !window.confirm(this.$t('page.scenario_workshop.account.discard_confirm', { name: this.account.name }))) return;
       try {
         const { data } = await this.$axios.get(`/edict/scripts/${summary.id}`);

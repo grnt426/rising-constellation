@@ -102,7 +102,7 @@ defmodule Edict.SandboxEscapeTest do
                  filter find any all sort_by max_by min_by keys values get put has random random_int chance pick))
 
       assert Enum.sort(Edict.Catalog.action_names()) ==
-               Enum.sort(~w(give take notify finish destabilize send_agent log))
+               Enum.sort(~w(give take notify finish end_match destabilize send_agent log))
     end
 
     test "the evaluator modules don't call anything that touches the system" do
@@ -471,6 +471,31 @@ defmodule Edict.SandboxEscapeTest do
 
       assert [%{"args" => %{"system" => 12.0}}, %{"args" => %{"system" => 11.0}}] = ok
       assert length(refused) == 2
+    end
+
+    test "end_match can only name a faction in play, and its message is cleaned" do
+      factions = [%{"name" => "cardan"}, %{"name" => "myrmezir"}]
+      world = Map.put(@world, "factions", factions)
+      rlo = <<0x202E::utf8>>
+
+      {ok, refused, _} =
+        Effects.prepare(
+          [
+            %{"action" => "end_match", "args" => %{"message" => "Over" <> rlo <> ".", "winner" => "cardan"}},
+            %{"action" => "end_match", "args" => %{"winner" => "<b>elves</b>"}},
+            %{"action" => "end_match", "args" => %{"winner" => 3}},
+            %{"action" => "end_match", "args" => %{}}
+          ],
+          world,
+          %{},
+          Effects.new(),
+          1.0
+        )
+
+      assert [%{"args" => %{"message" => "Over.", "winner" => "cardan"}}, %{"args" => %{"winner" => nil}}] = ok
+      assert [%{reason: not_in_play}, %{reason: not_a_name}] = refused
+      assert not_in_play == "this text isn't a faction in this match"
+      assert not_a_name =~ "faction's name"
     end
 
     test "unknown or malformed effects never pass" do

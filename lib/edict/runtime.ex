@@ -41,6 +41,9 @@ defmodule Edict.Runtime do
             score: nil,
             tiebreak: nil,
             handlers: [],
+            # names of the `shared var`s: in a match, one value for every
+            # player's run (the host passes it along, `shared/1`, `put_shared/2`)
+            shared: [],
             seed: "",
             started?: false,
             finished: nil,
@@ -73,6 +76,7 @@ defmodule Edict.Runtime do
          score: Enum.find_value(decls, &(&1.k == :score && &1.expr)),
          tiebreak: Enum.find_value(decls, &(&1.k == :tiebreak && &1.expr)),
          handlers: handlers,
+         shared: for(%{k: :var, shared: true, name: name} <- decls, do: name),
          seed: seed
        }}
     end
@@ -209,6 +213,22 @@ defmodule Edict.Runtime do
 
   defp at_least(v, min, _node, _msg) when v >= min, do: :ok
   defp at_least(_v, _min, node, msg), do: {:error, %Error{message: msg, node_id: node.id, at: Map.get(node, :at)}}
+
+  # --- shared state ---------------------------------------------------------------
+
+  @doc """
+  The current values of the run's `shared var`s. A match keeps one copy of
+  them for all its players: before a player's pulse it puts the copy in
+  (`put_shared/2`), after it takes the copy back out, so the next player's
+  run sees what this one changed. On its own (a daily, the simulator) a
+  shared var is an ordinary var.
+  """
+  def shared(%__MODULE__{shared: names, globals: globals}), do: Map.take(globals, names)
+
+  @doc "Set the run's `shared var`s to the match's copy (unknown names are ignored)."
+  def put_shared(%__MODULE__{shared: names} = rt, values) when is_map(values) do
+    %{rt | globals: Map.merge(rt.globals, Map.take(values, names))}
+  end
 
   # --- joining late, and surviving restarts ---------------------------------------
 
@@ -395,10 +415,18 @@ defmodule Edict.Runtime do
 
   defp empty_result, do: %{effects: [], fired: [], errors: [], logs: [], finished: nil}
 
+  # finish() ends this run; end_match() ends it too, and asks the host to end
+  # the whole match (`:end_match` carries the named winner, if any).
   defp finish_effect(effects) do
     Enum.find_value(effects, fn
-      %{"action" => "finish", "args" => args} -> %{message: Map.get(args, "message")}
-      _ -> nil
+      %{"action" => "finish", "args" => args} ->
+        %{message: Map.get(args, "message")}
+
+      %{"action" => "end_match", "args" => args} ->
+        %{message: Map.get(args, "message"), end_match: %{winner: Map.get(args, "winner")}}
+
+      _ ->
+        nil
     end)
   end
 
@@ -540,7 +568,7 @@ defmodule Edict.Runtime do
      %{
        score: score,
        tiebreak: tiebreak,
-       effects: acc.ctx.effects |> Enum.reverse() |> Enum.reject(&(&1["action"] == "finish")),
+       effects: acc.ctx.effects |> Enum.reverse() |> Enum.reject(&(&1["action"] in ["finish", "end_match"])),
        fired: Enum.reverse(acc.fired),
        errors: score_errors ++ tie_errors ++ Enum.reverse(acc.errors),
        logs: Enum.reverse(acc.ctx.logs)

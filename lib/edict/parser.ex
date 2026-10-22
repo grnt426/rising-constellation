@@ -277,7 +277,15 @@ defmodule Edict.Parser do
         {name, st} = expect_ident(after_kw, "a name for the variable")
         st = expect(st, :assign, "=")
         {e, st} = expr(st)
-        node(st, :var, %{name: name, expr: e}, at)
+        node(st, :var, %{name: name, expr: e, shared: false}, at)
+
+      # `shared var`: one value for every player of a match
+      :kw_shared ->
+        st = expect(after_kw, :kw_var, "var (shared var name = …)")
+        {name, st} = expect_ident(st, "a name for the variable")
+        st = expect(st, :assign, "=")
+        {e, st} = expr(st)
+        node(st, :var, %{name: name, expr: e, shared: true}, at)
 
       :kw_fn ->
         {name, st} = expect_ident(after_kw, "a name for the function")
@@ -331,7 +339,7 @@ defmodule Edict.Parser do
 
       _ ->
         fail(
-          "a script is made of setup, score, tiebreak, var, fn, on, every, at, when and draft parts; found #{describe(value)}",
+          "a script is made of setup, score, tiebreak, var, shared var, fn, on, every, at, when and draft parts; found #{describe(value)}",
           at
         )
     end
