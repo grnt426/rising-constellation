@@ -7,7 +7,8 @@
 #
 #   rc-db-backup-install <bucket> [staging-dir]
 #
-# Installs the backup script + systemd units from the staging dir,
+# Installs the backup script + systemd units (and the failure-email
+# hook, rc-alert-mail + rc-alert@.service) from the staging dir,
 # records the bucket in /etc/rc/backup.env, and enables the daily timer.
 # Idempotent: safe to re-run to update the script or change the bucket.
 
@@ -16,13 +17,15 @@ set -euo pipefail
 BUCKET="${1:?usage: rc-db-backup-install <bucket> [staging-dir]}"
 SRC="${2:-/home/rc/rc-backup-staging}"
 
-for f in rc-db-backup rc-db-backup.service rc-db-backup.timer; do
+for f in rc-db-backup rc-db-backup.service rc-db-backup.timer rc-alert-mail rc-alert@.service; do
   [[ -r "$SRC/$f" ]] || { echo "rc-db-backup-install: missing $SRC/$f" >&2; exit 1; }
 done
 
 install -m 0755 "$SRC/rc-db-backup" /usr/local/bin/rc-db-backup
 install -m 0644 "$SRC/rc-db-backup.service" /etc/systemd/system/rc-db-backup.service
 install -m 0644 "$SRC/rc-db-backup.timer" /etc/systemd/system/rc-db-backup.timer
+install -m 0755 "$SRC/rc-alert-mail" /usr/local/bin/rc-alert-mail
+install -m 0644 "$SRC/rc-alert@.service" /etc/systemd/system/rc-alert@.service
 
 mkdir -p /etc/rc
 printf 'RC_BACKUP_BUCKET=%s\n' "$BUCKET" > /etc/rc/backup.env
