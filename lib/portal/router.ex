@@ -49,6 +49,11 @@ defmodule Portal.Router do
     plug(Portal.Plug.AdminLocale)
   end
 
+  # Public-layout pages that need a logged-in player (see /reports).
+  pipeline :require_account do
+    plug(Portal.Plug.RequireAccount)
+  end
+
   pipeline :api do
     plug(:accepts, ["json"])
   end
@@ -120,6 +125,19 @@ defmodule Portal.Router do
     live("/forgotten-password", ForgottenPasswordLive)
     live("/reset-password", ResetPasswordLive)
     live("/bind", WebBindLive)
+  end
+
+  # One-off pages for logged-in players: match reports and the like, on
+  # the public site's layout. Each page is its own LiveView under
+  # lib/portal/live/public/reports/ with styles in
+  # assets/css/views/_reports.scss. RequireAccount sends anonymous visits
+  # to /login and back; Portal.AccountAuth re-checks every socket mount.
+  scope "/reports", Portal do
+    pipe_through([:auth, :browser, :browser_public, :require_account])
+
+    live_session :reports, on_mount: {Portal.AccountAuth, :ensure_account} do
+      live("/broken-beyond", Reports.BrokenBeyondLive)
+    end
   end
 
   # Public share pages for Forge maps/scenarios — deliberately no auth:

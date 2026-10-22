@@ -1,0 +1,441 @@
+{
+ "players": {
+  "freeze": [
+   {
+    "name": "The Rebellion",
+    "bot": true,
+    "holdings": 66,
+    "credit": 40945,
+    "tech": 4538,
+    "ideo": 3444,
+    "agents": 98,
+    "lvl": 10.94,
+    "ops_ok": 220
+   },
+   {
+    "name": "Tianxia",
+    "bot": false,
+    "holdings": 9,
+    "credit": 18084,
+    "tech": 341,
+    "ideo": 757,
+    "agents": 6,
+    "lvl": 10.0,
+    "ops_ok": 0
+   },
+   {
+    "name": "Tremes",
+    "bot": false,
+    "holdings": 11,
+    "credit": 12168,
+    "tech": 590,
+    "ideo": 362,
+    "agents": 9,
+    "lvl": 8.22,
+    "ops_ok": 4
+   },
+   {
+    "name": "Karisuta Clyne",
+    "bot": false,
+    "holdings": 12,
+    "credit": 7064,
+    "tech": 397,
+    "ideo": 180,
+    "agents": 7,
+    "lvl": 10.57,
+    "ops_ok": 0
+   },
+   {
+    "name": "Novae",
+    "bot": false,
+    "holdings": 7,
+    "credit": 5996,
+    "tech": 780,
+    "ideo": 1101,
+    "agents": 28,
+    "lvl": 8.54,
+    "ops_ok": 42
+   },
+   {
+    "name": "abdelaz3r",
+    "bot": false,
+    "holdings": 6,
+    "credit": 5902,
+    "tech": 164,
+    "ideo": 60,
+    "agents": 10,
+    "lvl": 7.8,
+    "ops_ok": 12
+   },
+   {
+    "name": "Alrua",
+    "bot": false,
+    "holdings": 6,
+    "credit": 5654,
+    "tech": 221,
+    "ideo": 506,
+    "agents": 1,
+    "lvl": 9.0,
+    "ops_ok": 0
+   },
+   {
+    "name": "HB9",
+    "bot": false,
+    "holdings": 6,
+    "credit": 5118,
+    "tech": 385,
+    "ideo": 1255,
+    "agents": 21,
+    "lvl": 11.67,
+    "ops_ok": 82
+   },
+   {
+    "name": "Granite",
+    "bot": false,
+    "holdings": 10,
+    "credit": 2937,
+    "tech": 374,
+    "ideo": 886,
+    "agents": 10,
+    "lvl": 9.2,
+    "ops_ok": 9
+   },
+   {
+    "name": "Avok",
+    "bot": false,
+    "holdings": 8,
+    "credit": 2482,
+    "tech": 421,
+    "ideo": 262,
+    "agents": 5,
+    "lvl": 12.4,
+    "ops_ok": 4
+   },
+   {
+    "name": "Cadoc",
+    "bot": false,
+    "holdings": 2,
+    "credit": 1219,
+    "tech": 71,
+    "ideo": 55,
+    "agents": 1,
+    "lvl": 2.0,
+    "ops_ok": 0
+   },
+   {
+    "name": "Shareels",
+    "bot": false,
+    "holdings": 7,
+    "credit": 945,
+    "tech": 1428,
+    "ideo": 233,
+    "agents": 27,
+    "lvl": 11.74,
+    "ops_ok": 80
+   },
+   {
+    "name": "Kalid",
+    "bot": false,
+    "holdings": 1,
+    "credit": 163,
+    "tech": 39,
+    "ideo": 35,
+    "agents": 1,
+    "lvl": 1.0,
+    "ops_ok": 0
+   },
+   {
+    "name": "Sebrutus",
+    "bot": false,
+    "holdings": 1,
+    "credit": 131,
+    "tech": 7,
+    "ideo": 9,
+    "agents": 0,
+    "lvl": null,
+    "ops_ok": 0
+   }
+  ],
+  "end": [
+   {
+    "name": "The Rebellion",
+    "bot": true,
+    "holdings": 50,
+    "credit": 81113,
+    "tech": 5263,
+    "ideo": 4071,
+    "agents": 81,
+    "lvl": 11.22,
+    "ops_ok": 306
+   },
+   {
+    "name": "Novae",
+    "bot": false,
+    "holdings": 13,
+    "credit": 25070,
+    "tech": 2033,
+    "ideo": 2188,
+    "agents": 42,
+    "lvl": 13.6,
+    "ops_ok": 133
+   },
+   {
+    "name": "Tianxia",
+    "bot": false,
+    "holdings": 11,
+    "credit": 22476,
+    "tech": 623,
+    "ideo": 2020,
+    "agents": 13,
+    "lvl": 13.31,
+    "ops_ok": 3
+   },
+   {
+    "name": "Karisuta Clyne",
+    "bot": false,
+    "holdings": 14,
+    "credit": 16798,
+    "tech": 746,
+    "ideo": 351,
+    "agents": 10,
+    "lvl": 11.5,
+    "ops_ok": 8
+   },
+   {
+    "name": "Avok",
+    "bot": false,
+    "holdings": 8,
+    "credit": 11602,
+    "tech": 896,
+    "ideo": 394,
+    "agents": 5,
+    "lvl": 16.2,
+    "ops_ok": 7
+   },
+   {
+    "name": "Granite",
+    "bot": false,
+    "holdings": 12,
+    "credit": 10836,
+    "tech": 730,
+    "ideo": 2083,
+    "agents": 13,
+    "lvl": 13.69,
+    "ops_ok": 28
+   },
+   {
+    "name": "Tremes",
+    "bot": false,
+    "holdings": 13,
+    "credit": 10690,
+    "tech": 1429,
+    "ideo": 700,
+    "agents": 16,
+    "lvl": 10.06,
+    "ops_ok": 30
+   },
+   {
+    "name": "HB9",
+    "bot": false,
+    "holdings": 8,
+    "credit": 8590,
+    "tech": 565,
+    "ideo": 2899,
+    "agents": 37,
+    "lvl": 12.0,
+    "ops_ok": 194
+   },
+   {
+    "name": "abdelaz3r",
+    "bot": false,
+    "holdings": 8,
+    "credit": 6248,
+    "tech": 330,
+    "ideo": 192,
+    "agents": 7,
+    "lvl": 12.57,
+    "ops_ok": 36
+   },
+   {
+    "name": "Shareels",
+    "bot": false,
+    "holdings": 16,
+    "credit": 5143,
+    "tech": 2696,
+    "ideo": 765,
+    "agents": 37,
+    "lvl": 13.95,
+    "ops_ok": 242
+   },
+   {
+    "name": "Alrua",
+    "bot": false,
+    "holdings": 6,
+    "credit": 2968,
+    "tech": 327,
+    "ideo": 710,
+    "agents": 4,
+    "lvl": 10.0,
+    "ops_ok": 0
+   },
+   {
+    "name": "Cadoc",
+    "bot": false,
+    "holdings": 2,
+    "credit": 1696,
+    "tech": 154,
+    "ideo": 84,
+    "agents": 1,
+    "lvl": 2.0,
+    "ops_ok": 0
+   },
+   {
+    "name": "Kalid",
+    "bot": false,
+    "holdings": 2,
+    "credit": 240,
+    "tech": 49,
+    "ideo": 47,
+    "agents": 2,
+    "lvl": 1.5,
+    "ops_ok": 0
+   },
+   {
+    "name": "Sebrutus",
+    "bot": false,
+    "holdings": 1,
+    "credit": 176,
+    "tech": 18,
+    "ideo": 10,
+    "agents": 0,
+    "lvl": null,
+    "ops_ok": 0
+   }
+  ]
+ },
+ "sectors": {
+  "order": [
+   0,
+   1,
+   2,
+   3,
+   9,
+   8,
+   4,
+   5,
+   6,
+   7,
+   13,
+   12,
+   11,
+   10
+  ],
+  "names": {
+   "0": "Grand Nuage de Vela (your home)",
+   "1": "Ibnigore",
+   "2": "Ezgore",
+   "3": "Dor-Jahalon",
+   "4": "Cel Chatur",
+   "5": "Djullir",
+   "6": "Zanokha",
+   "7": "Urqatna",
+   "8": "Ziguron",
+   "9": "Cel Labed",
+   "10": "Urqatna (Rebellion home)",
+   "11": "Passe d'Al-Agabra",
+   "12": "Doriennes",
+   "13": "Dor-Valon"
+  },
+  "homes": {
+   "0": "myrmezir",
+   "10": "rebellion"
+  },
+  "events": [
+   [
+    3.16,
+    1,
+    "myrmezir"
+   ],
+   [
+    3.92,
+    11,
+    "rebellion"
+   ],
+   [
+    5.48,
+    12,
+    "rebellion"
+   ],
+   [
+    5.78,
+    2,
+    "myrmezir"
+   ],
+   [
+    6.51,
+    13,
+    "rebellion"
+   ],
+   [
+    7.27,
+    3,
+    "myrmezir"
+   ],
+   [
+    9.08,
+    9,
+    "myrmezir"
+   ],
+   [
+    9.51,
+    7,
+    "rebellion"
+   ],
+   [
+    10.41,
+    6,
+    "rebellion"
+   ],
+   [
+    12.53,
+    8,
+    "myrmezir"
+   ],
+   [
+    12.64,
+    4,
+    "myrmezir"
+   ],
+   [
+    13.49,
+    5,
+    "myrmezir"
+   ],
+   [
+    14.61,
+    5,
+    "rebellion"
+   ],
+   [
+    15.4,
+    5,
+    "myrmezir"
+   ],
+   [
+    19.56,
+    6,
+    "myrmezir"
+   ],
+   [
+    21.12,
+    7,
+    "myrmezir"
+   ],
+   [
+    22.34,
+    13,
+    "myrmezir"
+   ]
+  ]
+ }
+}
