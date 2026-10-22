@@ -33,6 +33,9 @@ defmodule RC.Application do
       # move on. Defined BEFORE ChannelWatcher because the watcher's
       # leave callbacks dispatch through this supervisor.
       {Task.Supervisor, name: RC.TaskSupervisor},
+      # Concurrency limits for the Scenario Workshop's simulate and analyze
+      # (docs/scenario-scripting.md, "What scripts cost").
+      Edict.Slots,
       # Owns the client-capability ETS table (protocol negotiation for
       # per-player broadcast shapes). Before the channels that write it.
       RC.ClientCapabilities,

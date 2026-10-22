@@ -1,0 +1,34 @@
+# The Tithe Collector: an original scenario, not a port.
+# Every three minutes the collector demands a tithe that grows each time.
+# Pay it from your stock or your home grows restless. It shows state that
+# lasts between handlers (var), a decision (if/else) and escalation.
+
+setup {
+  name = "The Tithe Collector"
+  description = "Every three minutes a collector takes a growing tithe. If you can't pay, your home grows restless. End with the most technology."
+  time_limit = 24m
+}
+
+var tithe = 1000
+
+var missed = 0
+
+score player.technology
+
+tiebreak -missed
+
+every 3m as visit {
+  if player.credit >= tithe {
+    take("credit", tithe)
+    notify("The collector takes {fmt_number(tithe)} credits.")
+  } else {
+    missed = missed + 1
+    destabilize(2 * missed)
+    notify("You couldn't pay {fmt_number(tithe)} credits. Your home grows restless.", tone: "warning")
+  }
+  tithe = round(tithe * 1.6)
+}
+
+at 21m {
+  notify("The collector's last visit is in three minutes.", tone: "warning")
+}

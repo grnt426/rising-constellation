@@ -111,9 +111,47 @@ defmodule Portal.ScenarioController do
 
   defp mirror_mutators_into_metadata(params), do: params
 
+  # Attached scripts (Edict) are rebuilt on the server from the ids the
+  # editor sent: each frozen from its author's saved version, or kept as the
+  # scenario had it when it is no longer available (RC.Scripts.attach/3).
+  # Lists render game_metadata only, so the flag and the names are mirrored
+  # there for the "scripted" badge.
+  defp attach_scripts(%{"game_data" => gd} = params, account_id, previous_game_data) when is_map(gd) do
+    frozen = RC.Scripts.attach(gd["scripts"], account_id, previous_game_data)
+    gd = if frozen == [], do: Map.delete(gd, "scripts"), else: Map.put(gd, "scripts", frozen)
+
+    params = %{params | "game_data" => gd}
+
+    # an update may leave game_metadata out: then it stays as it is
+    case params["game_metadata"] do
+      %{} = gm when frozen == [] ->
+        %{params | "game_metadata" => Map.drop(gm, ["scripted", "scripts", "script_time_limit"])}
+
+      %{} = gm ->
+        scripts = Enum.map(frozen, &Map.take(&1, ["id", "name"]))
+        gm = Map.merge(gm, %{"scripted" => true, "scripts" => scripts})
+
+        # a script that shortens every match made from the scenario
+        gm =
+          case Edict.Attachment.time_limit(gd) do
+            {seconds, name} -> Map.put(gm, "script_time_limit", %{"seconds" => seconds, "set_by" => name})
+            nil -> Map.delete(gm, "script_time_limit")
+          end
+
+        %{params | "game_metadata" => gm}
+
+      _ ->
+        params
+    end
+  end
+
+  defp attach_scripts(params, _account_id, _previous), do: params
+
+  defp script_checks(%Scenario{game_data: game_data}), do: Edict.Attachment.check(game_data)
+
   def create(conn, %{"scenario" => scenario_params}) do
     author_id = RC.Guardian.Plug.current_resource(conn).id
-    scenario_params = sanitize_scenario_params(scenario_params)
+    scenario_params = scenario_params |> sanitize_scenario_params() |> attach_scripts(author_id, nil)
 
     with :ok <- Portal.ForgeSize.check_params(scenario_params, admin?(conn)),
          {:ok, %{scenario_with_thumbnail: %Scenario{} = scenario}} <-
@@ -121,7 +159,7 @@ defmodule Portal.ScenarioController do
       conn
       |> put_status(:created)
       |> put_resp_header("location", Routes.scenario_path(conn, :show, scenario))
-      |> render("show.json", scenario: scenario)
+      |> render("show.json", scenario: scenario, script_checks: script_checks(scenario))
     else
       {:error, :galaxy_too_large} -> galaxy_too_large(conn)
       error -> error
@@ -150,12 +188,14 @@ defmodule Portal.ScenarioController do
   end
 
   def update(conn, %{"sid" => id, "scenario" => scenario_params}) do
+    account_id = RC.Guardian.Plug.current_resource(conn).id
     scenario_params = sanitize_scenario_params(scenario_params)
 
     with :ok <- Portal.ForgeSize.check_params(scenario_params, admin?(conn)),
          scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
+         scenario_params = attach_scripts(scenario_params, account_id, scenario.game_data),
          {:ok, %Scenario{} = scenario} <- Scenarios.update_scenario(scenario, scenario_params) do
-      render(conn, "show.json", scenario: scenario)
+      render(conn, "show.json", scenario: scenario, script_checks: script_checks(scenario))
     else
       nil -> {:error, :not_found}
       {:error, :galaxy_too_large} -> galaxy_too_large(conn)

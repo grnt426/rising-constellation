@@ -5,6 +5,7 @@ import { ambiance } from '@/plugins/ambiance';
 import { setNumberLocale, setIncomePerHour } from '@/utils/format';
 import { resolveBindings, bindingLabel, PRESETS } from '@/game/hotkeys/bindings';
 import { normalizeCrosshair } from '@/utils/crosshair';
+import { normalizeScenarioEditor } from '@/portal/workshop/editor-settings';
 
 // Where each shortcut set's saved differences live in Account.settings.
 const HOTKEY_OVERRIDES_KEY = { standard: 'hotkeys', screen_reader: 'hotkeys_screen_reader' };
@@ -64,6 +65,10 @@ const portalStore = {
       // crosshair). Declared up front for the same reason, and always
       // replaced whole (see setCrosshair).
       crosshair: {},
+      // The Scenario Workshop's code editor: suggestions and the key that
+      // accepts one (Settings → Scenario editor). Declared up front for the
+      // same reason, and always replaced whole (see setScenarioEditor).
+      scenario_editor: {},
     },
     conversations: [],
   },
@@ -133,6 +138,7 @@ const portalStore = {
     // The galaxy map's crosshair, complete and in range whatever is saved:
     // an account that never changed it gets the original black lines.
     crosshair: (state) => normalizeCrosshair(state.settings.crosshair),
+    scenarioEditor: (state) => normalizeScenarioEditor(state.settings.scenario_editor),
   },
   mutations: {
     isSignedIn(state, payload) {
@@ -413,6 +419,9 @@ const portalStore = {
     },
     async setCrosshair({ commit }, crosshair) {
       commit('updateSettings', { crosshair: normalizeCrosshair(crosshair) });
+    },
+    async setScenarioEditor({ commit }, editor) {
+      commit('updateSettings', { scenario_editor: normalizeScenarioEditor(editor) });
     },
     async updateActiveProfile({ state, commit }, profile) {
       state.activeProfile = profile;

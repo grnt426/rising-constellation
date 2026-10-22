@@ -1,0 +1,399 @@
+// One-off pages for logged-in players (/reports/*): match reports and the
+// like. Same pk-content shell as the patch notes and the manual, centered
+// like the manual, plus the pieces a report needs: a scoreboard, labelled
+// bars, figure cards, a sector strip and a wide table.
+
+// Faction colours, stepped for the black boxes so the two stay apart for
+// colour-blind readers (game themes: Myrmezir #bc2433, Rebellion #d2691e).
+$report-myrmezir: #d43a5c;
+$report-myrmezir-text: #f2879b;
+$report-rebellion: #c4841f;
+$report-rebellion-text: #eab163;
+$report-typical: #5b6474;
+$report-rule: rgba(255, 255, 255, .12);
+
+.fluid-container.report-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 120px auto 60px;
+  padding: 0 40px;
+}
+
+.report-page {
+  width: 960px;
+  max-width: 100%;
+  line-height: 1.5;
+  padding-bottom: 10px;
+
+  h2 {
+    font-size: 2rem;
+    text-transform: none;
+    line-height: 1.2;
+    margin: 20px 20px 10px;
+  }
+
+  h3 {
+    font-size: 1.3rem;
+    letter-spacing: .05em;
+    color: $light-grey;
+  }
+
+  p { margin: 10px 20px; }
+}
+
+@mixin report-accent($color, $text) {
+  border-left: solid 4px $color;
+
+  h2 { color: $text; }
+  .report-card-figure { color: $text; }
+}
+
+.report-accent--myrmezir { @include report-accent($report-myrmezir, $report-myrmezir-text); }
+.report-accent--rebellion { @include report-accent($report-rebellion, $report-rebellion-text); }
+
+.report-note {
+  font-size: 1.3rem;
+  color: $white-alt;
+}
+
+.report-dim { color: $white-alt; }
+
+// -- hero scoreboard ---------------------------------------------------------
+
+.report-hero {
+  text-align: center;
+  padding: 10px 0 20px;
+
+  h1 {
+    font-size: 4.6rem;
+    font-weight: 800;
+    line-height: 1.1;
+    margin: 4px 20px 20px;
+  }
+
+  p {
+    max-width: 640px;
+    margin: 20px auto 0;
+    padding: 0 20px;
+    color: $white;
+  }
+}
+
+.report-eyebrow {
+  margin-top: 20px;
+  font-size: 1.2rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: $white-alt;
+}
+
+.report-board {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px 30px;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.report-side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.report-side-name {
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.report-side-vp {
+  font-size: 7.2rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-side-meta {
+  font-size: 1.3rem;
+  color: $white-alt;
+}
+
+.report-side--myrmezir { .report-side-name, .report-side-vp { color: $report-myrmezir-text; } }
+.report-side--rebellion { .report-side-name, .report-side-vp { color: $report-rebellion-text; } }
+
+.report-vs {
+  font-size: 1.3rem;
+  letter-spacing: .12em;
+  color: $white-alt;
+}
+
+// -- comparison bars -----------------------------------------------------------
+
+.report-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 20px;
+}
+
+.report-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  h3 { margin: 0 0 2px; }
+}
+
+.report-bar {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px;
+  align-items: center;
+  font-size: 1.4rem;
+}
+
+.report-bar-who { color: $white-alt; }
+
+.report-bar-track {
+  position: relative;
+  height: 20px;
+}
+
+.report-bar-fill {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  min-width: 3px;
+  border-radius: 0 3px 3px 0;
+}
+
+.report-bar-fill--myrmezir { background: $report-myrmezir; }
+.report-bar-fill--rebellion { background: $report-rebellion; }
+.report-bar-fill--typical { background: $report-typical; }
+
+.report-bar-value {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  padding-left: 8px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+// -- figure cards --------------------------------------------------------------
+
+.report-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 10px 20px 20px;
+}
+
+.report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, .04);
+  border: solid 1px rgba(255, 255, 255, .08);
+  border-radius: 3px;
+
+  h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: 0;
+    text-transform: none;
+    color: $white;
+  }
+
+  p {
+    margin: 0;
+    font-size: 1.4rem;
+    color: $white-alt;
+  }
+}
+
+.report-card-figure {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+// -- sector strip --------------------------------------------------------------
+
+.report-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 10px 20px;
+  font-size: 1.3rem;
+  color: $white-alt;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.report-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.report-swatch--myrmezir { background: $report-myrmezir; }
+.report-swatch--rebellion { background: $report-rebellion; }
+.report-swatch--freeze { background: rgba(255, 255, 255, .12); outline: solid 1px $report-rule; }
+
+.report-strip {
+  margin: 0 20px 20px;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
+
+.report-strip-name {
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  fill: $white;
+}
+
+.report-strip-tick {
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  fill: $white-alt;
+}
+
+.report-strip-end-label { font-weight: 700; fill: $white; }
+
+.report-strip-track { fill: rgba(255, 255, 255, .05); }
+.report-strip-freeze { fill: rgba(255, 255, 255, .08); }
+.report-strip-bar--myrmezir { fill: $report-myrmezir; }
+.report-strip-bar--rebellion { fill: $report-rebellion; }
+
+// -- player table --------------------------------------------------------------
+
+.report-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 16px 20px;
+
+  .default-button { margin-right: 0; }
+}
+
+.report-table-wrap {
+  margin: 0 20px;
+  overflow-x: auto;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+
+  th, td {
+    padding: 7px 10px;
+    border-bottom: solid 1px rgba(255, 255, 255, .08);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  th:first-child { text-align: left; }
+
+  thead th {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: $white-alt;
+    vertical-align: bottom;
+    white-space: normal;
+    min-width: 70px;
+  }
+
+  tbody th { font-weight: 700; }
+
+  .report-table-bot {
+    th, td { background: transparentize($report-rebellion, .85); }
+    th { color: $report-rebellion-text; }
+  }
+}
+
+// Superscript note markers in the table heading, and the notes they point to.
+.report-ref {
+  margin-left: 2px;
+  font-size: .8em;
+  line-height: 0;
+
+  a {
+    color: $primary;
+    text-decoration: none;
+
+    &:hover, &:focus { color: lighten($primary, 15%); }
+  }
+}
+
+.report-credit-icon {
+  width: 1.3em;
+  height: 1.3em;
+  vertical-align: -.3em;
+}
+
+.report-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 14px 20px 20px;
+  padding: 0;
+  list-style: none;
+  font-size: 1.3rem;
+  color: $white-alt;
+
+  sup {
+    margin-right: 4px;
+    color: $primary;
+    font-weight: 700;
+  }
+
+  li:target { color: $white; }
+}
+
+// -- highlights ----------------------------------------------------------------
+
+.report-highlights {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 20px 20px;
+  padding-left: 20px;
+  color: $white-alt;
+
+  strong { color: $white; }
+}
+
+// -- narrow screens ------------------------------------------------------------
+
+@media screen and (max-width: $mobile-breakpoint) {
+  .fluid-container.report-container { margin: 20px; padding: 0; }
+  .report-page { width: 100%; }
+}
+
+@media screen and (max-width: 700px) {
+  .report-cards { grid-template-columns: minmax(0, 1fr); }
+  .report-bar { grid-template-columns: 110px 1fr; }
+  .report-hero h1 { font-size: 3.6rem; }
+  .report-side-vp { font-size: 5.6rem; }
+  .report-board { gap: 10px 14px; }
+}

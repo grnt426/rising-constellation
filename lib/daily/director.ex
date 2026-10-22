@@ -172,6 +172,23 @@ defmodule Daily.Director do
     end
   end
 
+  @doc """
+  Mint one enemy Erased of `level` for the puppet player `puppet_id` and
+  stand it in `system_id` (one of the human's systems), the way the
+  Headhunter's arrivals come in. Its removal skill follows the Headhunter
+  rule (half its level). Used by scenario scripts' `send_agent` (see
+  `Edict.Live`). Returns `{:ok, character_id}` or the step that failed.
+  """
+  def mint_agent(instance_id, puppet_id, level, system_id) do
+    recruit = %{level: level, skills: [0, Headhunter.removal_points(level), 0, 0, 0, 0]}
+    mint(%__MODULE__{instance_id: instance_id, puppet_id: puppet_id}, recruit, system_id)
+  end
+
+  @doc "Fund the puppet player so its agents never go on strike (see `@puppet_purse`)."
+  def fund_puppet(instance_id, puppet_id) do
+    Game.call(instance_id, :player, puppet_id, {:add_resources, @puppet_purse, 0, 0})
+  end
+
   # A market character is rolled, not designed. Skills and specialization go
   # in through `initial_data`; level and what a level earns (Protection,
   # Determination) are set afterwards, and so are the skills again, because

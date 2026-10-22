@@ -15,6 +15,9 @@
 #   RC_SNAPSHOT_DIR    game-snapshot dir to tar alongside the DB dump
 #                      (default /var/lib/rc-snapshots; skipped if absent
 #                      or empty).
+#   RC_SNAPSHOT_MIN_AGE  seconds a snapshot must have sat untouched to be
+#                      archived (default 60). Younger files may still be
+#                      mid-write; the next night picks them up.
 #   RC_BACKUP_NO_UPLOAD  set to 1 to run the dump/tar steps but skip S3
 #                      (used to smoke-test the pipeline before the bucket
 #                      and instance role exist).
@@ -22,11 +25,17 @@
 # AWS credentials: the EC2 instance role via IMDS. The app env file also
 # carries AWS_ACCESS_KEY_ID/SECRET (the app's upload keys) — those are
 # deliberately NOT imported here so the CLI falls through to the role.
+#
+# Order matters: the DB dump is uploaded BEFORE the snapshot dir is
+# archived, so a snapshot problem can only cost that night's tarball,
+# never its DB backup. The run still exits non-zero when the snapshot
+# step fails, so the unit shows up as failed.
 
 set -euo pipefail
 
 ENV_FILE="${RC_ENV_FILE:-/etc/rc/env}"
 SNAPSHOT_DIR="${RC_SNAPSHOT_DIR:-/var/lib/rc-snapshots}"
+SNAPSHOT_MIN_AGE="${RC_SNAPSHOT_MIN_AGE:-60}"
 NO_UPLOAD="${RC_BACKUP_NO_UPLOAD:-0}"
 
 log() { echo "rc-db-backup: $*"; }
@@ -57,6 +66,19 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 WORK=$(mktemp -d /tmp/rc-db-backup.XXXXXX)
 trap 'rm -rf "$WORK"' EXIT
 
+upload() {
+  local file="$1" key="$2"
+  if [[ "$NO_UPLOAD" == "1" ]]; then
+    log "NO_UPLOAD set — not uploading $key"
+    return 0
+  fi
+  aws s3 cp --only-show-errors "$file" "s3://$BUCKET/$key"
+  # head-object round-trip: fail loudly if the object didn't land.
+  aws s3api head-object --bucket "$BUCKET" --key "$key" >/dev/null \
+    || die "verification failed for s3://$BUCKET/$key"
+  log "uploaded s3://$BUCKET/$key"
+}
+
 # --- 1. Database dump (custom format: compressed, pg_restore-able) ----
 DB_FILE="$WORK/rc-db-$STAMP.dump"
 log "dumping database..."
@@ -68,35 +90,83 @@ log "db dump complete ($DB_BYTES bytes)"
 # during a disaster.
 pg_restore --list "$DB_FILE" >/dev/null || die "dump failed pg_restore --list verification"
 
+upload "$DB_FILE" "db/$(basename "$DB_FILE")"
+
 # --- 2. Game snapshots (paused/running instance state on disk) --------
-SNAP_FILE=""
-if [[ -d "$SNAPSHOT_DIR" ]] && [[ -n "$(ls -A "$SNAPSHOT_DIR" 2>/dev/null)" ]]; then
+#
+# The game keeps writing autosaves (a fresh name each time, written in
+# place) and pruning old ones while this runs. Tarring the live dir made
+# GNU tar exit 1 ("file changed as we read it" / "File removed before we
+# read it"), which under `set -e` killed the whole run before any upload:
+# 2026-10-04 and 2026-10-21 have no backup at all.
+#
+# So freeze the set first: hard-link every snapshot old enough to be
+# fully written into a private dir, then tar that. A link keeps a pruned
+# file alive, and the game never rewrites an existing snapshot name, so
+# nothing under the staged dir can change while tar reads it. Members
+# stay `./snapshot-…` exactly as before (rc-archive-import and the DR
+# restore rely on that layout).
+archive_snapshots() {
+  local stage="$WORK/snapshots" cutoff staged=0 deferred=0 vanished=0 rc=0 f
+
+  mkdir "$stage"
+  cutoff=$(( $(date +%s) - SNAPSHOT_MIN_AGE ))
+
+  while IFS= read -r -d '' f; do
+    # Hard links need the same filesystem; fall back to a copy. Both fail
+    # only when the game pruned the file since find listed it.
+    if ln "$f" "$stage/" 2>/dev/null || cp -p "$f" "$stage/" 2>/dev/null; then
+      staged=$((staged + 1))
+    else
+      vanished=$((vanished + 1))
+    fi
+  done < <(find "$SNAPSHOT_DIR" -mindepth 1 -maxdepth 1 -type f ! -newermt "@$cutoff" -print0)
+
+  deferred=$(find "$SNAPSHOT_DIR" -mindepth 1 -maxdepth 1 -type f -newermt "@$cutoff" | wc -l)
+  log "staged $staged snapshot files ($deferred newer than ${SNAPSHOT_MIN_AGE}s left for next run, $vanished pruned mid-run)"
+
+  if [[ "$staged" -eq 0 ]]; then
+    log "nothing old enough to archive — skipping snapshot tarball"
+    rm -rf "$stage"
+    return 0
+  fi
+
   SNAP_FILE="$WORK/rc-snapshots-$STAMP.tar.gz"
-  log "archiving $SNAPSHOT_DIR..."
-  tar -czf "$SNAP_FILE" -C "$SNAPSHOT_DIR" .
+  tar -czf "$SNAP_FILE" -C "$stage" . || rc=$?
+  rm -rf "$stage"
+
+  case "$rc" in
+    0) ;;
+    # 1 = some member changed while read. Not expected from the frozen
+    # set, but the archive is still complete and readable, so keep it.
+    1) log "WARNING: tar exited 1 (a file changed while read); keeping the archive" ;;
+    *)
+      echo "rc-db-backup: ERROR: tar failed (exit $rc) — no snapshot archive tonight" >&2
+      SNAP_FILE=""
+      return 1
+      ;;
+  esac
+
   log "snapshot archive complete ($(stat -c%s "$SNAP_FILE") bytes)"
+}
+
+SNAP_FILE=""
+SNAP_OK=1
+if [[ -d "$SNAPSHOT_DIR" ]] && [[ -n "$(ls -A "$SNAPSHOT_DIR" 2>/dev/null)" ]]; then
+  log "archiving $SNAPSHOT_DIR..."
+  archive_snapshots || SNAP_OK=0
 else
   log "snapshot dir $SNAPSHOT_DIR absent or empty — skipping"
 fi
+
+[[ -n "$SNAP_FILE" ]] && upload "$SNAP_FILE" "snapshots/$(basename "$SNAP_FILE")"
 
 if [[ "$NO_UPLOAD" == "1" ]]; then
   log "NO_UPLOAD set — dump verified, skipping S3. Files left in $WORK for inspection:"
   ls -la "$WORK"
   trap - EXIT
-  exit 0
 fi
 
-# --- 3. Upload -------------------------------------------------------
-upload() {
-  local file="$1" key="$2"
-  aws s3 cp --only-show-errors "$file" "s3://$BUCKET/$key"
-  # head-object round-trip: fail loudly if the object didn't land.
-  aws s3api head-object --bucket "$BUCKET" --key "$key" >/dev/null \
-    || die "verification failed for s3://$BUCKET/$key"
-  log "uploaded s3://$BUCKET/$key"
-}
-
-upload "$DB_FILE" "db/$(basename "$DB_FILE")"
-[[ -n "$SNAP_FILE" ]] && upload "$SNAP_FILE" "snapshots/$(basename "$SNAP_FILE")"
+[[ "$SNAP_OK" == "1" ]] || die "db uploaded but the snapshot archive failed (stamp=$STAMP)"
 
 log "OK db=$DB_BYTES bytes stamp=$STAMP"

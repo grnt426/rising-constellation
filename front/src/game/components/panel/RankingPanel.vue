@@ -10,6 +10,9 @@
       v-show="['prod', 'credit', 'technology', 'ideology', 'workforce'].includes(activePanel)"
       :type="activePanel"
       :players="sortedPlayers" />
+    <scenario-board
+      v-if="activePanel === 'scenario'"
+      :board="scenarioBoard" />
 
     <div
       class="panel-navbar"
@@ -32,18 +35,23 @@
 <script>
 import Overall from '@/game/components/panel/ranking/Overall.vue';
 import BestSystem from '@/game/components/panel/ranking/BestSystem.vue';
+import ScenarioBoard from '@/game/components/panel/ranking/ScenarioBoard.vue';
+
+const PANELS = ['overall', 'prod', 'credit', 'technology', 'ideology', 'workforce'];
 
 export default {
   name: 'ranking-panel',
   data() {
     return {
       activePanel: 'overall',
-      panels: ['overall', 'prod', 'credit', 'technology', 'ideology', 'workforce'],
       players: [],
     };
   },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
+    // a scripted match whose scripts keep a score: its own leaderboard tab
+    scenarioBoard() { return this.$store.state.game.scenarioBoard || []; },
+    panels() { return this.scenarioBoard.length ? [...PANELS, 'scenario'] : PANELS; },
     galaxyPlayers() { return this.$store.state.game.galaxy.players; },
     sortedPlayers() {
       const { players } = this;
@@ -81,6 +89,7 @@ export default {
   components: {
     Overall,
     BestSystem,
+    ScenarioBoard,
   },
 };
 </script>

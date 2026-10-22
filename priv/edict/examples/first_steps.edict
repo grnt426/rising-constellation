@@ -1,0 +1,23 @@
+# First steps: the smallest scenario that does something.
+# Every scenario has a setup (what the world looks like), a score
+# (how players are ranked) and handlers (what happens, and when).
+
+setup {
+  name = "First Steps"
+  description = "Bank as many credits as you can. A patron chips in every two minutes."
+  time_limit = 15m
+}
+
+# Players are ranked by the credits they hold at the deadline.
+score player.credit
+
+on start {
+  notify("Welcome! Your patron will send credits every two minutes.")
+}
+
+# `as gift` counts the gifts: 1, 2, 3 ...
+every 2m as gift {
+  let amount = 500 * gift
+  give("credit", amount)
+  notify("Your patron sends {amount} credits.", tone: "good")
+}

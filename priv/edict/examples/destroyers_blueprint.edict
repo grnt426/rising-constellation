@@ -1,0 +1,21 @@
+# The Destroyer's Blueprint: a research race.
+# The Destroyer's Blueprint daily, rebuilt. The day's grant, its
+# discounts on the Destroyer's line and its pinned boon are all setup.
+
+setup {
+  name = "The Destroyer's Blueprint"
+  description = "A race: research Armoring, the patent that unlocks the Destroyer. The first patents of its line are yours; the rest cost a fifth of their price. Score is the time left when it completes."
+  time_limit = 30m
+  grant_patents = ["precision_cranes"]
+  patent_discounts = {fighter_formation_ii: 20%, corvette_formation_i: 20%, orbital_holds: 20%, fighter_formation_iii: 20%, corvette_formation_ii: 20%, space_hyperstructures: 20%, armoring: 20%}
+  mutators = ["open_science"]
+}
+
+score time.left
+
+# Patents researched, plus banked technology as a share of Armoring's price.
+tiebreak len(player.patents) + (if "armoring" in player.patents then 0 else min(player.technology / 80_000, 0.999))
+
+when "armoring" in player.patents {
+  finish("Armoring researched: the Destroyer is yours.")
+}

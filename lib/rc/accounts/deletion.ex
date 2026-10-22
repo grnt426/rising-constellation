@@ -178,9 +178,7 @@ defmodule RC.Accounts.Deletion do
           Logger.info("account deletion: purged account #{account.id}")
 
         {:error, step, value, _} ->
-          Logger.error(
-            "account deletion: purge of account #{account.id} failed at #{inspect(step)}: #{inspect(value)}"
-          )
+          Logger.error("account deletion: purge of account #{account.id} failed at #{inspect(step)}: #{inspect(value)}")
       end
     end)
   end
@@ -221,6 +219,9 @@ defmodule RC.Accounts.Deletion do
     )
     |> Multi.delete_all(:tokens, from(t in AccountToken, where: t.account_id == ^account.id))
     |> Multi.delete_all(:refresh_tokens, from(r in RefreshToken, where: r.account_id == ^account.id))
+    # Scenario scripts are the author's own writing. Scenarios that attached
+    # one keep their frozen copy (RC.ScenarioScripts), so nothing breaks.
+    |> Multi.delete_all(:edict_scripts, from(s in RC.Scripts.Script, where: s.author_id == ^account.id))
     |> Multi.update(:account, scrub_changeset(account))
     |> Multi.update_all(
       :request,

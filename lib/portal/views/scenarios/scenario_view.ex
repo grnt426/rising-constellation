@@ -7,6 +7,12 @@ defmodule Portal.ScenarioView do
     render_many(scenarios, ScenarioView, "scenario_partial.json")
   end
 
+  # After a save, the attached scripts' checks against this map ride along
+  # (Edict.Attachment.check/1); a plain show leaves them out.
+  def render("show.json", %{scenario: scenario, script_checks: checks}) do
+    scenario |> render_one(ScenarioView, "scenario_full.json") |> Map.put(:script_checks, checks)
+  end
+
   def render("show.json", %{scenario: scenario}) do
     render_one(scenario, ScenarioView, "scenario_full.json")
   end

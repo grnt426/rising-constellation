@@ -47,6 +47,14 @@ defmodule Util.Storage do
     end
   end
 
+  @doc "Where a stored snapshot lives on disk; `{:error, :not_local}` on the S3 backend."
+  def local_path(filename) do
+    case backend() do
+      :local -> {:ok, Path.join([directory(), filename])}
+      _ -> {:error, :not_local}
+    end
+  end
+
   defp store_local(data, filename) do
     dir = directory()
     path = Path.join([dir, filename])

@@ -47,9 +47,34 @@ host to Secrets Manager mode — the bootstrap default for new hosts.
 `rc-db-backup.timer` fires daily at 08:47 UTC and runs
 `/usr/local/bin/rc-db-backup` as `rc`: `pg_dump -Fc` (verified with
 `pg_restore --list`) plus a tarball of `/var/lib/rc-snapshots`, both
-uploaded via the instance role. Bucket lifecycle expires objects after
-30 days. Installed by `deploy/provision-dr.ps1` (current host) and
+uploaded via the instance role. Bucket lifecycle expires `db/` and
+`snapshots/` after 30 days; `legacy-history/` (the hourly snapshot
+history of official Legacy matches, see docs/legacy-archive.md) is kept
+indefinitely. Installed by `deploy/provision-dr.ps1` (current host) and
 `bootstrap-host.sh` (new hosts).
+
+The DB dump is uploaded first, so a snapshot problem only costs that
+night's tarball. The tarball holds hard links to snapshots at least 60 s
+old, frozen before tar runs, because games keep autosaving and pruning
+during the backup. Tarring the live dir used to make tar exit 1, which
+killed the whole run: 2026-10-04 and 2026-10-21 have no backup at all.
+A failed snapshot step still exits non-zero after the DB upload.
+
+A failed run (a timeout included) emails `contact@tetrarchyfalls.com`,
+which the `rc-mail-forwarder` Lambda forwards to the operator's inbox.
+`rc-db-backup.service` has `OnFailure=rc-alert@%n.service`, which runs
+`/usr/local/bin/rc-alert-mail`. That script sends the result and the
+last 60 log lines through SES, signed with the instance role. Override
+the recipient or sender in `/etc/rc/alert.env` (`RC_ALERT_TO`,
+`RC_ALERT_FROM`). To test the whole path without breaking a backup:
+
+```
+sudo systemd-run --unit=rc-alert-selftest \
+  -p OnFailure=rc-alert@rc-alert-selftest.service.service /bin/false
+```
+
+A backup that never starts (timer disabled, host down) sends nothing.
+The freshness check below still catches that.
 
 Check freshness:
 

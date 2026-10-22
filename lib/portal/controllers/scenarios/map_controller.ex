@@ -91,12 +91,17 @@ defmodule Portal.MapController do
     end
   end
 
+  # Scripts belong to scenarios, frozen on the server from saved ones
+  # (Portal.ScenarioController); a map never carries any.
+  defp drop_scripts(%{"game_data" => %{} = gd} = params), do: %{params | "game_data" => Map.delete(gd, "scripts")}
+  defp drop_scripts(params), do: params
+
   def create(conn, %{"map" => map_params}) do
     # Forge Stage 2 — author is whoever's logged in. Strip any client-set
     # `is_official` / `thumbnail`; the server fully controls authorship
     # and thumbnails, the latter rendered from game_data after insert.
     author_id = RC.Guardian.Plug.current_resource(conn).id
-    map_params = Map.drop(map_params, ["is_official", "author_id", "published_at", "thumbnail"])
+    map_params = map_params |> Map.drop(["is_official", "author_id", "published_at", "thumbnail"]) |> drop_scripts()
 
     with :ok <- Portal.ForgeSize.check_params(map_params, admin?(conn)),
          {:ok, %{map_with_thumbnail: map}} <- Scenarios.create_map(map_params, author_id) do
@@ -166,7 +171,7 @@ defmodule Portal.MapController do
   def update(conn, %{"mid" => id, "map" => map_params}) do
     # Same guardrails as create — author/is_official/published_at are
     # server-controlled, never user-supplied.
-    map_params = Map.drop(map_params, ["is_official", "author_id", "published_at"])
+    map_params = map_params |> Map.drop(["is_official", "author_id", "published_at"]) |> drop_scripts()
 
     with :ok <- Portal.ForgeSize.check_params(map_params, admin?(conn)),
          map when not is_nil(map) <- Scenarios.get_map(id),

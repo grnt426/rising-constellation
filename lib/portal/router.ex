@@ -49,6 +49,11 @@ defmodule Portal.Router do
     plug(Portal.Plug.AdminLocale)
   end
 
+  # Public-layout pages that need a logged-in player (see /reports).
+  pipeline :require_account do
+    plug(Portal.Plug.RequireAccount)
+  end
+
   pipeline :api do
     plug(:accepts, ["json"])
   end
@@ -120,6 +125,19 @@ defmodule Portal.Router do
     live("/forgotten-password", ForgottenPasswordLive)
     live("/reset-password", ResetPasswordLive)
     live("/bind", WebBindLive)
+  end
+
+  # One-off pages for logged-in players: match reports and the like, on
+  # the public site's layout. Each page is its own LiveView under
+  # lib/portal/live/public/reports/ with styles in
+  # assets/css/views/_reports.scss. RequireAccount sends anonymous visits
+  # to /login and back; Portal.AccountAuth re-checks every socket mount.
+  scope "/reports", Portal do
+    pipe_through([:auth, :browser, :browser_public, :require_account])
+
+    live_session :reports, on_mount: {Portal.AccountAuth, :ensure_account} do
+      live("/broken-beyond", Reports.BrokenBeyondLive)
+    end
   end
 
   # Public share pages for Forge maps/scenarios — deliberately no auth:
@@ -402,6 +420,28 @@ defmodule Portal.Router do
     post("/system-planner/compute", SystemPlannerController, :compute)
     get("/system-planner/template", SystemPlannerController, :template)
     get("/system-planner/preset/:name", SystemPlannerController, :preset)
+
+    # Scenario Workshop: the Edict scripting language's parse/check/format/
+    # simulate service (docs/scenario-scripting.md).
+    get("/edict/catalog", EdictController, :catalog)
+    get("/edict/examples", EdictController, :examples)
+    get("/edict/editors/:kind", EdictController, :editors)
+    post("/edict/analyze", EdictController, :analyze)
+    post("/edict/fragment", EdictController, :fragment)
+    post("/edict/format", EdictController, :format)
+    post("/edict/simulate", EdictController, :simulate)
+    post("/edict/playtest", EdictController, :playtest)
+    post("/edict/check-scenario", EdictController, :check_scenario)
+
+    # Scenario scripts saved to the account, and publishing them (RC.Scripts).
+    get("/edict/scripts", ScriptController, :index)
+    get("/edict/scripts/published", ScriptController, :published)
+    get("/edict/scripts/:id", ScriptController, :show)
+    post("/edict/scripts", ScriptController, :create)
+    put("/edict/scripts/:id", ScriptController, :update)
+    delete("/edict/scripts/:id", ScriptController, :delete)
+    put("/edict/scripts/:id/publish", ScriptController, :publish)
+    delete("/edict/scripts/:id/publish", ScriptController, :unpublish)
   end
 
   scope "/api", Portal do

@@ -39,6 +39,10 @@ defmodule Instance.Victory.Victory do
     # so map makers can assign sector points against known targets. nil
     # (and any pre-field snapshot) keeps the formula in update_tracks/1.
     field(:conquest_thresholds, [integer()] | nil, default: nil, enforce: false)
+    # A scenario script ended the match (Edict.Match, end_match()):
+    # %{winner: faction key or nil}. nil otherwise, and in pre-field
+    # snapshots: always read with Map.get.
+    field(:scripted_end, map() | nil, default: nil, enforce: false)
   end
 
   def new(ut_time_left, victory_points, inhabitable_systems, sectors, factions, instance_id, time_only \\ false) do
@@ -197,8 +201,15 @@ defmodule Instance.Victory.Victory do
     win_target = Map.get(state, :win_points_target) || 14
     has_winner = not Map.get(state, :time_only, false) and leader.victory_points >= win_target
 
+    # A scenario script ended the match: its winner first when it named
+    # one, else the standings as they are.
+    scripted = Map.get(state, :scripted_end)
+    current_rankings = scripted_order(current_rankings, scripted)
+    leader = List.first(current_rankings)
+
     victory_type =
       cond do
+        scripted != nil -> "scenario"
         time_is_up -> "win_on_time"
         has_winner -> "victory_track"
         true -> false
@@ -217,6 +228,15 @@ defmodule Instance.Victory.Victory do
   defp check_for_victory({change, state, export}, _elapsed_time) do
     {change, state, export}
   end
+
+  defp scripted_order(rankings, %{winner: key}) when not is_nil(key) do
+    case Enum.split_with(rankings, &(&1.key == key)) do
+      {[winner], rest} -> [winner | rest]
+      _ -> rankings
+    end
+  end
+
+  defp scripted_order(rankings, _), do: rankings
 
   # Sort factions for the win-declaration. Primary key is the integer
   # victory_points (the bucketized win-track score). On ties — which happen

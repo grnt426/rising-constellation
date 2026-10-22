@@ -1,0 +1,23 @@
+[Unit]
+Description=Email the operator that %i failed
+Documentation=file:/usr/local/bin/rc-alert-mail
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=rc
+Group=rc
+
+# Lets the alert read the failed unit's whole journal, systemd's own
+# lines included, not just the rc user's.
+SupplementaryGroups=systemd-journal
+
+# Optional overrides (RC_ALERT_TO, RC_ALERT_FROM, ...). Deliberately NOT
+# /etc/rc/env: the app's dead AWS keys would shadow the instance role.
+EnvironmentFile=-/etc/rc/alert.env
+
+# %i, not %I: unescaping would turn the dashes in the instance
+# (rc-db-backup.service) into slashes.
+ExecStart=/usr/local/bin/rc-alert-mail %i
+TimeoutStartSec=2min

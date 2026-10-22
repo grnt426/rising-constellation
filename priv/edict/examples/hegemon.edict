@@ -1,0 +1,14 @@
+# Hegemon: a sector of neutral worlds to bring under your banner.
+# The Hegemon daily, rebuilt as a scenario.
+
+setup {
+  name = "Hegemon"
+  description = "A sector of neutral worlds. Hold as many as you can as dominions by the deadline; ties break on total population."
+  time_limit = 30m
+  systems = 6
+  neighbors = "neutral"
+}
+
+score player.dominions
+
+tiebreak trunc(player.population)

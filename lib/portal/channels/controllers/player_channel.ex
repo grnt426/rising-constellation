@@ -103,6 +103,9 @@ defmodule Portal.Controllers.PlayerChannel do
     # ChannelWatcher.monitor's `:ok =` was always-ok; harmless to keep.
     :ok = ChannelWatcher.monitor(:player_channel, self(), {__MODULE__, :leave, [instance_id, player_id]})
 
+    # A scripted match: the scenario's scores and the messages missed while away.
+    if Instance.Mutators.match_scripted?(instance_id), do: Edict.Match.joined(instance_id, player_id)
+
     # Stage 7 F7 follow-on. The :after_join update is best-effort —
     # the channel is already established and the user can interact.
     # If the player agent has crashed, log and continue rather than

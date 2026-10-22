@@ -216,6 +216,10 @@ const router = new Router({
       component: () => import('@/portal/pages/settings/Crosshair.vue'),
       meta: { titleKey: 'a11y_portal.route.settings_crosshair' },
     }, {
+      path: '/settings/scenario-editor',
+      component: () => import('@/portal/pages/settings/ScenarioEditor.vue'),
+      meta: { titleKey: 'a11y_portal.route.settings_scenario_editor' },
+    }, {
       path: '/fight-simulator',
       component: () => import('@/portal/pages/FightSimulator.vue'),
       meta: { titleKey: 'a11y_portal.route.fight_simulator' },
@@ -225,6 +229,11 @@ const router = new Router({
       meta: { titleKey: 'a11y_portal.route.system_planner' },
       // the help manual links here with ?preset=<name>, also for visitors
       // who still have to sign in
+      beforeEnter: onlySignedInGuard,
+    }, {
+      path: '/scenario-workshop',
+      component: () => import('@/portal/pages/ScenarioWorkshop.vue'),
+      meta: { titleKey: 'a11y_portal.route.scenario_workshop' },
       beforeEnter: onlySignedInGuard,
     }, {
       path: '/maintenance',

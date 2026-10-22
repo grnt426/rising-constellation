@@ -13,6 +13,9 @@ module.exports = {
     resolve: {
       alias: {
         public: path.resolve(__dirname, './public/'),
+        // The Edict language engine the editor kits ship (completion, docs
+        // under the cursor), shared with the Scenario Workshop's code view.
+        'edict-editors': path.resolve(__dirname, '../priv/edict/editors/'),
       },
     },
   },
@@ -103,6 +106,9 @@ module.exports = {
     },
   },
   chainWebpack: (config) => {
+    // plain CommonJS for every browser the game supports (and for Node in the
+    // editor kits): Babel would mix module systems in it
+    config.module.rule('js').exclude.add(path.resolve(__dirname, '../priv'));
     config.watchOptions({
       poll: 1000,
       ignored: /node_modules/,

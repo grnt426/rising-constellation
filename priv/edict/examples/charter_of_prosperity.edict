@@ -1,0 +1,25 @@
+# Charter of Prosperity: a race to one rich system.
+# The Charter of Prosperity daily, rebuilt as a scenario. A race
+# scores the time left when you finish: finish() ends the run, and at the
+# deadline time.left is 0, so a player who never gets there scores 0 and
+# the tiebreak ranks how close they came.
+
+setup {
+  name = "Charter of Prosperity"
+  description = "A race: push a single system to 800 credit, 50 technology and 40 ideology income at once. Score is the time left when you get there; ties break on progress."
+  time_limit = 30m
+}
+
+score time.left
+
+tiebreak progress()
+
+# How close the best system is: its weakest income as a share of the target.
+fn progress() {
+  let ratios = map(player.systems, s => min(s.income.credit / 800, s.income.technology / 50, s.income.ideology / 40, 1))
+  return max([0] + ratios)
+}
+
+when progress() >= 1 {
+  finish("The Charter is fulfilled.")
+}

@@ -619,7 +619,8 @@ defmodule RC.FlashSchedules do
 
   defp time_limit_seconds(instance) do
     case instance.game_data["time_limit"] do
-      minutes when is_integer(minutes) and minutes > 0 -> minutes * 60
+      # a scenario script may set a length that isn't whole minutes
+      minutes when is_number(minutes) and minutes > 0 -> round(minutes * 60)
       _ -> @default_time_limit_minutes * 60
     end
   end

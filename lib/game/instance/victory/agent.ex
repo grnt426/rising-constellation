@@ -95,6 +95,19 @@ defmodule Instance.Victory.Agent do
     {:noreply, next_tick(state)}
   end
 
+  # A scenario script ended the match (Edict.Match): the winner is the
+  # faction it named (a key already in the standings), or the leader when it
+  # named none. Takes the time-up path above, so the whole victory sequence
+  # runs as usual, recorded as a "scenario" victory. Ignored once decided.
+  def on_cast({:scripted_end, winner}, state) do
+    if state.data.winner != nil or not (is_nil(winner) or Enum.any?(state.data.factions, &(&1.key == winner))) do
+      {:noreply, state}
+    else
+      data = Map.put(state.data, :scripted_end, %{winner: winner})
+      {:noreply, next_tick(%{state | data: data})}
+    end
+  end
+
   @decorate tick()
   def on_info(:tick, state) do
     {:noreply, state}
@@ -169,6 +182,11 @@ defmodule Instance.Victory.Agent do
 
           RC.Instances.record_victory(export.ranking, export.victory_type)
           RC.Rankings.update_rankings(export.ranking)
+
+          # Official Legacy only: save the last pre-victory autosave for
+          # the archive before grace-period autosaves prune it. Async and
+          # never raises.
+          RC.Archive.Keep.keep_async(state.instance_id)
 
           # Discord: announce the victor on the community server and in
           # the Legacy #news channel. Best-effort cast; the relay gates

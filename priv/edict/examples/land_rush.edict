@@ -1,0 +1,14 @@
+# Land Rush: a sector of empty worlds.
+# The Land Rush daily, rebuilt: a sector of six systems.
+
+setup {
+  name = "Land Rush"
+  description = "A sector of empty worlds. Colonize as many systems as you can hold by the deadline; ties break on total population."
+  time_limit = 30m
+  systems = 6
+  neighbors = "empty"
+}
+
+score player.systems_owned + player.dominions
+
+tiebreak trunc(player.population)

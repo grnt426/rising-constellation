@@ -1,0 +1,11 @@
+# Golden Flow: ranked by credit income at the deadline, not by savings.
+# The Golden Flow daily, rebuilt as a scenario.
+
+setup {
+  name = "Golden Flow"
+  description = "Drive credit income as high as it will go."
+  time_limit = 30m
+}
+
+# The daily ranks whole numbers (its stats are stored as integers).
+score trunc(player.income.credit)
