@@ -5,7 +5,8 @@
 # step checks before it creates, so re-running is safe.
 #
 # What it does:
-#   1. S3 backup bucket (private, encrypted, N-day expiry lifecycle)
+#   1. S3 backup bucket (private, encrypted; db/ and snapshots/ expire after
+#      N days, legacy-history/ is kept indefinitely)
 #   2. EC2 instance role + profile with write access to that bucket and
 #      read access to the rc/prod/env secret; attaches it to the prod
 #      instance
@@ -20,6 +21,8 @@
 #
 # The AWS steps (1-3) and the host step (4) are independent; -SkipAws /
 # -SkipSecret / -SkipHost let you re-run just the part you need.
+# -LifecycleOnly applies just the bucket's expiry rules and exits:
+#   .\deploy\provision-dr.ps1 -AwsProfile my-admin-profile -LifecycleOnly
 
 param(
     [Parameter(Mandatory = $true)] [string]$AwsProfile,
@@ -39,7 +42,8 @@ param(
     [string]$SshKey = "$HOME\.ssh\rc-prod.pem",
     [switch]$SkipAws,
     [switch]$SkipSecret,
-    [switch]$SkipHost
+    [switch]$SkipHost,
+    [switch]$LifecycleOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,6 +59,51 @@ function Note { param([string]$Msg) Write-Host "    $Msg" }
 
 $tmpDir = Join-Path $env:TEMP "rc-provision-dr"
 New-Item -ItemType Directory -Force $tmpDir | Out-Null
+
+# Expiry is scoped by prefix: the nightly db/ dumps and snapshots/ tarballs
+# age out, while legacy-history/ (rc-snapshot-history: the hourly snapshot
+# history of official Legacy matches) is kept indefinitely. An empty
+# Filter would expire every object in the bucket.
+function Set-BackupLifecycle {
+    $lifecycleFile = Join-Path $tmpDir "lifecycle.json"
+    @"
+{
+  "Rules": [
+    {
+      "ID": "expire-db-dumps",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "db/"},
+      "Expiration": {"Days": $RetentionDays}
+    },
+    {
+      "ID": "expire-snapshot-tarballs",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "snapshots/"},
+      "Expiration": {"Days": $RetentionDays}
+    },
+    {
+      "ID": "abort-incomplete-uploads",
+      "Status": "Enabled",
+      "Filter": {},
+      "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+    }
+  ]
+}
+"@ | Set-Content -Encoding Ascii $lifecycleFile
+    $r = Invoke-Aws @("s3api", "put-bucket-lifecycle-configuration", "--bucket", $Bucket,
+        "--lifecycle-configuration", "file://$lifecycleFile")
+    if ($r.ExitCode -ne 0) { throw "put-bucket-lifecycle-configuration failed: $($r.Output)" }
+    $r = Invoke-Aws @("s3api", "get-bucket-lifecycle-configuration", "--bucket", $Bucket,
+        "--query", "Rules[].[ID, Filter.Prefix, Expiration.Days]", "--output", "text")
+    Note "lifecycle now:"
+    $r.Output -split "`n" | Where-Object { $_.Trim() } | ForEach-Object { Note "  $_" }
+}
+
+if ($LifecycleOnly) {
+    Step "Lifecycle rules on $Bucket"
+    Set-BackupLifecycle
+    exit 0
+}
 
 # ---------------------------------------------------------------- AWS --
 if (-not $SkipAws) {
@@ -87,24 +136,8 @@ if (-not $SkipAws) {
         "--server-side-encryption-configuration", "file://$encFile")
     if ($r.ExitCode -ne 0) { throw "put-bucket-encryption failed: $($r.Output)" }
 
-    $lifecycleFile = Join-Path $tmpDir "lifecycle.json"
-    @"
-{
-  "Rules": [
-    {
-      "ID": "expire-old-backups",
-      "Status": "Enabled",
-      "Filter": {},
-      "Expiration": {"Days": $RetentionDays},
-      "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
-    }
-  ]
-}
-"@ | Set-Content -Encoding Ascii $lifecycleFile
-    $r = Invoke-Aws @("s3api", "put-bucket-lifecycle-configuration", "--bucket", $Bucket,
-        "--lifecycle-configuration", "file://$lifecycleFile")
-    if ($r.ExitCode -ne 0) { throw "put-bucket-lifecycle-configuration failed: $($r.Output)" }
-    Note "public access blocked, SSE enabled, $RetentionDays-day expiry set"
+    Set-BackupLifecycle
+    Note "public access blocked, SSE enabled, $RetentionDays-day expiry on db/ and snapshots/"
 
     Step "IAM role $RoleName + instance profile"
     $accountId = (aws --profile $AwsProfile sts get-caller-identity --query Account --output text)
@@ -238,6 +271,9 @@ if (-not $SkipHost) {
         "$PSScriptRoot\bin\rc-archive-auto" `
         "$PSScriptRoot\systemd\rc-archive-auto.service" `
         "$PSScriptRoot\systemd\rc-archive-auto.timer" `
+        "$PSScriptRoot\bin\rc-snapshot-history" `
+        "$PSScriptRoot\systemd\rc-snapshot-history.service" `
+        "$PSScriptRoot\systemd\rc-snapshot-history.timer" `
         "${SshHost}:$staging/"
     if ($LASTEXITCODE -ne 0) { throw "scp failed" }
 

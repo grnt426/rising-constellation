@@ -1,0 +1,248 @@
+#!/bin/bash
+#
+# rc-snapshot-history — keep an hourly snapshot history of every official
+# Legacy match, packed per match day and stored in S3 indefinitely, for
+# long-term analysis (player trends, bot strategy).
+#
+# Run hourly by rc-snapshot-history.timer as `rc`. For each official match
+# (discord_ready, not bot-only, slow speed: the same test as
+# RC.Archive.Keep) that has started and whose history is not complete:
+#
+#   1. Collect. Hard-link the earliest autosave of each UTC hour from the
+#      game's snapshot dir into <history>/<iid>/staging/. The game keeps
+#      only its 10 newest autosaves (~2.5 h), so an hourly run sees every
+#      hour; the link keeps the file after the game prunes it. Snapshots
+#      that RC.Archive.Keep or rc-archive-import left in the archive keep
+#      dir are all collected, whatever their hour.
+#   2. Pack. Once a match day is over (plus RC_HISTORY_PACK_MARGIN), tar
+#      its staged snapshots in time order through `zstd -19 --long=31`
+#      into <history>/<iid>/day-NN.tar.zst. Consecutive snapshots are
+#      nearly identical, so the long window stores each one after the
+#      first as a small delta (measured: 193 MB of daily snapshots ->
+#      2.5 MB). Upload it to s3://$RC_BACKUP_BUCKET/legacy-history/<iid>/,
+#      verify, and drop the staged links. The local copy stays.
+#   3. Finish. When the match has ended, pack whatever is left, and the
+#      history is complete (<history>/<iid>/COMPLETE).
+#
+# Every pack rewrites and uploads manifest.json: one row per snapshot
+# (archive, file, taken_at, match_day, kind, after_victory) plus how to
+# read it. Lossless: unpacking gives the game's snapshot files byte for
+# byte. Read with:
+#   zstd -d --long=31 -c day-07.tar.zst | tar -x
+#   :erlang.binary_to_term(File.read!("snapshot-185-..."))
+#
+# Matches that ended before this job existed are backfilled on the first
+# run from whatever is still on disk.
+#
+# Configuration (environment):
+#   RC_BACKUP_BUCKET        S3 bucket (required unless RC_HISTORY_NO_UPLOAD=1)
+#   RC_ENV_FILE             app env file for DATABASE_URL (default /etc/rc/env)
+#   RC_SNAPSHOT_DIR         game snapshots (default /var/lib/rc-snapshots)
+#   RC_ARCHIVE_KEEP_DIR     default /home/rc/archive-keep
+#   RC_HISTORY_DIR          default /home/rc/snapshot-history
+#   RC_HISTORY_PACK_MARGIN  seconds to wait after a match day ends before
+#                           packing it (default 10800)
+#   RC_HISTORY_NO_UPLOAD    1 = pack locally, skip S3
+#   RC_NOW                  unix time override (tests)
+#
+# AWS credentials: the instance role via IMDS. Never source /etc/rc/env
+# wholesale: its AWS keys are dead and would shadow the role.
+
+set -euo pipefail
+
+ENV_FILE="${RC_ENV_FILE:-/etc/rc/env}"
+SNAPSHOT_DIR="${RC_SNAPSHOT_DIR:-/var/lib/rc-snapshots}"
+KEEP_DIR="${RC_ARCHIVE_KEEP_DIR:-/home/rc/archive-keep}"
+HISTORY_DIR="${RC_HISTORY_DIR:-/home/rc/snapshot-history}"
+MARGIN="${RC_HISTORY_PACK_MARGIN:-10800}"
+NO_UPLOAD="${RC_HISTORY_NO_UPLOAD:-0}"
+NOW="${RC_NOW:-$(date +%s)}"
+PREFIX="legacy-history"
+
+log() { echo "rc-snapshot-history: $*"; }
+die() { echo "rc-snapshot-history: ERROR: $*" >&2; exit 1; }
+
+[[ -r "$ENV_FILE" ]] || die "cannot read $ENV_FILE"
+DATABASE_URL=$(set -a; . "$ENV_FILE" >/dev/null 2>&1; printf '%s' "${DATABASE_URL:-}")
+[[ -n "$DATABASE_URL" ]] || die "DATABASE_URL not found in $ENV_FILE"
+DATABASE_URL="${DATABASE_URL/#ecto:\/\//postgresql://}"
+if [[ "$NO_UPLOAD" != "1" ]]; then
+  BUCKET="${RC_BACKUP_BUCKET:-}"
+  [[ -n "$BUCKET" ]] || die "RC_BACKUP_BUCKET not set (and RC_HISTORY_NO_UPLOAD != 1)"
+fi
+for tool in psql jq zstd tar; do command -v "$tool" >/dev/null || die "$tool not installed"; done
+
+q() { psql -X -A -t -q -v ON_ERROR_STOP=1 -F $'\t' "$DATABASE_URL" -c "$1"; }
+
+upload() {
+  local file="$1" key="$2"
+  [[ "$NO_UPLOAD" == "1" ]] && return 0
+  aws s3 cp --only-show-errors "$file" "s3://$BUCKET/$key"
+  aws s3api head-object --bucket "$BUCKET" --key "$key" >/dev/null \
+    || die "verification failed for s3://$BUCKET/$key"
+}
+
+# snapshot-<iid>-<unix seconds><random digits>
+ts_of() { local n="${1##*/}"; n="${n#snapshot-*-}"; echo "${n:0:10}"; }
+
+day_of() { # ts start
+  local d=$(( ($1 - $2) / 86400 + 1 ))
+  (( d < 1 )) && d=1
+  echo "$d"
+}
+
+# index.tsv columns: ts, file, match day, kind (hourly|keep), archive
+# ("staging" until packed).
+
+collect() { # iid start
+  local iid="$1" start="$2" dir="$HISTORY_DIR/$1" f name ts kind added=0
+  local index="$dir/index.tsv"
+  mkdir -p "$dir/staging"
+  touch "$index"
+
+  # Hours (or, for keep files, names) the history already holds.
+  declare -A have_hour=() have_name=()
+  while IFS=$'\t' read -r ts name _day kind _archive; do
+    [[ -n "$ts" ]] || continue
+    have_name[$name]=1
+    [[ "$kind" == hourly ]] && have_hour[$((ts / 3600))]=1
+  done < "$index"
+
+  # Oldest first, so each hour keeps its earliest autosave.
+  while IFS= read -r f; do
+    name="${f##*/}"
+    [[ -z "${have_name[$name]:-}" ]] || continue
+    ts=$(ts_of "$name")
+    [[ "$ts" =~ ^[0-9]{10}$ ]] || continue
+    case "$f" in
+      "$KEEP_DIR"/*) kind=keep ;;
+      *)
+        kind=hourly
+        [[ -z "${have_hour[$((ts / 3600))]:-}" ]] || continue
+        ;;
+    esac
+    # A hard link needs the same filesystem; fall back to a copy. Both
+    # fail only when the game pruned the file since it was listed.
+    if ln "$f" "$dir/staging/$name" 2>/dev/null || cp -p "$f" "$dir/staging/$name" 2>/dev/null; then
+      printf '%s\t%s\t%s\t%s\tstaging\n' "$ts" "$name" "$(day_of "$ts" "$start")" "$kind" >> "$index"
+      have_name[$name]=1
+      [[ "$kind" == hourly ]] && have_hour[$((ts / 3600))]=1
+      added=$((added + 1))
+    fi
+  done < <(
+    {
+      find "$SNAPSHOT_DIR" -maxdepth 1 -type f -name "snapshot-$iid-*" 2>/dev/null || true
+      find "$KEEP_DIR/$iid" -maxdepth 1 -type f -name "snapshot-$iid-*" 2>/dev/null || true
+    } | awk -F/ '{n=$NF; sub(/^snapshot-[0-9]+-/, "", n); print substr(n, 1, 10) "\t" $0}' | sort -n | cut -f2-
+  )
+
+  (( added == 0 )) || log "instance $iid: collected $added snapshot(s)"
+}
+
+# Packs every staged day in $2 (space-separated) into day-NN.tar.zst.
+pack_days() { # iid "days"
+  local iid="$1" dir="$HISTORY_DIR/$1" day archive n list tmp count
+  local index="$dir/index.tsv"
+
+  for day in $2; do
+    archive=$(printf 'day-%02d.tar.zst' "$day")
+    # A day packed before (a late keep file): add a numbered part.
+    n=2
+    while [[ -e "$dir/$archive" ]]; do archive=$(printf 'day-%02d.%d.tar.zst' "$day" "$n"); n=$((n + 1)); done
+
+    list="$dir/.pack-list"
+    awk -F'\t' -v d="$day" '$5 == "staging" && $3 == d {print $1 "\t" $2}' "$index" | sort -n | cut -f2 > "$list"
+    [[ -s "$list" ]] || continue
+    count=$(wc -l < "$list")
+
+    tmp="$dir/.$archive.tmp"
+    tar -cf - -C "$dir/staging" -T "$list" | zstd -q -19 --long=31 -T1 -o "$tmp" -f
+    # Lossless check before the staged originals go.
+    zstd -q -d --long=31 -c "$tmp" | tar -tf - | sort | cmp -s - <(sort "$list") \
+      || die "instance $iid: $archive does not list back its $count snapshots"
+    mv "$tmp" "$dir/$archive"
+    upload "$dir/$archive" "$PREFIX/$iid/$archive"
+
+    awk -F'\t' -v OFS='\t' -v d="$day" -v a="$archive" '$5 == "staging" && $3 == d {$5 = a} {print}' "$index" > "$index.new"
+    mv "$index.new" "$index"
+    (cd "$dir/staging" && xargs -r rm -f < "$list")
+    rm -f "$list"
+    log "instance $iid: packed day $day, $count snapshot(s) -> $archive ($(stat -c%s "$dir/$archive") bytes)"
+  done
+}
+
+manifest() { # iid complete(true|false)
+  local iid="$1" dir="$HISTORY_DIR/$1" meta
+  meta=$(q "
+    select row_to_json(m) from (
+      select i.id as instance_id, i.name, i.game_metadata->>'name' as map_name,
+        (select to_char(min(s.inserted_at), 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') from instance_states s
+          where s.instance_id = i.id and s.state = 'running') as started_at,
+        (select to_char(v.inserted_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') from victories v where v.instance_id = i.id) as victory_at,
+        (select v.victory_type from victories v where v.instance_id = i.id) as victory_type,
+        (select f.faction_ref from factions f where f.instance_id = i.id and f.final_rank = 1 limit 1) as winner,
+        (select to_char(max(s.inserted_at), 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') from instance_states s
+          where s.instance_id = i.id and s.state = 'ended') as ended_at
+      from instances i where i.id = $iid) m")
+  local victory_ts
+  victory_ts=$(q "select coalesce(extract(epoch from inserted_at)::bigint, 0) from victories where instance_id = $iid")
+
+  jq -R -s --argjson meta "$meta" --argjson complete "$2" --argjson victory "${victory_ts:-0}" '
+    ($meta + {
+      complete: $complete,
+      granularity: "earliest autosave of each UTC hour, plus every snapshot saved for the archive (kind \"keep\")",
+      snapshot_format: "Erlang external term format: :erlang.term_to_binary/1 of %{instance_data: ..., agents_data: [%{module: ..., state: ...}]}. Decode with :erlang.binary_to_term/1; RC.Archive.SnapshotStats documents the shape.",
+      read: "zstd -d --long=31 -c <archive> | tar -x",
+      snapshots: [
+        split("\n")[] | select(length > 0) | split("\t") |
+        {file: .[1], archive: .[4], taken_at: (.[0] | tonumber | todate), match_day: (.[2] | tonumber), kind: .[3],
+         after_victory: ($victory > 0 and (.[0] | tonumber) > $victory)}
+      ]
+    })' "$dir/index.tsv" > "$dir/manifest.json"
+  upload "$dir/manifest.json" "$PREFIX/$iid/manifest.json"
+}
+
+mkdir -p "$HISTORY_DIR"
+exec 9>"$HISTORY_DIR/.lock"
+flock -n 9 || { log "another run holds $HISTORY_DIR/.lock; skipping"; exit 0; }
+
+MATCHES=$(q "
+  select i.id, i.state,
+    (select extract(epoch from min(s.inserted_at))::bigint from instance_states s
+      where s.instance_id = i.id and s.state = 'running')
+  from instances i
+  where i.discord_ready and not i.is_bot_only
+    and coalesce(i.game_data->>'speed', i.game_metadata->>'speed', 'slow') = 'slow'
+    and exists (select 1 from instance_states s where s.instance_id = i.id and s.state = 'running')
+  order by i.id")
+
+while IFS=$'\t' read -r IID STATE START; do
+  [[ -n "$IID" ]] || continue
+  [[ -e "$HISTORY_DIR/$IID/COMPLETE" ]] && continue
+
+  collect "$IID" "$START"
+  INDEX="$HISTORY_DIR/$IID/index.tsv"
+  STAGED_DAYS=$(awk -F'\t' '$5 == "staging" {print $3}' "$INDEX" | sort -nu | tr '\n' ' ')
+
+  if [[ "$STATE" == "ended" ]]; then
+    pack_days "$IID" "$STAGED_DAYS"
+    if [[ -s "$INDEX" ]]; then
+      manifest "$IID" true
+      log "instance $IID: history complete ($(wc -l < "$INDEX") snapshots)"
+    else
+      log "instance $IID: ended with no snapshot left on disk; nothing to keep"
+    fi
+    touch "$HISTORY_DIR/$IID/COMPLETE"
+    rmdir "$HISTORY_DIR/$IID/staging" 2>/dev/null || true
+    continue
+  fi
+
+  READY=""
+  for day in $STAGED_DAYS; do
+    (( NOW >= START + day * 86400 + MARGIN )) && READY="$READY $day"
+  done
+  if [[ -n "$READY" ]]; then
+    pack_days "$IID" "$READY"
+    manifest "$IID" false
+  fi
+done <<< "$MATCHES"

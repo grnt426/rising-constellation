@@ -47,8 +47,10 @@ host to Secrets Manager mode — the bootstrap default for new hosts.
 `rc-db-backup.timer` fires daily at 08:47 UTC and runs
 `/usr/local/bin/rc-db-backup` as `rc`: `pg_dump -Fc` (verified with
 `pg_restore --list`) plus a tarball of `/var/lib/rc-snapshots`, both
-uploaded via the instance role. Bucket lifecycle expires objects after
-30 days. Installed by `deploy/provision-dr.ps1` (current host) and
+uploaded via the instance role. Bucket lifecycle expires `db/` and
+`snapshots/` after 30 days; `legacy-history/` (the hourly snapshot
+history of official Legacy matches, see docs/legacy-archive.md) is kept
+indefinitely. Installed by `deploy/provision-dr.ps1` (current host) and
 `bootstrap-host.sh` (new hosts).
 
 The DB dump is uploaded first, so a snapshot problem only costs that
