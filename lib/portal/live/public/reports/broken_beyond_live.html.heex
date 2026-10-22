@@ -1,0 +1,277 @@
+<div class="fluid-container report-container">
+  <section class="pk-content report-page report-hero" aria-labelledby="report-title">
+    <div class="report-eyebrow">Rebel Defense · Legacy match 185</div>
+    <h1 id="report-title">Broken Beyond</h1>
+
+    <div class="report-board" role="group" aria-label="Final score">
+      <div class="report-side report-side--myrmezir">
+        <span class="report-side-name">Myrmezir</span>
+        <span class="report-side-vp">14</span>
+        <span class="report-side-meta">victory points · 11 of 14 sectors</span>
+      </div>
+      <span class="report-vs" aria-hidden="true">VS</span>
+      <div class="report-side report-side--rebellion">
+        <span class="report-side-name">The Rebellion</span>
+        <span class="report-side-vp">0</span>
+        <span class="report-side-meta">victory points · 3 of 14 sectors</span>
+      </div>
+    </div>
+
+    <p>
+      Thirteen of you, nine from the first day, against one bot. You won on match day 22 when Novae took Begenaf and
+      Dor-Valon fell. Here is how you stacked up against the Rebellion, and where it had help
+      you didn't.
+    </p>
+  </section>
+
+  <section class="pk-content report-page" aria-labelledby="report-peak">
+    <h2 id="report-peak">One bot, the size of your whole faction</h2>
+    <p>
+      These are the numbers on day 16.6, the last reading before the bot broke (more on that
+      below). The typical player is the middle player of Myrmezir.
+    </p>
+
+    <div class="report-compare">
+      <div class="report-metric">
+        <h3>Systems and dominions held</h3>
+        <.bar who="The Rebellion" side="rebellion" value={66} max={86} label="66" />
+        <.bar who="All of Myrmezir" side="myrmezir" value={86} max={86} label="86" />
+        <.bar who="Typical player" side="typical" value={7} max={86} label="7" />
+      </div>
+      <div class="report-metric">
+        <h3>Credit income per tick</h3>
+        <.bar who="The Rebellion" side="rebellion" value={40_945} max={67_864} label="40,945" />
+        <.bar who="All of Myrmezir" side="myrmezir" value={67_864} max={67_864} label="67,864" />
+        <.bar who="Typical player" side="typical" value={5_118} max={67_864} label="5,118" />
+      </div>
+      <div class="report-metric">
+        <h3>Active agents</h3>
+        <.bar who="The Rebellion" side="rebellion" value={98} max={126} label="98" />
+        <.bar who="All of Myrmezir" side="myrmezir" value={126} max={126} label="126" />
+        <.bar who="Typical player" side="typical" value={7} max={126} label="7" />
+      </div>
+      <div class="report-metric">
+        <h3>Buildings at level 5</h3>
+        <.bar who="The Rebellion" side="rebellion" value={50} max={50} label="50%" />
+        <.bar who="All of Myrmezir" side="myrmezir" value={7} max={50} label="7%" />
+      </div>
+    </div>
+  </section>
+
+  <section class="pk-content report-page report-accent--rebellion" aria-labelledby="report-ahead">
+    <h2 id="report-ahead">How it pulled ahead</h2>
+    <p>You weren't imagining it.</p>
+
+    <div class="report-cards">
+      <article class="report-card">
+        <span class="report-card-figure">272M</span>
+        <h3>Its buildings were free</h3>
+        <p>
+          The bot's systems built and upgraded without paying a credit. Before it broke, it
+          received 272M credits' worth of buildings, more than all of you completed together
+          (190M). It spent about one credit in eight that it earned, and its bank grew to 180M.
+        </p>
+      </article>
+      <article class="report-card">
+        <span class="report-card-figure">50%</span>
+        <h3>Level 5 nearly everywhere</h3>
+        <p>
+          By day 16.6, half of the buildings in its systems were level 5; yours were at 7%. By
+          the end it was 80%. It researched the level-5 infrastructure patents on days 9 to 11,
+          while the typical player who bought them got there on days 15 to 17.
+        </p>
+      </article>
+      <article class="report-card">
+        <span class="report-card-figure">L11–12</span>
+        <h3>Agents bought high</h3>
+        <p>
+          From day 8 it hired Erased at about level 11, and every fleet Navarch it hired was a
+          top-rank one at level 10 to 13. You shopped the same market, but most of your hires
+          were level 1 or 2 and you trained them up. Its Erased stayed about two levels above
+          yours from day 9 on; its Siderians led by about a level until yours caught up around
+          day 13.
+        </p>
+      </article>
+      <article class="report-card">
+        <span class="report-card-figure">98</span>
+        <h3>And a lot of them</h3>
+        <p>
+          By day 16.6 the bot ran 98 agents and 26 fleets on its own. The typical player had 7
+          agents; all thirteen of you together had 126.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="pk-content report-page report-accent--myrmezir" aria-labelledby="report-beat">
+    <h2 id="report-beat">Where you beat it</h2>
+    <p>Bigger isn't the same as better.</p>
+
+    <div class="report-cards">
+      <article class="report-card">
+        <span class="report-card-figure">11 of 14</span>
+        <h3>You won the map</h3>
+        <p>
+          The sector race was tied 7 to 7 on day 14.6. You finished holding 11 of the 14
+          sectors, including four that the Rebellion had held at some point.
+        </p>
+      </article>
+      <article class="report-card">
+        <span class="report-card-figure">31 vs 14</span>
+        <h3>You won the agent war</h3>
+        <p>
+          Before the freeze both sides ran about the same number of operations against each
+          other (your 323 against its 310), but yours did more damage: 31 assassinations to its
+          14, 13 seductions to its 4. Its 9 sabotages against you all failed.
+        </p>
+      </article>
+      <article class="report-card">
+        <span class="report-card-figure">0</span>
+        <h3>Its fleets never came for you</h3>
+        <p>
+          The bot never pillaged, bombarded or invaded a single one of your systems. Its fleets
+          only fought when you came to them; it won 4 battles before the freeze, all at home in
+          places like Zurka.
+        </p>
+      </article>
+      <article class="report-card">
+        <span class="report-card-figure">17 of 18</span>
+        <h3>You hunted its settlers</h3>
+        <p>
+          Of the 18 battles it lost before the freeze, 17 were lone colony Navarchs you caught
+          around Djullir.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="pk-content report-page" aria-labelledby="report-broke">
+    <h2 id="report-broke">Then it broke</h2>
+    <p>
+      On day 16.9 a bug stopped the bot from making decisions, and it stayed mostly idle until
+      day 22. You noticed. Your Siderians seduced away 13 of the 16 commanders of the fleets
+      parked at Zurka, your Erased assassinated the other 3 and sabotaged their ships, and on
+      day 19 you attacked and killed all 16 of their level-1 replacements. Then you took
+      Zanokha, Urqatna and Dor-Valon from it; only its home sector, also named Urqatna, held
+      out. Its victory points went from 4 to 0.
+    </p>
+    <p>
+      Who held each sector over the match, from your home at the top to the Rebellion's at the
+      bottom (hover a bar for the dates). The column on the right shows who held each sector
+      when the match ended:
+    </p>
+
+    <div class="report-legend">
+      <span><i class="report-swatch report-swatch--myrmezir"></i>Myrmezir</span>
+      <span><i class="report-swatch report-swatch--rebellion"></i>Rebellion</span>
+      <span><i class="report-swatch report-swatch--freeze"></i>Bot broken</span>
+    </div>
+
+    <div class="report-strip">
+      <svg viewBox={"0 0 #{@strip.width} #{@strip.height}"} role="img" aria-label="Sector ownership by match day">
+        <rect class="report-strip-freeze" x={@strip.freeze_x} y="0" width={@strip.freeze_width} height={@strip.height - 22} />
+        <%= for row <- @strip.rows do %>
+          <text class="report-strip-name" x={@strip.label - 10} y={row.y + 14} text-anchor="end"><%= row.label %></text>
+          <rect class="report-strip-track" x={@strip.label} y={row.y} width={@strip.inner} height={@strip.row} rx="2" />
+          <%= for seg <- row.segments do %>
+            <rect class={"report-strip-bar report-strip-bar--#{seg.owner}"} x={seg.x} y={row.y} width={seg.width} height={@strip.row} rx="2">
+              <title><%= seg.title %></title>
+            </rect>
+          <% end %>
+          <rect class={"report-strip-bar report-strip-bar--#{row.final}"} x={@strip.end_x} y={row.y} width={@strip.end_width} height={@strip.row} rx="2">
+            <title><%= row.final_title %></title>
+          </rect>
+        <% end %>
+        <%= for tick <- @strip.ticks do %>
+          <text class="report-strip-tick" x={tick.x} y={@strip.height - 6} text-anchor="middle"><%= tick.label %></text>
+        <% end %>
+        <text class="report-strip-tick report-strip-end-label" x={@strip.end_x + @strip.end_width / 2} y={@strip.height - 6} text-anchor="middle">end</text>
+      </svg>
+    </div>
+  </section>
+
+  <section class="pk-content report-page" aria-labelledby="report-players">
+    <h2 id="report-players">Every player against the bot</h2>
+    <p>
+      Your numbers next to the bot's, just before it broke and at the end of the match. The
+      small numbers in the headings point to the notes under the table.
+    </p>
+
+    <div class="report-toggle" role="group" aria-label="When">
+      <button type="button" class={"default-button" <> if(@at == "freeze", do: " active", else: "")} aria-pressed={to_string(@at == "freeze")} phx-click="show" phx-value-at="freeze">Day 16.6, before it broke</button>
+      <button type="button" class={"default-button" <> if(@at == "end", do: " active", else: "")} aria-pressed={to_string(@at == "end")} phx-click="show" phx-value-at="end">Day 22.6, the end</button>
+    </div>
+
+    <div class="report-table-wrap">
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th scope="col">Player</th>
+            <th scope="col">Holdings<.note_ref n={1} /></th>
+            <th scope="col">Credits<.note_ref n={2} /></th>
+            <th scope="col">Tech<.note_ref n={2} /></th>
+            <th scope="col">Ideology<.note_ref n={2} /></th>
+            <th scope="col">Agents<.note_ref n={3} /></th>
+            <th scope="col">Avg agent level<.note_ref n={3} /></th>
+            <th scope="col">Successful ops vs the bot<.note_ref n={4} /></th>
+            <th scope="col">
+              Bot's
+              <svg class="help-icon report-credit-icon" role="img" aria-label="credit"><title>Credit</title><use href={"#{@sprite}#resource--credit"} /></svg>
+              income vs yours<.note_ref n={5} />
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="report-table-bot">
+            <th scope="row">The Rebellion (bot)</th>
+            <td><%= num(@bot["holdings"]) %></td>
+            <td><%= num(@bot["credit"]) %></td>
+            <td><%= num(@bot["tech"]) %></td>
+            <td><%= num(@bot["ideo"]) %></td>
+            <td><%= num(@bot["agents"]) %></td>
+            <td><%= level(@bot["lvl"]) %></td>
+            <td><%= num(@bot["ops_ok"]) %> <span class="report-dim">against you</span></td>
+            <td>–</td>
+          </tr>
+          <%= for row <- @humans do %>
+            <tr>
+              <th scope="row"><%= row["name"] %></th>
+              <td><%= num(row["holdings"]) %></td>
+              <td><%= num(row["credit"]) %></td>
+              <td><%= num(row["tech"]) %></td>
+              <td><%= num(row["ideo"]) %></td>
+              <td><%= num(row["agents"]) %></td>
+              <td><%= level(row["lvl"]) %></td>
+              <td><%= num(row["ops_ok"]) %></td>
+              <td><%= multiple(@bot["credit"], row["credit"]) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <ol class="report-notes">
+      <li id="report-note-1"><sup>1</sup> Holdings are systems plus dominions.</li>
+      <li id="report-note-2"><sup>2</sup> Net income per tick at that moment: the day 16.6 reading, or the first save after the win.</li>
+      <li id="report-note-3"><sup>3</sup> Agents on board, governing or in school; the level is their average.</li>
+      <li id="report-note-4"><sup>4</sup> Agent and fleet actions against the other side that succeeded, counted up to the day 16.6 reading or up to the win.</li>
+      <li id="report-note-5"><sup>5</sup> How many times your credit income the bot was making at the same moment.</li>
+    </ol>
+  </section>
+
+  <section class="pk-content report-page report-accent--myrmezir" aria-labelledby="report-highlights">
+    <h2 id="report-highlights">Who did what</h2>
+    <ul class="report-highlights">
+      <li><strong>Novae</strong> took Begenaf on day 22.34, the conquest that flipped Dor-Valon and ended the match. They finished with the biggest credit income (25k per tick) and the most agents (42), and their fleets killed 23 rebel Navarchs.</li>
+      <li><strong>Shareels</strong> ran the busiest agent war in the match: 242 successful operations against the bot, including 111 infiltrations, 62 sabotages and 21 seductions of rebel agents. They finished with the most holdings (16).</li>
+      <li><strong>HB9</strong> landed 194 successful operations against the bot, with the most assassinations (32) and 74 destabilizations of rebel systems.</li>
+      <li><strong>abdelaz3r</strong> led the raiding: 23 pillages of rebel systems, and 15 rebel Navarchs killed in battle.</li>
+      <li><strong>Tianxia</strong> had the top economy before the bot broke (18k credits per tick), then conquered Vanis and Ndodo.</li>
+      <li><strong>Tremes</strong> fielded the largest fleet at the end, 115 ship tiles.</li>
+    </ul>
+    <p class="report-note">
+      Built from the match's server data. "Day" is match time, counted from the start on 28
+      September; the bot broke on day 16.9 and the match ended on day 22.34.
+    </p>
+  </section>
+</div>

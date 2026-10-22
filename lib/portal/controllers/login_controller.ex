@@ -56,8 +56,24 @@ defmodule Portal.LoginController do
     # front/src/plugins/auth.js), so http_only must stay false; no max-age
     # keeps it session-scoped, matching the js-cookie write it replaces.
     |> put_resp_cookie("user_token", access, http_only: false, same_site: "Lax")
-    |> redirect(to: "/portal")
+    |> redirect_after_login()
   end
+
+  # Portal.Plug.RequireAccount keeps the page a logged-out player asked
+  # for; send them back to it, else to the SPA. Only a local path is
+  # followed ("/x", never "//host" or "/\host").
+  defp redirect_after_login(conn) do
+    return_to = get_session(conn, :return_to)
+    conn = delete_session(conn, :return_to)
+
+    if local_path?(return_to),
+      do: redirect(conn, to: return_to),
+      else: redirect(conn, to: "/portal")
+  end
+
+  defp local_path?("/" <> rest), do: not String.starts_with?(rest, ["/", "\\"])
+
+  defp local_path?(_), do: false
 
   defp fail(conn, message) do
     conn
