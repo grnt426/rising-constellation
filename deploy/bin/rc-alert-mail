@@ -1,13 +1,16 @@
 #!/bin/bash
 #
-# rc-alert-mail — email the operator that a systemd unit failed.
+# rc-alert-mail — email the operator.
 #
-#   rc-alert-mail <unit>
+#   rc-alert-mail <unit>                       a systemd unit failed
+#   rc-alert-mail --notice <subject> < body    anything else worth a mail
 #
-# Run by rc-alert@.service, which a unit opts into with
+# Unit mode is run by rc-alert@.service, which a unit opts into with
 #   OnFailure=rc-alert@%n.service
-# (rc-db-backup.service does). Sends one plain-text mail through SES with
-# the failure result, the unit's status and its recent log.
+# (rc-db-backup.service and rc-archive-auto.service do). It sends one
+# plain-text mail through SES with the failure result, the unit's status
+# and its recent log. Notice mode mails the given subject and the body
+# read from stdin (rc-archive-auto uses it for "archive draft ready").
 #
 # Delivery: SES with the EC2 instance role, whose policy allows
 # ses:SendEmail on the tetrarchyfalls.com identity from any
@@ -29,7 +32,8 @@
 
 set -euo pipefail
 
-UNIT="${1:?usage: rc-alert-mail <unit>}"
+USAGE="usage: rc-alert-mail <unit> | rc-alert-mail --notice <subject> < body"
+[[ $# -ge 1 ]] || { echo "$USAGE" >&2; exit 2; }
 TO="${RC_ALERT_TO:-contact@tetrarchyfalls.com}"
 FROM="${RC_ALERT_FROM:-alerts@tetrarchyfalls.com}"
 REGION="${RC_ALERT_REGION:-us-east-1}"
@@ -38,33 +42,53 @@ DRY_RUN="${RC_ALERT_DRY_RUN:-0}"
 
 HOST=$(hostname)
 
-show() { systemctl show -p "$1" --value "$UNIT" 2>/dev/null || true; }
-RESULT=$(show Result)
-STATUS=$(show ExecMainStatus)
-STARTED=$(show ExecMainStartTimestamp)
-ENDED=$(show ExecMainExitTimestamp)
+notice_mail() {
+  SUBJECT="[Tetrarchy Falls] $1"
+  BODY="$(cat)
+--
+Sent by rc-alert-mail on $HOST at $(date -u '+%Y-%m-%d %H:%M:%S UTC').
+"
+  ABOUT="$1"
+}
 
-# The last 60 lines cover the failed run (a backup logs ~10) plus some
-# context. The unit runs with systemd-journal, so systemd's own lines
-# ("Failed with result ...") are included.
-LOG=$(journalctl -q -u "$UNIT" -n 60 --no-pager -o short-iso 2>&1 || true)
+unit_mail() {
+  local unit="$1" result status started ended log
+  show() { systemctl show -p "$1" --value "$unit" 2>/dev/null || true; }
+  result=$(show Result)
+  status=$(show ExecMainStatus)
+  started=$(show ExecMainStartTimestamp)
+  ended=$(show ExecMainExitTimestamp)
 
-SUBJECT="[Tetrarchy Falls] $UNIT failed on $HOST (${RESULT:-unknown})"
-BODY="$UNIT failed on $HOST.
+  # The last 60 lines cover the failed run (a backup logs ~10) plus some
+  # context. The unit runs with systemd-journal, so systemd's own lines
+  # ("Failed with result ...") are included.
+  log=$(journalctl -q -u "$unit" -n 60 --no-pager -o short-iso 2>&1 || true)
 
-Result:      ${RESULT:-unknown} (exit status ${STATUS:-?})
-Started:     ${STARTED:-?}
-Ended:       ${ENDED:-?}
+  SUBJECT="[Tetrarchy Falls] $unit failed on $HOST (${result:-unknown})"
+  BODY="$unit failed on $HOST.
+
+Result:      ${result:-unknown} (exit status ${status:-?})
+Started:     ${started:-?}
+Ended:       ${ended:-?}
 Alert sent:  $(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
-Recent log (journalctl -u $UNIT -n 60):
+Recent log (journalctl -u $unit -n 60):
 
-$LOG
+$log
 
 On the host:
-  journalctl -u $UNIT -n 200 --no-pager
-  systemctl status $UNIT
+  journalctl -u $unit -n 200 --no-pager
+  systemctl status $unit
 "
+  ABOUT="$unit"
+}
+
+if [[ "$1" == "--notice" ]]; then
+  [[ -n "${2:-}" ]] || { echo "$USAGE" >&2; exit 2; }
+  notice_mail "$2"
+else
+  unit_mail "$1"
+fi
 
 if [[ "$DRY_RUN" == "1" ]]; then
   printf 'To: %s\nFrom: %s\nSubject: %s\n\n%s' "$TO" "$FROM" "$SUBJECT" "$BODY"
@@ -79,4 +103,4 @@ args=(sesv2 send-email --region "$REGION" --from-email-address "$FROM"
 [[ -n "$CONFIG_SET" ]] && args+=(--configuration-set-name "$CONFIG_SET")
 
 MESSAGE_ID=$(aws "${args[@]}")
-echo "rc-alert-mail: mailed $TO about $UNIT (SES message $MESSAGE_ID)"
+echo "rc-alert-mail: mailed $TO about $ABOUT (SES message $MESSAGE_ID)"

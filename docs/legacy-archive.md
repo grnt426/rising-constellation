@@ -27,20 +27,48 @@ player_stats        ─┘    EventStats)          └─ archive_unlocks      (
 - Metric keys are documented in both modules' moduledocs. New metrics only need
   code changes and a re-import, never a migration.
 
-## Running an import
+## Automatic import
 
-On the prod host, as `rc`:
+Official Legacy matches archive themselves. Official means
+`discord_ready`, not bot-only, and slow speed.
+
+1. **At the victory**, the Victory agent calls `RC.Archive.Keep.keep_async/1`.
+   It copies the newest autosave taken at or before the win (at most ~15
+   minutes old) to `/home/rc/archive-keep/<iid>/`
+   (`RC_ARCHIVE_KEEP_DIR`). Grace-period autosaves would otherwise prune it
+   within about 2.5 hours. This step is async and never raises into the
+   agent.
+2. **Once the instance is `ended`** (about 10 hours after the victory),
+   the hourly `rc-archive-auto.timer` finds it: an official match with a
+   victory row and no `archive_matches` row. It runs `rc-archive-import`
+   and mails contact@tetrarchyfalls.com an "Archive draft ready" notice
+   with the match link and import summary.
+3. An admin reviews the draft and publishes it.
+
+A failed import writes `/home/rc/archive-keep/<iid>/IMPORT_FAILED` with
+the log tail, and the unit's `OnFailure=` hook mails the log. Later runs
+skip that match until the marker is deleted, so a broken match doesn't
+re-stream a month of tarballs every hour. Fix the cause, then delete the
+marker or run the import by hand. Logs: `journalctl -u rc-archive-auto`
+and `/home/rc/archive-import-<iid>.log`.
+
+## Running an import by hand
+
+To rebuild an archive, or to import a match that isn't official, run
+this on the prod host as `rc`:
 
 ```
-deploy/bin/rc-archive-import <instance_id>             # keeps current published flag (new = hidden)
-deploy/bin/rc-archive-import <instance_id> --publish
+rc-archive-import <instance_id>             # keeps current published flag (new = hidden)
+rc-archive-import <instance_id> --publish
 ```
 
 The script streams the relevant tarballs, keeps only that instance's
 snapshots, adds any on-disk end-of-game snapshots
 (`/var/lib/rc-snapshots`, `/home/rc/archive-keep/<iid>/`), and runs
-`RC.Release.import_archive/3` in a separate `rc eval` VM. Re-running
-replaces the archive of that instance.
+`RC.Release.import_archive/3` in a separate `rc eval` VM. That step holds
+the deploy lock (`/tmp/rc-deploy.lock`) for its few seconds, because a
+deploy replaces the release tree the VM runs from. Re-running replaces
+the archive of that instance.
 
 New imports are **unpublished**. Admins see them marked "Draft" and can
 publish from the match page, or with:
@@ -71,12 +99,13 @@ exempt. The limiter state is per node and resets on restart.
 
 ## Gotchas
 
-- **Keep the victory-time snapshot.** Autosaves keep running through the
-  post-victory grace period, and only the newest 10 stay on disk. The
-  snapshot closest to the victory is therefore pruned within about 2.5h. Copy
-  it to `/home/rc/archive-keep/<iid>/` right after the match ends. If it is
-  gone, the importer uses the earliest post-victory snapshot and the page shows
-  a notice.
+- **The victory-time snapshot.** `RC.Archive.Keep` saves it automatically
+  (see above). For a match that finished before that existed, or if the
+  keep failed (check the app log for `[archive] victory snapshot`), copy
+  the newest pre-victory autosave from `/var/lib/rc-snapshots` to
+  `/home/rc/archive-keep/<iid>/` within about 2.5 hours of the victory. If
+  none is kept, the importer uses the earliest post-victory snapshot and
+  the page shows a notice.
 - Box events can be deleted by players (`delete_read`). In practice the
   attacker-side counts matched the `*_started` rows almost exactly on i121.
 - Income metrics are stored per ut. The UI multiplies by

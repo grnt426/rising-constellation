@@ -1,0 +1,29 @@
+[Unit]
+Description=Build draft Legacy archives for ended official matches
+Documentation=file:/usr/local/bin/rc-archive-auto
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+# Email the operator (contact@tetrarchyfalls.com) when an import fails.
+# See deploy/bin/rc-alert-mail.
+OnFailure=rc-alert@%n.service
+
+[Service]
+Type=oneshot
+User=rc
+Group=rc
+
+# RC_BACKUP_BUCKET for rc-archive-import's S3 scan, and the optional mail
+# overrides for the draft-ready notice. Deliberately NOT /etc/rc/env: the
+# app's dead AWS keys would shadow the instance role.
+EnvironmentFile=-/etc/rc/backup.env
+EnvironmentFile=-/etc/rc/alert.env
+
+ExecStart=/usr/local/bin/rc-archive-auto
+
+# An import streams a month of nightly tarballs (a few minutes) and
+# decodes snapshots in a second VM; keep it behind the game.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=1h

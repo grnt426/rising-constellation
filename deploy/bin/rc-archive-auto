@@ -1,0 +1,109 @@
+#!/bin/bash
+#
+# rc-archive-auto — build the Legacy archive of every official match that
+# has ended, as an unpublished draft, and mail the operator to review it.
+#
+# Run hourly by rc-archive-auto.timer as `rc`. A match qualifies when it is
+# official Legacy (discord_ready, not bot-only, slow speed: the same test
+# as RC.Archive.Keep), has a victory row, has reached state 'ended' (the
+# post-victory grace period is over) and has no archive_matches row yet.
+# Each one goes through rc-archive-import, which adds the nightly S3
+# snapshots to the pre-victory autosave RC.Archive.Keep saved at the
+# victory in <keep dir>/<instance_id>/.
+#
+# A failed import writes <keep dir>/<instance_id>/IMPORT_FAILED (with the
+# log tail), so later runs skip that match instead of retrying and mailing
+# every hour. The run exits non-zero and OnFailure=rc-alert@%n.service
+# mails the log. To retry, delete the marker (or run rc-archive-import
+# <instance_id> by hand).
+#
+# Configuration (environment):
+#   RC_ENV_FILE          app env file: DATABASE_URL, RC_DOMAIN
+#                        (default /etc/rc/env)
+#   RC_ARCHIVE_KEEP_DIR  default /home/rc/archive-keep
+#   RC_ARCHIVE_IMPORT    default /usr/local/bin/rc-archive-import
+#   RC_ALERT_MAIL        default /usr/local/bin/rc-alert-mail
+#   RC_ARCHIVE_LOG_DIR   per-match import logs (default /home/rc)
+
+set -euo pipefail
+
+ENV_FILE="${RC_ENV_FILE:-/etc/rc/env}"
+KEEP_DIR="${RC_ARCHIVE_KEEP_DIR:-/home/rc/archive-keep}"
+IMPORT="${RC_ARCHIVE_IMPORT:-/usr/local/bin/rc-archive-import}"
+MAIL="${RC_ALERT_MAIL:-/usr/local/bin/rc-alert-mail}"
+LOG_DIR="${RC_ARCHIVE_LOG_DIR:-/home/rc}"
+
+log() { echo "rc-archive-auto: $*"; }
+die() { echo "rc-archive-auto: ERROR: $*" >&2; exit 1; }
+
+[[ -r "$ENV_FILE" ]] || die "cannot read $ENV_FILE"
+
+# Single values only, in subshells: the app's AWS keys must not leak into
+# this environment (they would shadow the instance role rc-archive-import
+# and rc-alert-mail rely on).
+DATABASE_URL=$(set -a; . "$ENV_FILE" >/dev/null 2>&1; printf '%s' "${DATABASE_URL:-}")
+DOMAIN=$(set -a; . "$ENV_FILE" >/dev/null 2>&1; printf '%s' "${RC_DOMAIN:-}")
+[[ -n "$DATABASE_URL" ]] || die "DATABASE_URL not found in $ENV_FILE"
+DATABASE_URL="${DATABASE_URL/#ecto:\/\//postgresql://}"
+DOMAIN="${DOMAIN:-tetrarchyfalls.com}"
+
+q() { psql -X -A -t -q -v ON_ERROR_STOP=1 "$DATABASE_URL" -c "$1"; }
+
+PENDING=$(q "
+  select i.id
+  from instances i
+  join victories v on v.instance_id = i.id
+  left join archive_matches a on a.instance_id = i.id
+  where i.discord_ready and not i.is_bot_only and i.state = 'ended'
+    and coalesce(i.game_data->>'speed', i.game_metadata->>'speed', 'slow') = 'slow'
+    and a.id is null
+  order by i.id")
+
+if [[ -z "$PENDING" ]]; then
+  log "no ended official match is waiting for an archive"
+  exit 0
+fi
+
+FAILED=()
+for IID in $PENDING; do
+  MARKER="$KEEP_DIR/$IID/IMPORT_FAILED"
+  if [[ -e "$MARKER" ]]; then
+    log "instance $IID: skipped, $MARKER exists (delete it to retry)"
+    continue
+  fi
+
+  NAME=$(q "select name from instances where id = $IID")
+  LOG_FILE="$LOG_DIR/archive-import-$IID.log"
+  log "instance $IID ($NAME): importing (log $LOG_FILE)"
+
+  if ! "$IMPORT" "$IID" 2>&1 | tee "$LOG_FILE"; then
+    mkdir -p "$KEEP_DIR/$IID"
+    { echo "rc-archive-import $IID failed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"; tail -n 50 "$LOG_FILE"; } > "$MARKER"
+    log "instance $IID: import FAILED; wrote $MARKER (delete it to retry)"
+    FAILED+=("$IID")
+    continue
+  fi
+
+  MATCH=$(q "select id from archive_matches where instance_id = $IID")
+  SUMMARY=$(grep -E '^\[archive\] (instance|archived) ' "$LOG_FILE" || true)
+  if grep -q '^\[archive\] .*(post-victory)' "$LOG_FILE"; then
+    SUMMARY="$SUMMARY
+Note: the last day uses a post-victory snapshot (no pre-victory one was found)."
+  fi
+
+  "$MAIL" --notice "Archive draft ready: $NAME" <<EOF || log "WARNING: the draft-ready mail for instance $IID failed"
+$NAME (instance $IID) has ended. Its Legacy archive was built as an
+unpublished draft: match $MATCH.
+
+Review it and publish it from the match page:
+  https://$DOMAIN/portal/play/slow/archive/$MATCH
+
+Import summary:
+$SUMMARY
+
+Full log on the host: $LOG_FILE
+EOF
+  log "instance $IID: archived as draft match $MATCH"
+done
+
+[[ ${#FAILED[@]} -eq 0 ]] || die "import failed for instance(s) ${FAILED[*]}"

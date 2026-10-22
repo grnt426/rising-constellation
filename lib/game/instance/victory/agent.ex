@@ -183,6 +183,11 @@ defmodule Instance.Victory.Agent do
           RC.Instances.record_victory(export.ranking, export.victory_type)
           RC.Rankings.update_rankings(export.ranking)
 
+          # Official Legacy only: save the last pre-victory autosave for
+          # the archive before grace-period autosaves prune it. Async and
+          # never raises.
+          RC.Archive.Keep.keep_async(state.instance_id)
+
           # Discord: announce the victor on the community server and in
           # the Legacy #news channel. Best-effort cast; the relay gates
           # on discord_ready so unpromoted games never post. The full

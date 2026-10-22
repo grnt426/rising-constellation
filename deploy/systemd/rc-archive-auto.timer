@@ -1,0 +1,12 @@
+[Unit]
+Description=Hourly check for ended official Legacy matches to archive
+
+[Timer]
+# A match ends ~10 h after its victory (the grace period); an hourly check
+# gets the draft out the same day. Most runs are one SQL query.
+OnCalendar=*-*-* *:23:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
