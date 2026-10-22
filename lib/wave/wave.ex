@@ -88,14 +88,41 @@ defmodule Wave do
       # --- recruitment cycle -------------------------------------------
       # How often the Rebellion buys and deploys a colonising Navarch.
       "hire_interval_ut" => 120.0,
-      # Fallback rank when the schedule below opens nothing. :common is one star.
+      # Fallback rank when the mix below has nothing for a kind of hire.
       "hire_rank" => "common",
-      # Match day each market rank becomes buyable, for every role. The
-      # Rebellion's resource floors mean price is never a brake, so without
-      # this it would field three-star agents on day one; the schedule is what
-      # makes its early agents green and its late ones dangerous. Ranks are
-      # `Data.Game.CharacterRank`: common (1★), remarkable (2★), exceptional (3★).
-      "rank_unlock_days" => %{"common" => 0, "remarkable" => 5, "exceptional" => 8},
+      # Market ranks by days elapsed, per kind of hire: fleet Navarchs,
+      # Siderians and the Erased. Colonisers always take the cheapest open
+      # Navarch rank. Ranks are `Data.Game.CharacterRank`: common (1★, level
+      # 1-2), remarkable (2★, level 5-8), exceptional (3★, level 10-13). The
+      # Rebellion's floors still cover a hire at any rank, so this, not price,
+      # is what keeps its agents at the humans' levels. It also keeps hiring
+      # cheap now that construction is paid from the same credit: a two-star
+      # agent lists at about 10 times a one-star one and a three-star at 18
+      # times, and every refill of a three-star slot adds a quarter of its
+      # first price. Each kind has steps
+      # `[from_day, %{rank => weight}]`; the latest step whose day has arrived
+      # applies, and a rank without weight cannot be bought. Hires follow the
+      # weights through a running count (Wave.Warlord.order_ranks/2): the next
+      # one tries the rank furthest below its share first, then the nearest
+      # others. The weights are the humans' hires in official match i185
+      # (docs/wave-defense.md, "Hiring at the humans' ranks").
+      "hire_rank_mix" => %{
+        "navarch" => [
+          [0, %{"common" => 95, "remarkable" => 5}],
+          [8, %{"common" => 75, "remarkable" => 25}],
+          [17, %{"common" => 60, "remarkable" => 33, "exceptional" => 7}]
+        ],
+        "siderian" => [
+          [0, %{"common" => 100}],
+          [5, %{"common" => 40, "remarkable" => 60}],
+          [14, %{"common" => 40, "remarkable" => 35, "exceptional" => 25}]
+        ],
+        "erased" => [
+          [0, %{"common" => 80, "remarkable" => 20}],
+          [8, %{"common" => 40, "remarkable" => 60}],
+          [11, %{"common" => 45, "remarkable" => 40, "exceptional" => 15}]
+        ]
+      },
       # Army tile the free colony ship is dropped into.
       "colony_ship_tile" => 1,
       # Deployed colonisers never exceed the Navarch ceiling (below). An
@@ -568,6 +595,23 @@ defmodule Wave do
       # the Rebellion plays every role, so what several hold between them is
       # what a generalist would hold by now. 0 switches it off.
       "patent_follow_humans" => 2,
+      # Building patents bought only this way, never by the clock or in the
+      # starter set: Urbanization, Controlled Environment and Pressurized
+      # Environment IV and V, which raise every infrastructure to level 4 and
+      # 5. They wait until this share of the human players holds them,
+      # rounded up, and never for fewer than `patent_follow_humans` or more
+      # than the humans in the game. In i185 a third of the humans held the
+      # V patents on days 15.3 to 16.7, where the clock bought them on days
+      # 9.2 to 11.2.
+      "patent_follow_only" => [
+        "infra_open_4",
+        "infra_open_5",
+        "infra_dome_4",
+        "infra_dome_5",
+        "infra_orbital_4",
+        "infra_orbital_5"
+      ],
+      "patent_follow_only_share" => 1 / 3,
       # The clock buys a building patent this often: about one a day, which
       # with the starter set and what the humans hold keeps the Rebellion on
       # the players' curve (a median of 16 to 18 patents after five days and

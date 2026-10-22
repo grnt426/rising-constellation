@@ -11,21 +11,25 @@ defmodule Wave.Research do
   (`Instance.Player.Player.purchase_patent/2`), so every plan here lists
   ancestors first.
 
-    * **Starter set** (`starter_patents/2`): the tree's roots, then for each
+    * **Starter set** (`starter_patents/3`): the tree's roots, then for each
       building branch the first few patents a player can afford — the cheapest
       one on offer, again and again. Given once, at the first research pass.
     * **Ship patents** (`ship_patents/2`): whatever the humans hold in the
       ship branch. The Rebellion copies them rather than choosing.
-    * **Building patents the humans hold** (`followed_patents/3`): a building
+    * **Building patents the humans hold** (`follow_plan/4`): a building
       patent held by enough humans is bought too. Each human specialises and
       the Rebellion plays every role at once, so what several of them hold
       between them is what a generalist would hold by now.
-    * **Building patents on the clock** (`building_pick/3`): about one a
+    * **Building patents on the clock** (`building_pick/4`): about one a
       day, the cheapest on offer, as long as it belongs to the stage the game
       has reached (`stage/2`, `cost_cap/2`): cheap patents early, the 8,000
       to 40,000 ones from mid-game on. The late game's patents (the Terminus
       and the Business Arch, the megastructures) are never bought on the
       clock: they come when the humans hold them.
+    * **Follow-only patents**: the infrastructure IV and V patents, which
+      raise every system's infrastructure to level 4 and 5, are left out of
+      the starter set and the clock. They come only from following the
+      humans, and need more of them (`follow_only_holders/3`).
 
   Rebel systems only build what these patents unlock, level by level
   (`SystemAI.Helper`), so the Rebellion's economy moves through the stages of
@@ -98,8 +102,8 @@ defmodule Wave.Research do
   on offer. A fixed list for a given catalog — what is already owned plays no
   part — so a half-finished grant resumes on the same patents.
   """
-  def starter_patents(patents, quotas) when is_map(quotas) do
-    indexed = Enum.with_index(patents)
+  def starter_patents(patents, quotas, reserved \\ []) when is_map(quotas) do
+    indexed = patents |> Enum.reject(&(&1.key in reserved)) |> Enum.with_index()
     roots = for p <- patents, p.ancestor == nil, do: p.key
 
     patents
@@ -142,6 +146,43 @@ defmodule Wave.Research do
   end
 
   @doc """
+  What following the humans buys, ancestors first and without what is
+  `owned`: the building patents at least `opts[:holders]` rivals hold, except
+  the `opts[:reserved]` ones, which need `opts[:reserved_holders]`. A patent
+  whose way down the tree passes through a reserved patent not yet owned
+  waits until that one is followed in its own right, so it can never pull the
+  reserved one in early.
+  """
+  def follow_plan(patents, rivals, owned, opts) do
+    reserved = MapSet.new(Keyword.get(opts, :reserved, []))
+    holders = Keyword.fetch!(opts, :holders)
+    reserved_holders = Keyword.get(opts, :reserved_holders, holders)
+
+    regular = patents |> followed_patents(rivals, holders) |> Enum.reject(&MapSet.member?(reserved, &1))
+    gated = patents |> followed_patents(rivals, reserved_holders) |> Enum.filter(&MapSet.member?(reserved, &1))
+    allowed = MapSet.union(MapSet.new(gated), MapSet.new(owned))
+
+    wanted =
+      Enum.filter(regular ++ gated, fn key ->
+        patents |> path(key) |> Enum.all?(&(not MapSet.member?(reserved, &1) or MapSet.member?(allowed, &1)))
+      end)
+
+    purchase_plan(patents, wanted, owned)
+  end
+
+  @doc """
+  How many rivals must hold a follow-only patent before the Rebellion buys
+  it: `share` of the `humans` in the game, rounded up, but never fewer than
+  `floor` (the holders any other building patent needs) and never more than
+  there are humans, so a game with one human follows that one.
+  """
+  def follow_only_holders(humans, share, floor) when is_integer(humans) and is_integer(floor) do
+    wanted = if is_number(share) and share > 0, do: ceil(share * humans), else: floor
+
+    wanted |> max(floor) |> min(humans) |> max(1)
+  end
+
+  @doc """
   The stage of the game after `day` days: `:early` until the first of
   `stage_days` (the day mid-game begins), `:mid` until the second, then
   `:late`. Days are counted from 0, as elapsed game time.
@@ -166,11 +207,11 @@ defmodule Wave.Research do
 
   @doc """
   The building patent the clock buys next: the cheapest one on offer that
-  costs no more than `cap`, the first in the catalog among equals. nil when
-  nothing on offer is that cheap.
+  costs no more than `cap`, the first in the catalog among equals, never one
+  of `reserved`. nil when nothing on offer is that cheap.
   """
-  def building_pick(patents, owned, cap) do
-    on_offer = MapSet.new(building_pool(patents, owned))
+  def building_pick(patents, owned, cap, reserved \\ []) do
+    on_offer = MapSet.new(building_pool(patents, owned, reserved))
 
     patents
     |> Enum.with_index()
@@ -182,11 +223,12 @@ defmodule Wave.Research do
     end
   end
 
-  @doc "Building patents on offer: outside the ship branch, unowned, ancestor owned."
-  def building_pool(patents, owned) do
+  @doc "Building patents on offer: outside the ship branch, unowned, ancestor owned, not `reserved`."
+  def building_pool(patents, owned, reserved \\ []) do
     for p <- patents,
         p.class not in [@ship_class, @root_class],
         p.key not in owned,
+        p.key not in reserved,
         p.ancestor == nil or p.ancestor in owned,
         do: p.key
   end

@@ -399,14 +399,19 @@ defmodule Wave.WarlordTest do
       assert Warlord.capture_strength([0, 1, 1, 1, 1, 1], speaker.specializations) == 0
     end
 
-    test "without a score it buys the cheapest of the unlocked ranks" do
+    test "without a score it buys the cheapest of the first rank that has anyone" do
       by_rank = %{
         common: [market_character(1, credit: 900), market_character(2, credit: 500)],
         remarkable: [market_character(3, credit: 100)]
       }
 
-      assert {:ok, %{id: 2}} = Warlord.pick_candidate(by_rank, [:common])
-      assert {:ok, %{id: 3}} = Warlord.pick_candidate(by_rank, [:common, :remarkable])
+      assert {:ok, %{id: 2}, :common} = Warlord.pick_candidate(by_rank, [:common])
+      assert {:ok, %{id: 2}, :common} = Warlord.pick_candidate(by_rank, [:common, :remarkable])
+      assert {:ok, %{id: 3}, :remarkable} = Warlord.pick_candidate(by_rank, [:remarkable, :common])
+
+      assert {:ok, %{id: 3}, :remarkable} =
+               Warlord.pick_candidate(%{remarkable: by_rank.remarkable}, [:common, :remarkable])
+
       assert Warlord.pick_candidate(%{}, [:common]) == {:error, :no_candidate}
     end
 
@@ -423,9 +428,38 @@ defmodule Wave.WarlordTest do
         remarkable: [market_character(4, skills: [3, 0, 0, 0, 0, 0])]
       }
 
-      assert {:ok, %{id: 3}} = Warlord.pick_candidate(by_rank, [:common], strength)
-      assert {:ok, %{id: 4}} = Warlord.pick_candidate(by_rank, [:common, :remarkable], strength)
+      assert {:ok, %{id: 3}, :common} = Warlord.pick_candidate(by_rank, [:common], strength)
+      # A stronger agent at a rank further down the order does not jump the queue.
+      assert {:ok, %{id: 3}, :common} = Warlord.pick_candidate(by_rank, [:common, :remarkable], strength)
+      assert {:ok, %{id: 4}, :remarkable} = Warlord.pick_candidate(by_rank, [:remarkable, :common], strength)
       assert Warlord.pick_candidate(%{common: [scholar]}, [:common], strength) == {:error, :no_candidate}
+      # A rank with nobody able falls through to the next.
+      assert {:ok, %{id: 4}, :remarkable} =
+               Warlord.pick_candidate(
+                 %{common: [scholar], remarkable: by_rank.remarkable},
+                 [:common, :remarkable],
+                 strength
+               )
+    end
+
+    test "a hire with several roles tries every role at a rank before the next rank" do
+      capture = &Enum.at(&1.skills, 0)
+      destab = &Enum.at(&1.skills, 1)
+      agitator = market_character(1, skills: [0, 1, 0, 0, 0, 0])
+      proselyte = market_character(2, skills: [4, 0, 0, 0, 0, 0])
+      by_rank = %{common: [agitator], remarkable: [proselyte]}
+      roles = [capture: capture, destab: destab]
+
+      # Capture is the more urgent role, but the common rank keeps the hire:
+      # its agitator is bought for the next role rather than a remarkable proselyte.
+      assert {:ok, %{id: 1}, :common, :destab} = Warlord.pick_for_roles(by_rank, [:common, :remarkable], roles)
+      assert {:ok, %{id: 2}, :remarkable, :capture} = Warlord.pick_for_roles(by_rank, [:remarkable, :common], roles)
+
+      assert {:ok, %{id: 2}, :remarkable, :capture} =
+               Warlord.pick_for_roles(by_rank, [:common, :remarkable], capture: capture)
+
+      assert Warlord.pick_for_roles(by_rank, [:common], capture: capture) == {:error, :no_candidate}
+      assert Warlord.pick_for_roles(by_rank, [:common, :remarkable], []) == {:error, :no_candidate}
     end
 
     test "a market with nobody capable defers the next look instead of retrying every pass" do
@@ -559,6 +593,18 @@ defmodule Wave.WarlordTest do
       assert restored.erased_recon_at == nil
       assert Warlord.erased_hire_due?(restored)
       assert Warlord.recon_due?(restored, 3.0)
+    end
+
+    test "a snapshot taken before the rank mix restores with no hires counted" do
+      old = Map.drop(warlord(), [:hire_ranks])
+
+      restored = Warlord.upgrade(old)
+
+      assert restored.hire_ranks == %{}
+      assert Warlord.rank_order(Map.drop(warlord(), [:hire_ranks]), :erased) == [:common, :remarkable]
+
+      assert restored |> Warlord.record_hire_rank(:erased, :common) |> Map.fetch!(:hire_ranks) ==
+               %{erased: %{from: 0, counts: %{common: 1}}}
     end
 
     test "a roster entry from before telemetry is observed and scored without crashing" do
@@ -873,49 +919,111 @@ defmodule Wave.WarlordTest do
     end
   end
 
-  describe "market rank schedule" do
-    test "day one opens one star only, and the rest arrive on their days" do
+  describe "market rank mix" do
+    test "each kind of hire has its own steps, by days elapsed" do
       state = warlord()
-      assert Warlord.unlocked_ranks(state) == [:common]
 
-      # ut_per_day is 480 and match_day is 1-based, so day 5 begins at 480 * 4.
-      assert state |> Warlord.advance(480.0 * 3) |> Warlord.unlocked_ranks() == [:common]
+      assert Warlord.rank_mix(state, :navarch) == {0, %{common: 95, remarkable: 5}}
+      assert Warlord.rank_mix(state, :siderian) == {0, %{common: 100}}
+      assert Warlord.rank_mix(state, :erased) == {0, %{common: 80, remarkable: 20}}
 
-      day5 = state |> Warlord.advance(480.0 * 4) |> Warlord.unlocked_ranks()
-      assert :remarkable in day5
-      refute :exceptional in day5
+      day = fn days -> Warlord.advance(state, 480.0 * days) end
 
-      assert :exceptional in (state |> Warlord.advance(480.0 * 7) |> Warlord.unlocked_ranks())
+      assert Warlord.rank_mix(day.(4.9), :siderian) == {0, %{common: 100}}
+      assert Warlord.rank_mix(day.(5), :siderian) == {5, %{common: 40, remarkable: 60}}
+      assert Warlord.rank_mix(day.(10.9), :erased) == {8, %{common: 40, remarkable: 60}}
+      assert {11, %{exceptional: 15}} = Warlord.rank_mix(day.(11), :erased)
+      assert {14, %{exceptional: 25}} = Warlord.rank_mix(day.(14), :siderian)
+      assert {8, mix} = Warlord.rank_mix(day.(16.9), :navarch)
+      refute Map.has_key?(mix, :exceptional)
+      assert {17, %{exceptional: 7}} = Warlord.rank_mix(day.(17), :navarch)
     end
 
-    test "nothing outside the unlocked ranks is ever bought" do
-      by_rank = %{
-        common: [market_character(1, credit: 100)],
-        exceptional: [market_character(2, credit: 5)]
-      }
+    test "only the ranks with a weight can be bought; colonisers take the cheapest of them" do
+      state = warlord()
 
-      assert {:ok, %{id: 1}} = Warlord.pick_candidate(by_rank, [:common])
-      assert {:ok, %{id: 2}} = Warlord.pick_candidate(by_rank, [:common, :exceptional])
-      assert {:error, :no_candidate} = Warlord.pick_candidate(by_rank, [:remarkable])
+      assert Warlord.open_ranks(state, :siderian) == [:common]
+      assert Warlord.open_ranks(state, :navarch) == [:common, :remarkable]
+      assert Warlord.open_ranks(Warlord.advance(state, 480.0 * 20), :erased) == [:common, :remarkable, :exceptional]
+      assert Warlord.rank_order(state, :siderian) == [:common]
     end
 
-    test "within the unlocked ranks the best score wins, ties going to the cheaper" do
-      by_rank = %{
-        common: [market_character(1, skills: [0, 1, 0, 0, 0, 0], credit: 10)],
-        remarkable: [
-          market_character(2, skills: [0, 3, 0, 0, 0, 0], credit: 900),
-          market_character(3, skills: [0, 3, 0, 0, 0, 0], credit: 400)
-        ]
-      }
+    test "the rank owed the most comes first, then the nearest others, cheaper first" do
+      two = %{common: 40, remarkable: 60}
+      assert Warlord.order_ranks(two, %{}) == [:remarkable, :common]
+      assert Warlord.order_ranks(two, %{remarkable: 1}) == [:common, :remarkable]
+      assert Warlord.order_ranks(two, %{common: 1, remarkable: 1}) == [:remarkable, :common]
 
-      score = fn c -> Enum.at(c.skills, 1) end
-      assert {:ok, %{id: 3}} = Warlord.pick_candidate(by_rank, [:common, :remarkable], score)
-      assert {:ok, %{id: 1}} = Warlord.pick_candidate(by_rank, [:common], score)
+      # equal shares: the cheaper rank first
+      assert Warlord.order_ranks(%{common: 50, remarkable: 50}, %{}) == [:common, :remarkable]
+
+      three = %{common: 40, remarkable: 35, exceptional: 25}
+      assert Warlord.order_ranks(three, %{}) == [:common, :remarkable, :exceptional]
+      # common and exceptional are both one away from remarkable: common first
+      assert Warlord.order_ranks(three, %{common: 1}) == [:remarkable, :common, :exceptional]
+      assert Warlord.order_ranks(three, %{common: 1, remarkable: 1}) == [:exceptional, :remarkable, :common]
+
+      # a rank without weight is never offered, whatever was bought before
+      assert Warlord.order_ranks(%{common: 100}, %{remarkable: 3}) == [:common]
+      assert Warlord.order_ranks(%{}, %{}) == []
     end
 
-    test "a zero score is never bought, however cheap" do
-      by_rank = %{common: [market_character(1, credit: 0)]}
-      assert {:error, :no_candidate} = Warlord.pick_candidate(by_rank, [:common], fn _ -> 0 end)
+    test "hires come out at the mix even when the cheap rank often has nobody able" do
+      # Siderians from day 5: 40% common. The common rank has someone with the
+      # trade on only every other look, so a hire that drew its rank would
+      # come out 20% common; the ones that fall through to remarkable count
+      # for it, and common comes first until it has caught up.
+      state = Warlord.advance(warlord(), 480.0 * 6)
+
+      {state, _} =
+        Enum.reduce(1..150, {state, 0}, fn _, {acc, look} ->
+          ranks = Warlord.rank_order(acc, :siderian)
+          available = if rem(look, 2) == 0, do: ranks, else: List.delete(ranks, :common)
+          {Warlord.record_hire_rank(acc, :siderian, hd(available)), look + 1}
+        end)
+
+      %{siderian: %{hired: hired}} = Warlord.summary(state).hire_ranks
+      assert hired.common + hired.remarkable == 150
+      assert hired.common in 59..61
+    end
+
+    test "a new step of the mix starts its count again" do
+      state =
+        warlord()
+        |> Warlord.advance(480.0 * 6)
+        |> Warlord.record_hire_rank(:siderian, :remarkable)
+        |> Warlord.record_hire_rank(:siderian, :remarkable)
+
+      assert Warlord.rank_order(state, :siderian) == [:common, :remarkable]
+
+      later = Warlord.advance(state, 480.0 * 8)
+      assert Warlord.rank_order(later, :siderian) == [:common, :remarkable, :exceptional]
+      assert %{siderian: %{from_day: 14, hired: %{}}} = Warlord.summary(later).hire_ranks
+    end
+
+    test "an instance's own mix replaces the default, and a broken one falls back to hire_rank" do
+      iid = System.unique_integer([:positive])
+
+      Test.FleetScenario.load_game_data(iid,
+        speed: :slow,
+        mode: :prod,
+        wave: true,
+        wave_config: %{
+          "bot_faction" => "rebellion",
+          "hire_rank" => "remarkable",
+          "hire_rank_mix" => %{
+            "erased" => [[0, %{"exceptional" => 1, "common" => 0, "legendary" => 5}]],
+            "siderian" => [[0, %{"common" => 0}], "nonsense"]
+          }
+        }
+      )
+
+      state = Warlord.new(iid, :rebellion)
+
+      assert Warlord.rank_mix(state, :erased) == {0, %{exceptional: 1}}
+      assert Warlord.rank_mix(state, :siderian) == {0, %{remarkable: 1}}
+      # a kind the instance's mix leaves out has no steps either
+      assert Warlord.rank_mix(state, :navarch) == {0, %{remarkable: 1}}
     end
   end
 

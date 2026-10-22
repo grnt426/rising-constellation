@@ -65,6 +65,11 @@ defmodule Wave.Warlord do
   use TypedStruct
 
   @acting [:make_dominion, :encourage_hate, :conversion]
+
+  # Market ranks, cheapest first (`Data.Game.CharacterRank`), and the
+  # `hire_rank_mix` entry of each kind of hire that is given a rank.
+  @ranks [:common, :remarkable, :exceptional]
+  @rank_kinds %{navarch: "navarch", siderian: "siderian", erased: "erased"}
   @erased_acting [:infiltration, :sabotage, :assassination]
 
   @ceiling_curves %{
@@ -197,6 +202,10 @@ defmodule Wave.Warlord do
     # set and the game time it was set at. Read with Map.get: see
     # credit_target/1.
     field(:construction, map(), default: %{})
+
+    # %{kind => %{from: day, counts: %{rank => hires}}}: what each kind of hire
+    # bought at each market rank since its step of `hire_rank_mix` began.
+    field(:hire_ranks, map(), default: %{})
   end
 
   @added_fields %{
@@ -233,7 +242,8 @@ defmodule Wave.Warlord do
     capital_since: nil,
     pressure: %{},
     step_failures: %{},
-    construction: %{}
+    construction: %{},
+    hire_ranks: %{}
   }
 
   def new(instance_id, bot_faction) do
@@ -963,69 +973,172 @@ defmodule Wave.Warlord do
   def capture_strength(_skills, _specializations), do: 0
 
   @doc """
-  Pick a market character from `by_rank` (`%{rank => [character]}`), limited to
-  the `ranks` the match day has unlocked. `score` ranks candidates, and a score
-  of zero or less is never bought; the best score wins, ties going to the lower
-  credit cost and then the lower total cost. With the default score every
-  candidate is equal, which is cheapest-first.
+  Pick a market character from `by_rank` (`%{rank => [character]}`). `ranks`
+  is an order of preference: the first rank holding anyone worth buying wins,
+  and nothing outside `ranks` is ever bought. Within that rank `score` ranks
+  candidates and a score of zero or less is never bought; the best score wins,
+  ties going to the lower credit cost and then the lower total cost. With the
+  default score every candidate is equal, which is cheapest-first.
 
-  Nothing outside `ranks` is ever bought. The Rebellion can afford anything, so
-  without that floor it would field three-star agents on day one — see
-  `unlocked_ranks/1`.
+  Returns the character and the rank it was bought from. The Rebellion's
+  resource floors still cover a hire at any rank, so price alone would not
+  keep its agents at the humans' levels; the ranks do: see `rank_order/2`.
   """
   def pick_candidate(by_rank, ranks, score \\ fn _character -> 1 end) when is_map(by_rank) do
-    pool =
-      ranks
-      |> List.wrap()
-      |> Enum.flat_map(&Map.get(by_rank, &1, []))
-      |> Enum.map(&{score.(&1), &1})
-      |> Enum.filter(fn {s, _character} -> s > 0 end)
-
-    case pool do
-      [] -> {:error, :no_candidate}
-      _ -> {:ok, pool |> Enum.min_by(fn {s, c} -> {-s, Map.get(c, :credit_cost) || 0, total_cost(c)} end) |> elem(1)}
-    end
+    ranks
+    |> List.wrap()
+    |> Enum.find_value({:error, :no_candidate}, fn rank ->
+      case best_candidate(Map.get(by_rank, rank, []), score) do
+        nil -> nil
+        character -> {:ok, character, rank}
+      end
+    end)
   end
 
   @doc """
-  The market ranks the Rebellion may buy today: every rank in
-  `rank_unlock_days` whose day has arrived, falling back to `hire_rank` when
-  the schedule is missing or has not opened anything yet.
-
-  The Rebellion's resource floors mean price is never a brake, so the schedule
-  is what keeps early agents green: one star from the start, two stars from day
-  5, three from day 8.
+  `pick_candidate/3` for a hire that may take any of several roles, each with
+  its own score, given in order of need (`[{role, score}]`). The rank comes
+  first: every role is tried at one rank before the next rank is, so the rank
+  the mix asked for is given up only when nobody there fits any role. Returns
+  the character, its rank and the role it was bought for.
   """
-  def unlocked_ranks(%__MODULE__{} = state) do
-    day = match_day(state)
-    floor = rank_atom(Wave.Config.knob(state.instance_id, "hire_rank", "common"))
+  def pick_for_roles(by_rank, ranks, roles) when is_map(by_rank) and is_list(roles) do
+    ranks
+    |> List.wrap()
+    |> Enum.find_value({:error, :no_candidate}, fn rank ->
+      Enum.find_value(roles, fn {role, score} ->
+        case best_candidate(Map.get(by_rank, rank, []), score) do
+          nil -> nil
+          character -> {:ok, character, rank, role}
+        end
+      end)
+    end)
+  end
 
-    unlocked =
-      state.instance_id
-      |> Wave.Config.knob("rank_unlock_days", %{})
-      |> case do
-        schedule when is_map(schedule) -> schedule
-        _ -> %{}
-      end
-      |> Enum.filter(fn {_rank, unlock_day} -> is_number(unlock_day) and day >= unlock_day end)
-      |> Enum.map(fn {rank, _unlock_day} -> rank_atom(rank) end)
-      |> Enum.reject(&is_nil/1)
-
-    case unlocked do
-      [] -> [floor] |> Enum.reject(&is_nil/1)
-      ranks -> Enum.uniq(ranks)
+  defp best_candidate(characters, score) do
+    characters
+    |> Enum.map(&{score.(&1), &1})
+    |> Enum.filter(fn {s, _character} -> s > 0 end)
+    |> Enum.min_by(fn {s, c} -> {-s, Map.get(c, :credit_cost) || 0, total_cost(c)} end, fn -> nil end)
+    |> case do
+      nil -> nil
+      {_s, character} -> character
     end
   end
 
-  defp rank_atom(rank) when is_atom(rank) and not is_nil(rank), do: rank
+  # --- market ranks ---------------------------------------------------------------
 
-  defp rank_atom(rank) when is_binary(rank) do
-    String.to_existing_atom(rank)
-  rescue
-    ArgumentError -> nil
+  @doc """
+  Today's rank mix for fleet Navarchs, Siderians or the Erased (`kind` is
+  `:navarch`, `:siderian` or `:erased`): `{from_day, %{rank => weight}}`, the
+  latest step of `hire_rank_mix` whose day (days elapsed) has arrived. Only
+  ranks with a weight above zero are in it, and nothing else can be bought
+  that day. Without a usable step the one rank is `hire_rank`.
+  """
+  def rank_mix(%__MODULE__{} = state, kind) when is_map_key(@rank_kinds, kind) do
+    day = elapsed_days(state)
+
+    state.instance_id
+    |> Wave.Config.knob("hire_rank_mix", %{})
+    |> case do
+      mix when is_map(mix) -> Map.get(mix, Map.fetch!(@rank_kinds, kind))
+      _ -> nil
+    end
+    |> List.wrap()
+    |> Enum.flat_map(&mix_step/1)
+    |> Enum.filter(fn {from, _weights} -> day >= from end)
+    |> Enum.max_by(fn {from, _weights} -> from end, fn -> nil end)
+    |> case do
+      nil -> {0, %{(rank_key(Wave.Config.knob(state.instance_id, "hire_rank", "common")) || :common) => 1}}
+      step -> step
+    end
   end
 
-  defp rank_atom(_rank), do: nil
+  defp mix_step([from, weights]) when is_number(from) and is_map(weights) do
+    open =
+      weights
+      |> Enum.map(fn {rank, weight} -> {rank_key(rank), weight} end)
+      |> Enum.filter(fn {rank, weight} -> rank != nil and is_number(weight) and weight > 0 end)
+      |> Map.new()
+
+    if map_size(open) > 0, do: [{from, open}], else: []
+  end
+
+  defp mix_step(_step), do: []
+
+  @doc """
+  The ranks to try for the next hire of `kind`, in order. First the open rank
+  furthest below its share of the hires since today's step of the mix began,
+  then the other open ranks, nearest to it first. See `order_ranks/2`.
+  """
+  def rank_order(%__MODULE__{} = state, kind) do
+    {from, weights} = rank_mix(state, kind)
+    order_ranks(weights, rank_counts(state, kind, from))
+  end
+
+  @doc """
+  `rank_order/2` on plain data: `weights` is `%{rank => weight}` over the open
+  ranks, `counts` the hires already made at each. The first rank is the one
+  owed the most: its share of the hires so far plus the next one, less what
+  it has. Cheaper ranks win ties, and come first among the ranks the same
+  distance from the first.
+
+  The cheap ranks often have nobody with the skill a hire needs, so some hires
+  fall through to the next rank and count for it. The cheap rank then stays
+  first until it has caught up, and the hires come out at the mix rather than
+  richer than it.
+  """
+  def order_ranks(weights, counts) when is_map(weights) and is_map(counts) do
+    open = Enum.filter(@ranks, &(Map.get(weights, &1, 0) > 0))
+
+    case open do
+      [] ->
+        []
+
+      _ ->
+        total = open |> Enum.map(&Map.fetch!(weights, &1)) |> Enum.sum()
+        hires = open |> Enum.map(&Map.get(counts, &1, 0)) |> Enum.sum()
+        # Enum.max_by keeps the first of equals, and `open` runs cheapest first.
+        first = Enum.max_by(open, &(Map.fetch!(weights, &1) / total * (hires + 1) - Map.get(counts, &1, 0)))
+        at = rank_index(first)
+
+        [first | open |> List.delete(first) |> Enum.sort_by(&{abs(rank_index(&1) - at), rank_index(&1)})]
+    end
+  end
+
+  @doc "The ranks open to `kind` today, cheapest first. Colonisers buy the cheapest of these."
+  def open_ranks(%__MODULE__{} = state, kind) do
+    {_from, weights} = rank_mix(state, kind)
+    Enum.filter(@ranks, &Map.has_key?(weights, &1))
+  end
+
+  @doc "A hire of `kind` was bought at `rank`: count it toward today's step of the mix."
+  def record_hire_rank(%__MODULE__{} = state, kind, rank) when rank in @ranks do
+    {from, _weights} = rank_mix(state, kind)
+    counts = state |> rank_counts(kind, from) |> Map.update(rank, 1, &(&1 + 1))
+    Map.put(state, :hire_ranks, state |> Map.get(:hire_ranks, %{}) |> Map.put(kind, %{from: from, counts: counts}))
+  end
+
+  # The count of the current step only: a new step starts again from nothing.
+  defp rank_counts(state, kind, from) do
+    case state |> Map.get(:hire_ranks, %{}) |> Map.get(kind) do
+      %{from: ^from, counts: counts} -> counts
+      _ -> %{}
+    end
+  end
+
+  defp hire_ranks_view(state) do
+    Map.new(Map.keys(@rank_kinds), fn kind ->
+      {from, weights} = rank_mix(state, kind)
+      {kind, %{from_day: from, mix: weights, hired: rank_counts(state, kind, from), next: rank_order(state, kind)}}
+    end)
+  end
+
+  defp rank_index(rank), do: Enum.find_index(@ranks, &(&1 == rank))
+
+  defp rank_key(rank) when rank in @ranks, do: rank
+  defp rank_key(rank) when is_binary(rank), do: Enum.find(@ranks, &(Atom.to_string(&1) == rank))
+  defp rank_key(_rank), do: nil
 
   defp total_cost(character) do
     [:credit_cost, :technology_cost, :ideology_cost]
@@ -2197,6 +2310,7 @@ defmodule Wave.Warlord do
       pressure: pressure_view(state),
       research: research_view(state),
       construction: construction_view(state),
+      hire_ranks: hire_ranks_view(state),
       gauges: state.gauges,
       telemetry: telemetry_view(state.telemetry),
       perf: %{

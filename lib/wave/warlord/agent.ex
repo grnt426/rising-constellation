@@ -543,7 +543,7 @@ defmodule Wave.Warlord.Agent do
   defp hire_navarch(data, ctx) do
     tile = knob(data, "colony_ship_tile", 1)
 
-    with {:ok, %{id: id}, home_id} <- hire_agent(data, ctx, :admiral),
+    with {:ok, %{id: id}, home_id, _rank} <- hire_agent(data, ctx, :admiral, cheapest_navarch(data)),
          {:ok, _} <- grant_colony_ship(data, id, tile) do
       Logger.info("[wave] instance #{data.instance_id}: rebellion deployed Navarch #{id} at system #{home_id}")
 
@@ -563,29 +563,30 @@ defmodule Wave.Warlord.Agent do
   end
 
   # Market purchase + on-board activation at the capital, shared by all three
-  # roles. `score` ranks market candidates (Warlord.pick_candidate/3); Navarchs
-  # take the default, which is cheapest-first. Returns the bought character.
+  # roles. `choose` picks from the market by rank (Warlord.pick_candidate/3 or
+  # pick_for_roles/3) and returns `{:ok, character, pick}`, where `pick` is the
+  # rank, or for a Siderian `{rank, role}`. `deploy_at` is a system id, nil for
+  # the default home, or a function of the pick. Returns the bought character,
+  # where it went and the pick.
   #
   # The home system is resolved BEFORE the purchase, and a card that cannot be
   # activated afterwards is dismissed again. Activation is refused under siege,
   # so a Rebellion down to one besieged system would otherwise buy an agent it
   # cannot deploy every pass until the deck is full — and a full deck refuses
   # every later hire, long after the siege lifts.
-  defp hire_agent(data, ctx, type, score \\ fn _character -> 1 end, deploy_at \\ nil) do
-    ranks = Warlord.unlocked_ranks(data)
-
+  defp hire_agent(data, ctx, type, choose, deploy_at \\ nil) do
     with {:ok, _deployable} <- deployable_home(ctx.player),
          {:ok, market} <- step(:market, call(data, :character_market, :master, :get_state)),
-         {:ok, candidate} <- step(:market, Warlord.pick_candidate(market_by_rank(market, type), ranks, score)),
+         {:ok, candidate, pick} <- market_pick(choose.(market_by_rank(market, type))),
          {:ok, player} <-
            step(:hire, player_reply(call(data, :player, data.player_id, {:hire_character, candidate.id}))),
-         {:ok, home_id} <- deploy_system(player || ctx.player, deploy_at),
+         {:ok, home_id} <- deploy_system(player || ctx.player, deploy_target(deploy_at, pick)),
          {:ok, _player} <-
            step(
              :activate,
              player_reply(call(data, :player, data.player_id, {:activate_character, candidate.id, :on_board, home_id}))
            ) do
-      {:ok, candidate, home_id}
+      {:ok, candidate, home_id, pick}
     else
       {:error, :activate, _reason} = error ->
         release_card(data, type)
@@ -594,6 +595,19 @@ defmodule Wave.Warlord.Agent do
       error ->
         error
     end
+  end
+
+  defp market_pick({:ok, character, pick}), do: {:ok, character, pick}
+  defp market_pick(other), do: {:error, :market, reason_of(other)}
+
+  defp deploy_target(deploy_at, pick) when is_function(deploy_at, 1), do: deploy_at.(pick)
+  defp deploy_target(deploy_at, _pick), do: deploy_at
+
+  # Colonisers and the training Navarch: the cheapest Navarch of the ranks the
+  # day allows, which is a one-star one whenever the market has any.
+  defp cheapest_navarch(data) do
+    ranks = Warlord.open_ranks(data, :navarch)
+    fn by_rank -> Warlord.pick_candidate(by_rank, ranks) end
   end
 
   # A fleet Navarch is deployed straight into its yard when the Rebellion runs
@@ -980,9 +994,10 @@ defmodule Wave.Warlord.Agent do
   # Siderians: hiring
   # ---------------------------------------------------------------------------
 
-  # Fill the roles toward their quotas, most short first (Wave.Siderian.quotas/3).
-  # A role nobody on the market has a point in yields to the next; with nobody
-  # for any of them, look again after `siderian_retry_ut`.
+  # Fill the roles toward their quotas, most short first (Wave.Siderian.quotas/3),
+  # at the rank the mix is owed first (Warlord.rank_order/2). Every role is
+  # tried at a rank before the next rank is; with nobody for any role at any
+  # open rank, look again after `siderian_retry_ut`.
   defp maybe_hire_siderian(data, ctx, quotas) do
     order = Siderian.hire_order(Warlord.siderian_counts(data), quotas)
 
@@ -993,18 +1008,20 @@ defmodule Wave.Warlord.Agent do
     end
   end
 
-  defp hire_siderian(data, _ctx, [], _specializations, _quotas) do
-    data
-    |> Warlord.refuse(:market, :no_candidate)
-    |> Warlord.order("hire:siderian", {:error, {:market, :no_candidate}})
-    |> Warlord.defer_siderian_hire()
-  end
+  defp hire_siderian(data, ctx, order, specializations, quotas) do
+    strength = fn role -> fn character -> Siderian.strength(Map.get(character, :skills), specializations, role) end end
+    ranks = Warlord.rank_order(data, :siderian)
+    roles = Enum.map(order, &{&1, strength.(&1)})
 
-  defp hire_siderian(data, ctx, [role | rest], specializations, quotas) do
-    strength = fn character -> Siderian.strength(Map.get(character, :skills), specializations, role) end
+    choose = fn by_rank ->
+      case Warlord.pick_for_roles(by_rank, ranks, roles) do
+        {:ok, character, rank, role} -> {:ok, character, {rank, role}}
+        error -> error
+      end
+    end
 
-    case hire_agent(data, ctx, :speaker, strength, forward_base(data, ctx, role)) do
-      {:ok, candidate, home_id} ->
+    case hire_agent(data, ctx, :speaker, choose, fn {_rank, role} -> forward_base(data, ctx, role) end) do
+      {:ok, candidate, home_id, {rank, role}} ->
         Logger.info(
           "[wave] instance #{data.instance_id}: rebellion deployed Siderian #{candidate.id} (#{role}) at system #{home_id}"
         )
@@ -1012,7 +1029,9 @@ defmodule Wave.Warlord.Agent do
         log(data, "wave_siderian_hired", candidate.id, home_id, %{
           day: Warlord.match_day(data),
           role: role,
-          strength: strength.(candidate),
+          rank: rank,
+          ranks: ranks,
+          strength: strength.(role).(candidate),
           level: Map.get(candidate, :level),
           specialization: Map.get(candidate, :specialization),
           skills: Siderian.skill_points(Map.get(candidate, :skills)),
@@ -1023,13 +1042,11 @@ defmodule Wave.Warlord.Agent do
         data
         |> Warlord.count(:siderians_hired)
         |> Warlord.order("hire:siderian", :ok)
+        |> Warlord.record_hire_rank(:siderian, rank)
         |> Warlord.track_siderian(candidate.id, role)
 
-      # Nobody on the market has a point in this role: try the next one.
-      {:error, :market, :no_candidate} ->
-        hire_siderian(data, ctx, rest, specializations, quotas)
-
-      # Nowhere to deploy, or the market could not be read: look again later.
+      # Nobody worth buying at any open rank, nowhere to deploy, or the market
+      # could not be read: look again later.
       {:error, :market, reason} ->
         data
         |> Warlord.refuse(:market, reason)
@@ -1670,8 +1687,11 @@ defmodule Wave.Warlord.Agent do
           informer_bonus * Erased.strength(skills, specializations, :spy_infiltrate)
       end
 
-      case hire_agent(data, ctx, :spy, score, forward_base(data, ctx, :erased)) do
-        {:ok, candidate, home_id} ->
+      ranks = Warlord.rank_order(data, :erased)
+      choose = fn by_rank -> Warlord.pick_candidate(by_rank, ranks, score) end
+
+      case hire_agent(data, ctx, :spy, choose, forward_base(data, ctx, :erased)) do
+        {:ok, candidate, home_id, rank} ->
           posting = roll_posting(data, Map.get(candidate, :skills))
 
           Logger.info(
@@ -1687,7 +1707,8 @@ defmodule Wave.Warlord.Agent do
             skills: Erased.skill_points(Map.get(candidate, :skills)),
             strength: score.(candidate),
             level: Map.get(candidate, :level),
-            ranks: ranks_view(data),
+            rank: rank,
+            ranks: ranks,
             specialization: Map.get(candidate, :specialization),
             roster: map_size(data.erased) + 1,
             cap: cap
@@ -1696,10 +1717,11 @@ defmodule Wave.Warlord.Agent do
           data
           |> Warlord.count(:erased_hired)
           |> Warlord.order("hire:erased", :ok)
+          |> Warlord.record_hire_rank(:erased, rank)
           |> Warlord.track_erased(candidate.id, posting)
 
-        # Nothing worth buying — nobody on the market can infiltrate, remove or
-        # sabotage, or there is nowhere to deploy one. Look again after
+        # Nothing worth buying — nobody at any open rank can infiltrate, remove
+        # or sabotage, or there is nowhere to deploy one. Look again after
         # `erased_retry_ut` rather than on every pass.
         {:error, :market, reason} ->
           data
@@ -2108,8 +2130,6 @@ defmodule Wave.Warlord.Agent do
     end)
   end
 
-  defp ranks_view(data), do: data |> Warlord.unlocked_ranks() |> Enum.map(&Atom.to_string/1)
-
   defp counter_for("assassination"), do: :removals_attempted
   defp counter_for("sabotage"), do: :sabotages_attempted
   defp counter_for("roam"), do: :erased_roams
@@ -2461,7 +2481,7 @@ defmodule Wave.Warlord.Agent do
   defp deploy_dummy(data, ctx) do
     result =
       case deck_navarch(ctx.player) do
-        nil -> hire_agent(data, ctx, :admiral)
+        nil -> data |> hire_agent(ctx, :admiral, cheapest_navarch(data)) |> without_pick()
         card_id -> activate_card(data, ctx, card_id)
       end
 
@@ -2506,6 +2526,9 @@ defmodule Wave.Warlord.Agent do
       {:ok, %{id: card_id}, home_id}
     end
   end
+
+  defp without_pick({:ok, character, home_id, _pick}), do: {:ok, character, home_id}
+  defp without_pick(error), do: error
 
   # A Navarch standing in one of its own faction's systems adds that system's
   # Intelligence to its defence against sabotage, so the dummy's post is the
@@ -3037,6 +3060,9 @@ defmodule Wave.Warlord.Agent do
 
   defp hire_fleet(data, player, quotas) do
     env = fleet_env(data)
+    # The rank the mix is owed first (Warlord.rank_order/2), the highest level within it.
+    ranks = Warlord.rank_order(data, :navarch)
+    choose = fn by_rank -> Warlord.pick_candidate(by_rank, ranks, &navarch_score/1) end
 
     # The first role with places open that the Rebellion has, or can take from
     # the library, a design for.
@@ -3052,8 +3078,8 @@ defmodule Wave.Warlord.Agent do
 
     with {role, identity, slots} <- plan,
          %{} = yard <- Fleet.pick_yard(env.yards, slots, env.ships, Warlord.yard_load(data), env.needs_shipyard?),
-         {:ok, %{id: id} = navarch, deployed_at} <-
-           hire_agent(data, %{player: player}, :admiral, &navarch_score/1, yard.id) do
+         {:ok, %{id: id} = navarch, deployed_at, rank} <-
+           hire_agent(data, %{player: player}, :admiral, choose, yard.id) do
       Logger.info(
         "[wave] instance #{data.instance_id}: rebellion raised #{role} Navarch #{id} at system #{deployed_at} " <>
           "for yard #{yard.id} (#{identity.id})"
@@ -3066,12 +3092,15 @@ defmodule Wave.Warlord.Agent do
         generation: identity.generation,
         ships: Enum.map(slots, fn {_tile, key} -> key end),
         yard: yard.id,
-        level: Map.get(navarch, :level)
+        level: Map.get(navarch, :level),
+        rank: rank,
+        ranks: ranks
       })
 
       data
       |> Warlord.count(:fleets_hired)
       |> Warlord.order("hire:fleet", :ok)
+      |> Warlord.record_hire_rank(:navarch, rank)
       |> Warlord.track_fleet(id, role, identity.id, slots, yard.id)
     else
       nil ->
@@ -3290,7 +3319,7 @@ defmodule Wave.Warlord.Agent do
   end
 
   # Only a commander's level reaches the battle (it feeds the ships' morale),
-  # so of the ranks the day has unlocked the highest level is bought.
+  # so within the rank the mix is owed the highest level is bought.
   defp navarch_score(character), do: max(Map.get(character, :level) || 1, 1)
 
   # The fleets that are idle with somewhere to go: off their yard while
@@ -3532,7 +3561,7 @@ defmodule Wave.Warlord.Agent do
   # The starter patents and the standing lexes with their ancestors. Stays
   # unseeded, and tries again next pass, until every one of them is owned.
   defp seed_research(data, book, catalog) do
-    starter = Research.starter_patents(catalog.patents, starter_quotas(data, catalog))
+    starter = Research.starter_patents(catalog.patents, starter_quotas(data, catalog), follow_only(data, catalog))
     always = always_lexes(data, catalog)
 
     {data, book, _} = buy(data, book, :patents, Enum.reject(starter, &(&1 in book.patents)), "research:starter_patent")
@@ -3557,13 +3586,24 @@ defmodule Wave.Warlord.Agent do
         held = Enum.map(humans, & &1.patents)
         ships = Research.ship_patents(catalog.patents, held)
 
-        followed =
+        # The follow-only patents (infrastructure IV and V) wait for a share
+        # of the humans rather than the usual two.
+        {followed, held_by_enough} =
           case knob(data, "patent_follow_humans", 2) do
             holders when is_integer(holders) and holders > 0 ->
-              Research.followed_patents(catalog.patents, held, holders)
+              share = knob(data, "patent_follow_only_share", 1 / 3)
+
+              plan =
+                Research.follow_plan(catalog.patents, held, book.patents,
+                  holders: holders,
+                  reserved: follow_only(data, catalog),
+                  reserved_holders: Research.follow_only_holders(length(humans), share, holders)
+                )
+
+              {plan, length(Research.followed_patents(catalog.patents, held, holders))}
 
             _ ->
-              []
+              {[], 0}
           end
 
         slot_cap = humans |> Enum.map(& &1.max_policies) |> Enum.max()
@@ -3579,7 +3619,7 @@ defmodule Wave.Warlord.Agent do
 
         {data, book, result} =
           if result == :ok do
-            plan = Research.purchase_plan(catalog.patents, followed, book.patents)
+            plan = Enum.reject(followed, &(&1 in book.patents))
             buy(data, book, :patents, plan, "research:followed_patent")
           else
             {data, book, result}
@@ -3588,7 +3628,7 @@ defmodule Wave.Warlord.Agent do
         data =
           data
           |> Warlord.gauge(:human_ship_patents, length(ships))
-          |> Warlord.gauge(:human_building_patents, length(followed))
+          |> Warlord.gauge(:human_building_patents, held_by_enough)
           |> Warlord.gauge(:human_lex_slots, slot_cap)
 
         # A patent the stock could not cover is retried next pass, after the top-up.
@@ -3637,7 +3677,7 @@ defmodule Wave.Warlord.Agent do
   defp research_pick(data, book, catalog, :patent) do
     if Warlord.patent_due?(data) do
       cap = Research.cost_cap(research_stage(data), knob(data, "patent_stage_cost", [5_000, 45_000]))
-      Research.building_pick(catalog.patents, book.patents, cap)
+      Research.building_pick(catalog.patents, book.patents, cap, follow_only(data, catalog))
     end
   end
 
@@ -3778,6 +3818,18 @@ defmodule Wave.Warlord.Agent do
   end
 
   defp always_lexes(data, catalog), do: named_lexes(data, catalog, "lex_always")
+
+  # The patents bought only by following the humans, as catalog keys.
+  defp follow_only(data, catalog) do
+    case knob(data, "patent_follow_only", []) do
+      names when is_list(names) ->
+        names = MapSet.new(names, &to_string/1)
+        for p <- catalog.patents, MapSet.member?(names, Atom.to_string(p.key)), do: p.key
+
+      _ ->
+        []
+    end
+  end
 
   # A knob listing lexes, as catalog keys in the knob's order; names the
   # catalog does not know are dropped.
