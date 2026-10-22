@@ -21,7 +21,9 @@ set -euo pipefail
 BUCKET="${1:?usage: rc-db-backup-install <bucket> [staging-dir]}"
 SRC="${2:-/home/rc/rc-backup-staging}"
 
-for f in rc-db-backup rc-db-backup.service rc-db-backup.timer rc-alert-mail rc-alert@.service \n  rc-archive-import rc-archive-auto rc-archive-auto.service rc-archive-auto.timer \n  rc-snapshot-history rc-snapshot-history.service rc-snapshot-history.timer; do
+for f in rc-db-backup rc-db-backup.service rc-db-backup.timer rc-alert-mail rc-alert@.service \
+  rc-archive-import rc-archive-auto rc-archive-auto.service rc-archive-auto.timer \
+  rc-snapshot-history rc-snapshot-history.service rc-snapshot-history.timer; do
   [[ -r "$SRC/$f" ]] || { echo "rc-db-backup-install: missing $SRC/$f" >&2; exit 1; }
 done
 
