@@ -26,7 +26,7 @@
 #   AWS_REGION      — AWS region for Secrets Manager (default: us-east-1)
 #
 # What this does:
-#   1. apt-get install packages (nginx, postgresql, awscli, jq)
+#   1. apt-get install packages (nginx, postgresql, awscli, jq, zstd)
 #   2. Create the `rc` system user (uid 1001 — matches the build image)
 #   3. Set up Postgres: create the rcprod user + rc_prod database. The
 #      password is pulled from the Secrets Manager DATABASE_URL.
@@ -95,7 +95,7 @@ apt-get update -qq
 apt-get install -y -qq \
   nginx \
   postgresql postgresql-contrib \
-  awscli jq \
+  awscli jq zstd \
   ca-certificates \
   librsvg2-bin fontconfig
 
@@ -210,6 +210,11 @@ install -m 0755 "$DEPLOY_DIR/bin/rc-archive-auto" /usr/local/bin/rc-archive-auto
 install -m 0644 "$DEPLOY_DIR/systemd/rc-archive-auto.service" /etc/systemd/system/rc-archive-auto.service
 install -m 0644 "$DEPLOY_DIR/systemd/rc-archive-auto.timer" /etc/systemd/system/rc-archive-auto.timer
 install -d -o rc -g rc -m 0775 /home/rc/archive-keep
+# Hourly snapshot history of official Legacy matches (S3 legacy-history/).
+install -m 0755 "$DEPLOY_DIR/bin/rc-snapshot-history" /usr/local/bin/rc-snapshot-history
+install -m 0644 "$DEPLOY_DIR/systemd/rc-snapshot-history.service" /etc/systemd/system/rc-snapshot-history.service
+install -m 0644 "$DEPLOY_DIR/systemd/rc-snapshot-history.timer" /etc/systemd/system/rc-snapshot-history.timer
+install -d -o rc -g rc -m 0755 /home/rc/snapshot-history
 
 if [[ -n "$RC_BACKUP_BUCKET" ]]; then
   printf 'RC_BACKUP_BUCKET=%s\n' "$RC_BACKUP_BUCKET" > /etc/rc/backup.env
@@ -221,9 +226,9 @@ systemctl enable rc-fetch-secrets.service
 systemctl enable rc.service
 
 if [[ -f /etc/rc/backup.env ]]; then
-  systemctl enable rc-db-backup.timer rc-archive-auto.timer
+  systemctl enable rc-db-backup.timer rc-archive-auto.timer rc-snapshot-history.timer
 else
-  echo "note: rc-db-backup.timer and rc-archive-auto.timer installed but not enabled (no RC_BACKUP_BUCKET)"
+  echo "note: rc-db-backup, rc-archive-auto and rc-snapshot-history timers installed but not enabled (no RC_BACKUP_BUCKET)"
 fi
 
 # Prime the env file now so the first deploy has it ready. Don't fail

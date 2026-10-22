@@ -1,0 +1,12 @@
+[Unit]
+Description=Hourly collection of official Legacy snapshots for the long-term history
+
+[Timer]
+# The game keeps its 10 newest autosaves (~2.5 h at one per 15 min), so
+# an hourly run sees every hour's earliest autosave with time to spare.
+OnCalendar=*-*-* *:41:00 UTC
+RandomizedDelaySec=3min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

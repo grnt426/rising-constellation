@@ -1,7 +1,8 @@
 #!/bin/bash
 #
 # rc-db-backup-install — root-side installer for the host's scheduled
-# jobs: the nightly backup and the Legacy archive auto-import. Run on the
+# jobs: the nightly backup, the Legacy archive auto-import and the Legacy
+# snapshot history. Run on the
 # prod host as root; normally invoked by deploy/provision-dr.ps1 over ssh
 # (bootstrap-host.sh installs the same files on a fresh host).
 #
@@ -10,6 +11,7 @@
 # Installs from the staging dir:
 #   - rc-db-backup + its units (daily timer)
 #   - rc-archive-import, rc-archive-auto + their units (hourly timer)
+#   - rc-snapshot-history + its units (hourly timer)
 #   - the failure-email hook both use: rc-alert-mail + rc-alert@.service
 # records the bucket in /etc/rc/backup.env and enables both timers.
 # Idempotent: safe to re-run to update the scripts or change the bucket.
@@ -19,7 +21,7 @@ set -euo pipefail
 BUCKET="${1:?usage: rc-db-backup-install <bucket> [staging-dir]}"
 SRC="${2:-/home/rc/rc-backup-staging}"
 
-for f in rc-db-backup rc-db-backup.service rc-db-backup.timer rc-alert-mail rc-alert@.service \n  rc-archive-import rc-archive-auto rc-archive-auto.service rc-archive-auto.timer; do
+for f in rc-db-backup rc-db-backup.service rc-db-backup.timer rc-alert-mail rc-alert@.service \n  rc-archive-import rc-archive-auto rc-archive-auto.service rc-archive-auto.timer \n  rc-snapshot-history rc-snapshot-history.service rc-snapshot-history.timer; do
   [[ -r "$SRC/$f" ]] || { echo "rc-db-backup-install: missing $SRC/$f" >&2; exit 1; }
 done
 
@@ -32,6 +34,10 @@ install -m 0755 "$SRC/rc-archive-import" /usr/local/bin/rc-archive-import
 install -m 0755 "$SRC/rc-archive-auto" /usr/local/bin/rc-archive-auto
 install -m 0644 "$SRC/rc-archive-auto.service" /etc/systemd/system/rc-archive-auto.service
 install -m 0644 "$SRC/rc-archive-auto.timer" /etc/systemd/system/rc-archive-auto.timer
+install -m 0755 "$SRC/rc-snapshot-history" /usr/local/bin/rc-snapshot-history
+install -m 0644 "$SRC/rc-snapshot-history.service" /etc/systemd/system/rc-snapshot-history.service
+install -m 0644 "$SRC/rc-snapshot-history.timer" /etc/systemd/system/rc-snapshot-history.timer
+install -d -o rc -g rc -m 0755 /home/rc/snapshot-history
 # The app (RC.Archive.Keep) saves victory-time snapshots here.
 install -d -o rc -g rc -m 0775 /home/rc/archive-keep
 
@@ -40,7 +46,7 @@ printf 'RC_BACKUP_BUCKET=%s\n' "$BUCKET" > /etc/rc/backup.env
 chmod 0644 /etc/rc/backup.env
 
 systemctl daemon-reload
-systemctl enable --now rc-db-backup.timer rc-archive-auto.timer
+systemctl enable --now rc-db-backup.timer rc-archive-auto.timer rc-snapshot-history.timer
 
 echo "rc-db-backup-install: done. Next scheduled runs:"
-systemctl list-timers rc-db-backup.timer rc-archive-auto.timer --no-pager
+systemctl list-timers rc-db-backup.timer rc-archive-auto.timer rc-snapshot-history.timer --no-pager
