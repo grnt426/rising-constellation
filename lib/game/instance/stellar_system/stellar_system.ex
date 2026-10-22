@@ -1762,8 +1762,7 @@ defmodule Instance.StellarSystem.StellarSystem do
   # generator, so the system stays the same for every player of the day.
   defp ensure_required_bodies(bodies, instance_id, system_name) do
     instance_id
-    |> Instance.Mutators.daily_objective()
-    |> Daily.Objective.required_bodies()
+    |> Instance.Mutators.daily_required_bodies()
     |> Enum.reduce(bodies, fn kind, bodies ->
       if Enum.any?(bodies, &(&1.type == kind)),
         do: bodies,

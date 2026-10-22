@@ -35,6 +35,7 @@
           v-tooltip="$t('page.wave.short_rules')">
           {{ $t('page.wave.name') }}
         </span>
+        <scripted-badge :metadata="instance.game_metadata" />
         <h2>{{ instance.name }}</h2>
         <em class="instance-id">#{{ instance.id }}</em>
         <span class="toast">
@@ -95,8 +96,11 @@
 </template>
 
 <script>
+import ScriptedBadge from '@/portal/components/ScriptedBadge.vue';
+
 export default {
   name: 'instance-row',
+  components: { ScriptedBadge },
   props: {
     instance: Object,
     profiles: Array,

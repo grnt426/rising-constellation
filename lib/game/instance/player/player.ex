@@ -184,8 +184,7 @@ defmodule Instance.Player.Player do
   """
   def granted_patents(instance_id) do
     instance_id
-    |> Instance.Mutators.daily_objective()
-    |> Daily.Objective.granted_patents()
+    |> Instance.Mutators.daily_granted_patents()
     |> Enum.flat_map(&patent_line(instance_id, &1))
     |> Enum.uniq()
   end
@@ -517,7 +516,7 @@ defmodule Instance.Player.Player do
   day's research dearer), otherwise none.
   """
   def markup_free_patents(instance_id) do
-    if instance_id |> Instance.Mutators.daily_objective() |> Daily.Objective.markup_free_grants?(),
+    if Instance.Mutators.daily_markup_free?(instance_id),
       do: granted_patents(instance_id),
       else: []
   end
@@ -533,11 +532,7 @@ defmodule Instance.Player.Player do
   (`patent_discounts`), as `%{patent_key => factor}`. Empty outside such a
   day.
   """
-  def patent_discounts(instance_id) do
-    instance_id
-    |> Instance.Mutators.daily_objective()
-    |> Daily.Objective.patent_discounts()
-  end
+  def patent_discounts(instance_id), do: Instance.Mutators.daily_patent_discounts(instance_id)
 
   @doc """
   What `patent` costs this player right now, in technology: the base price,

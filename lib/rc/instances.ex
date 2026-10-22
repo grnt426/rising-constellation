@@ -626,6 +626,10 @@ defmodule RC.Instances do
     # Rebellion's single seat, whatever the client sent (see Wave.Lobby).
     {attrs, game_data} = Wave.Lobby.prepare_instance(attrs, game_data)
 
+    # Attached scenario scripts (Edict): their merged setup (grants,
+    # discounts, mutators) rides in game_data["edict"]; Edict.Match runs them.
+    game_data = Edict.Attachment.prepare_instance(game_data)
+
     factions =
       if not is_nil(attrs["factions"]),
         do:

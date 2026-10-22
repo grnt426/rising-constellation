@@ -119,6 +119,7 @@
               </td>
               <td class="forge-card-body">
                 <h2>
+                  <scripted-badge :metadata="scenario.game_metadata" />
                   <router-link :to="`/create/scenario/view/${scenario.share_token}`">
                     {{ scenario.game_metadata.name }}
                   </router-link>
@@ -250,6 +251,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 import Loading from '@/portal/mixins/Loading';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
+import ScriptedBadge from '@/portal/components/ScriptedBadge.vue';
 
 export default {
   name: 'create-scenarios',
@@ -353,6 +355,7 @@ export default {
   },
   components: {
     LoadingMask,
+    ScriptedBadge,
   },
 };
 </script>

@@ -1,0 +1,13 @@
+# The Triumvirate: only balance scores.
+# The Triumvirate daily, rebuilt as a scenario.
+
+setup {
+  name = "The Triumvirate"
+  description = "Your score is the lowest of your three incomes. Ties break on the three together."
+  time_limit = 30m
+}
+
+# The daily ranks whole numbers (its stats are stored as integers).
+score trunc(min(player.income.credit, player.income.technology, player.income.ideology))
+
+tiebreak trunc(player.income.credit) + trunc(player.income.technology) + trunc(player.income.ideology)

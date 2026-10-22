@@ -553,7 +553,10 @@
     "score": "Final score",
     "rank": "Today's rank:",
     "auto_exit": "Returning to the daily page in {seconds}s",
-    "exit_now": "Leave now"
+    "exit_now": "Leave now",
+    "title_scenario_done": "Scenario complete!",
+    "tiebreak": "Tiebreak:",
+    "auto_exit_workshop": "Returning to the workshop in {seconds}s"
   },
   "duration": {
     "day": "{n}d",
@@ -2217,7 +2220,13 @@
       "technology": "Technology",
       "technology_title": "Scientific centers rankings",
       "workforce": "Population",
-      "workforce_title": "Ranking of the largest systems"
+      "workforce_title": "Ranking of the largest systems",
+      "scenario": "Scenario",
+      "scenario_title": "Scenario leaderboard",
+      "scenario_hint": "Scores kept by this match's scenario scripts, the rules its author added. Higher ranks first.",
+      "scenario_race": "A race: scored by the time left when a player finishes.",
+      "scenario_empty": "No scores yet.",
+      "scenario_finished": "done"
     },
     "faction_diplomacy": {
       "title": "Diplomacy",
@@ -2803,5 +2812,21 @@
       "content": "You can now build the <strong>Citadel</strong>, center for the arts and of thinkers! Click on an empty tile and select the proper building.",
       "title": "Ideology"
     }
+  },
+  "scenario_feed": {
+    "label": "Scenario messages",
+    "script": "Script",
+    "dismiss": "Dismiss",
+    "score": "Score",
+    "playtest": "Playtest",
+    "race": "Race: scored by the time left when you finish",
+    "back": "Back to workshop",
+    "scenario": "Scenario",
+    "race_short": "Race",
+    "place": " · {rank} of {of}",
+    "finished": "done",
+    "more": "More",
+    "less": "Less",
+    "match_hint": "This match runs scenario scripts: rules the scenario's author added. Each player has their own score."
   }
 }

@@ -1,0 +1,4 @@
+# The largest number in a list, or 0 when the list is empty.
+fn best(list) {
+  return max([0] + list)
+}

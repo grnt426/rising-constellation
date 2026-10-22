@@ -1,0 +1,22 @@
+# Fleet in Being: Raiders. A race to one strong fleet.
+# The Fleet in Being: Raiders daily, rebuilt as a scenario.
+
+setup {
+  name = "Fleet in Being: Raiders"
+  description = "A race: field a single fleet with 50 bombing power. Score is the time left when it musters; ties break on your best fleet's progress."
+  time_limit = 30m
+}
+
+score time.left
+
+tiebreak min(best_raid() / 50, 1)
+
+# The strongest single fleet among Navarchs on the board.
+fn best_raid() {
+  let fleets = filter(player.agents, a => a.type == "navarch" and a.status == "board")
+  return max([0] + map(fleets, a => a.fleet.raid))
+}
+
+when best_raid() >= 50 {
+  finish("Your raiders are ready.")
+}

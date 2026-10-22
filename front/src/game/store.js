@@ -181,6 +181,18 @@ const defaultState = () => {
     // End-of-daily result (race win or deadline), pushed once on the global
     // channel. Non-null drives the DailyResultBanner + its auto-exit.
     dailyResult: null,
+    // Messages from a scenario script (playtests, and scripted matches):
+    // plain text, shown by ScenarioFeed and never through markdown or v-html.
+    scenarioMessages: [],
+    // ids of the messages already shown: a scripted match repeats a player's
+    // last few in every status, for players who were away
+    scenarioSeen: [],
+    // A scenario script's name and score as they stand: a playtest's, or in
+    // a match ({kind: 'match', entries, recent}) each script's for this player.
+    scenarioStatus: null,
+    // A scripted match's leaderboard: [{name, race, rows: [{rank, player_id,
+    // name, faction, score, finished}]}], one per script that keeps a score.
+    scenarioBoard: null,
     character_market: {},
     faction: {},
     // Enemy fleets / agents reported to the faction (chat `[[spot:id]]`
@@ -313,6 +325,21 @@ const gameStore = {
       if (index > -1) {
         state.textNotifications.splice(index, 1);
       }
+    },
+    // A message from a scenario script, once: a match's messages carry an id
+    // and come again in its status updates.
+    addScenarioMessage(state, { id, text, tone } = {}) {
+      if (typeof text !== 'string') return;
+      if (id != null) {
+        if (state.scenarioSeen.includes(id)) return;
+        state.scenarioSeen = [...state.scenarioSeen, id].slice(-100);
+      }
+      state.scenarioMessages = [...state.scenarioMessages, {
+        id: id != null ? `m${id}` : `${Date.now()}-${Math.random()}`, text, tone: String(tone || 'info'), at: Date.now(),
+      }].slice(-20);
+    },
+    discardScenarioMessage(state, id) {
+      state.scenarioMessages = state.scenarioMessages.filter((m) => m.id !== id);
     },
     discardFirstBoxNotification(state) {
       state.boxNotifications.shift();
@@ -683,6 +710,22 @@ const gameStore = {
 
       if (payload.daily_result) {
         state.dailyResult = payload.daily_result;
+      }
+
+      if (payload.scenario_status) {
+        const status = payload.scenario_status;
+        state.scenarioStatus = Object.freeze({ ...status });
+        if (Array.isArray(status.recent)) {
+          status.recent.forEach((m) => this.commit('game/addScenarioMessage', m));
+        }
+      }
+
+      if (payload.scenario_message) {
+        this.commit('game/addScenarioMessage', payload.scenario_message);
+      }
+
+      if (Array.isArray(payload.scenario_board)) {
+        state.scenarioBoard = Object.freeze(payload.scenario_board);
       }
 
       if (payload.player_player) {

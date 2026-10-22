@@ -19,6 +19,8 @@
 </template>
 
 <script>
+import { isPlaytest } from '@/utils/playtest';
+
 import eventBus from '@/plugins/event-bus';
 
 export default {
@@ -42,6 +44,8 @@ export default {
         const isTutorial = this.isTutorial;
         // Capture before game/clear wipes the store.
         const isDaily = this.isDaily;
+        // a Scenario Workshop playtest goes back to the workshop
+        const playtest = isDaily && auth && isPlaytest(auth.instance);
 
         if (isTutorial) {
           this.$socket.global.push('kill_instance', {});
@@ -63,7 +67,7 @@ export default {
           // Straight back to the daily page — the player sees the leaderboard
           // (now including their just-recorded run) and can retry. The explicit
           // quit_daily push above tore the instance down server-side.
-          this.$router.push('/play/daily');
+          this.$router.push(playtest ? '/scenario-workshop' : '/play/daily');
         } else if (auth) {
           this.$router.push(`/instance/${auth.instance}`);
         } else {

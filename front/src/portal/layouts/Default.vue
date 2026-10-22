@@ -164,7 +164,7 @@ import Path from '@/utils/path';
 import SoundToggle from '@/portal/components/SoundToggle.vue';
 import NavDropdown from '@/portal/components/NavDropdown.vue';
 
-const SANDBOX_PAGES = ['/fight-simulator', '/system-planner'];
+const SANDBOX_PAGES = ['/fight-simulator', '/system-planner', '/scenario-workshop'];
 
 export default {
   name: 'default-layout',
@@ -190,6 +190,12 @@ export default {
           icon: 'stellar_body/habitable_planet',
           label: this.$t('layout.default.system_planner'),
           hint: this.$t('layout.default.system_planner_hint'),
+        },
+        {
+          to: '/scenario-workshop',
+          icon: 'patent/root',
+          label: this.$t('layout.default.scenario_workshop'),
+          hint: this.$t('layout.default.scenario_workshop_hint'),
         },
       ];
     },

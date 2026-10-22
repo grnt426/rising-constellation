@@ -144,6 +144,10 @@
 
     <daily-result-banner v-if="isDaily && dailyResult" />
 
+    <!-- shows itself when a script has something to say: a playtest, or a
+         match whose scenario attaches scripts -->
+    <scenario-feed />
+
     <div
       class="victory-banner"
       v-if="victory.winner && !isDaily"
@@ -212,6 +216,7 @@ import CharacterMarketMiniPanel from '@/game/components/mini-panel/CharacterMark
 import VictoryMiniPanel from '@/game/components/mini-panel/VictoryMiniPanel.vue';
 import MarketMiniPanel from '@/game/components/mini-panel/MarketMiniPanel.vue';
 import DailyResultBanner from '@/game/components/navbar/DailyResultBanner.vue';
+import ScenarioFeed from '@/game/components/ScenarioFeed.vue';
 
 export default {
   name: 'topbar',
@@ -414,6 +419,7 @@ export default {
     VictoryMiniPanel,
     MarketMiniPanel,
     DailyResultBanner,
+    ScenarioFeed,
   },
 };
 </script>

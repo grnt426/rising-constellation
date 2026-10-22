@@ -1,0 +1,11 @@
+# Coffers of the Realm, the launch daily, as a script.
+# Ranked by one number at the deadline: the credits you hold.
+
+setup {
+  name = "Coffers of the Realm"
+  description = "Amass the largest credit reserve by the deadline."
+  time_limit = 30m
+}
+
+# The daily ranks whole numbers (its stats are stored as integers).
+score trunc(player.credit)

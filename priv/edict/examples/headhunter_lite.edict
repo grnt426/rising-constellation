@@ -1,0 +1,32 @@
+# Headhunter (lite): an enemy court sends its Erased into your system.
+# The Headhunter daily, rebuilt without its exposure rule: in the daily,
+# every 25 Intelligence uncovers more of the hidden agents; here they are
+# exposed by the game's usual rules.
+
+setup {
+  name = "Headhunter (lite)"
+  description = "An enemy court sends an Erased into your system every 15 seconds, stronger as the clock runs. Remove as many as you can; ties break on your best Erased's level."
+  time_limit = 30m
+  rival = true
+}
+
+# One point for every enemy agent your Erased remove.
+score player.agents_removed
+
+# Ties go to the highest level among your own Erased.
+tiebreak max([0] + map(filter(player.agents, a => a.type == "erased"), a => a.level))
+
+# An arrival's level is drawn from 1 up to a top that climbs a level and a
+# half every two minutes of the run, whatever the arrival rate. random()
+# with keys gives every player the same roster.
+fn level_for(wave) {
+  let top = 3 + floor(time.elapsed / 120) * 1.5
+  return 1 + floor(random("level", wave) * floor(top))
+}
+
+every 15s as wave {
+  send_agent("erased", level: level_for(wave))
+  if wave == 1 {
+    notify("An enemy court has begun sending its Erased.", tone: "warning")
+  }
+}

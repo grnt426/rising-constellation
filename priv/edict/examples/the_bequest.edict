@@ -1,0 +1,24 @@
+# The Bequest: a fortune that bleeds away.
+# The Bequest daily, rebuilt as a scenario: the script hands over the
+# fortune and drains it itself, the whole day in a dozen lines.
+
+setup {
+  name = "The Bequest"
+  description = "Inherit a fortune of 100,000,000 credits, bleeding away 5,000 a minute. End with the most left; ties break on credit income."
+  time_limit = 30m
+}
+
+# The daily ranks whole numbers (its stats are stored as integers).
+score trunc(player.credit)
+
+tiebreak trunc(player.income.credit)
+
+on start {
+  give("credit", 100_000_000)
+  notify("The estate is yours: 100,000,000 credits. It costs 5,000 a minute to keep.")
+}
+
+# 5,000 a minute, taken every second.
+every 1s {
+  take("credit", 5000 / 60)
+}

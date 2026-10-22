@@ -420,6 +420,28 @@ defmodule Portal.Router do
     post("/system-planner/compute", SystemPlannerController, :compute)
     get("/system-planner/template", SystemPlannerController, :template)
     get("/system-planner/preset/:name", SystemPlannerController, :preset)
+
+    # Scenario Workshop: the Edict scripting language's parse/check/format/
+    # simulate service (docs/scenario-scripting.md).
+    get("/edict/catalog", EdictController, :catalog)
+    get("/edict/examples", EdictController, :examples)
+    get("/edict/editors/:kind", EdictController, :editors)
+    post("/edict/analyze", EdictController, :analyze)
+    post("/edict/fragment", EdictController, :fragment)
+    post("/edict/format", EdictController, :format)
+    post("/edict/simulate", EdictController, :simulate)
+    post("/edict/playtest", EdictController, :playtest)
+    post("/edict/check-scenario", EdictController, :check_scenario)
+
+    # Scenario scripts saved to the account, and publishing them (RC.Scripts).
+    get("/edict/scripts", ScriptController, :index)
+    get("/edict/scripts/published", ScriptController, :published)
+    get("/edict/scripts/:id", ScriptController, :show)
+    post("/edict/scripts", ScriptController, :create)
+    put("/edict/scripts/:id", ScriptController, :update)
+    delete("/edict/scripts/:id", ScriptController, :delete)
+    put("/edict/scripts/:id/publish", ScriptController, :publish)
+    delete("/edict/scripts/:id/publish", ScriptController, :unpublish)
   end
 
   scope "/api", Portal do

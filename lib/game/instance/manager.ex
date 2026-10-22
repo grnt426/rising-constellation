@@ -415,6 +415,15 @@ defmodule Instance.Manager do
       # Puppet-faction days: the enemy faction's key, so the Daily.Director
       # can tell the puppet player from the human one.
       daily_puppet_faction: get_in(game_data, ["daily", "puppet_faction"]),
+      # Scenario-script days (Edict): the script's own grants, discounts and
+      # source, read by Instance.Mutators in place of a catalog objective's.
+      # nil for every other instance.
+      daily_setup: get_in(game_data, ["daily", "setup"]),
+      # Scenario scripts attached to a Forge scenario (Edict): their merged
+      # setup (grants, discounts), read by Instance.Mutators.script_setup/1,
+      # and whether Edict.Match runs them. nil / false elsewhere.
+      match_setup: get_in(game_data, ["edict", "setup"]),
+      match_scripted: game_data["game_mode_type"] != "daily" and Edict.Attachment.scripted?(game_data),
       # Cheat access: opt-in at game creation. Gates the in-game cheat
       # panel (CheatChannel) and the engine-side cheat handlers.
       cheats_enabled: game_data["cheats_enabled"] == true,
@@ -1007,6 +1016,11 @@ defmodule Instance.Manager do
       )
 
     started = Enum.to_list(stream)
+
+    # Scenario scripts: their runner is a task outside the tree, started
+    # (or found already running) on every start, so a restart, a resume or
+    # the autosave cycle's stop/start all bring it back.
+    if Instance.Mutators.match_scripted?(instance_id), do: Edict.Match.start(instance_id)
 
     {:ok, :started, length(started)}
   end

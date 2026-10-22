@@ -109,6 +109,7 @@ defmodule RC.Discord.FlashAnnouncer do
 
   defp victory_label("victory_track"), do: " by reaching the victory points target"
   defp victory_label("win_on_time"), do: " on time"
+  defp victory_label("scenario"), do: " by the scenario's rules"
   defp victory_label(_), do: ""
 
   defp blank_dash(""), do: "—"

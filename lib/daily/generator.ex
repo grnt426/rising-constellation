@@ -168,6 +168,91 @@ defmodule Daily.Generator do
   end
 
   @doc """
+  Build the `game_data` for a scenario script (see `Edict.Scenario`): the
+  same world-building as `for_date/2`, driven by the script's setup instead
+  of the calendar. `config` is a validated setup (string keys); `seed` fixes
+  the generated system, so every player of a script gets the same world.
+
+  The script's grants, discounts and source ride along in
+  `game_data["daily"]["setup"]`, where `Instance.Mutators` reads them in
+  place of a catalog objective's. The objective key is `"scripted"`, which
+  names no catalog objective, so the daily's own scoring paths stand aside.
+  """
+  def for_script(config, seed, source) when is_map(config) and is_binary(seed) do
+    bytes = :crypto.hash(:sha256, "tetrarchy-edict:v1:" <> seed) |> :binary.bin_to_list()
+
+    archetype = pick(@archetypes, at(bytes, 6))
+    sector_name = pick(@sector_names, at(bytes, 11))
+    faction = config["faction"] || pick(@factions, at(bytes, 12))
+
+    systems_count = config["systems"] || 1
+
+    sector_spec =
+      if systems_count > 1 do
+        %{systems: systems_count, npc: if(config["neighbors"] == "neutral", do: :neutral, else: :uninhabited)}
+      end
+
+    puppet_spec = if config["rival"] == true, do: %{systems: 1}
+
+    systems = build_systems(archetype, sector_spec)
+    player_sector = build_sector(faction, sector_name, systems, sector_spec, 0, @center)
+    puppet_faction = if puppet_spec, do: pick_puppet_faction(faction, at(bytes, 13))
+    puppet_systems = puppet_systems(archetype, puppet_spec)
+
+    factions =
+      [%{"key" => faction, "sector_number" => 1}] ++
+        if puppet_faction, do: [%{"key" => puppet_faction, "sector_number" => 2}], else: []
+
+    sectors =
+      [player_sector] ++
+        if puppet_faction,
+          do: [
+            build_sector(
+              puppet_faction,
+              puppet_sector_name(sector_name),
+              puppet_systems,
+              %{systems: length(puppet_systems), npc: :uninhabited},
+              1,
+              @puppet_center
+            )
+          ],
+          else: []
+
+    # the engine's clock counts whole minutes
+    minutes = max(round(config["time_limit"] / 60), 5)
+
+    %{
+      "blackholes" => [],
+      "date" => 4000,
+      "factions" => factions,
+      "mode" => @mode,
+      "sectors" => sectors,
+      "seed" => ingame_seed(bytes),
+      "size" => @galaxy_size,
+      "speed" => @speed,
+      "systems" => Enum.map(systems ++ puppet_systems, &Map.delete(&1, "sector")),
+      "time_limit" => minutes,
+      "victory_points" => @victory_points,
+      "game_mode_type" => "daily",
+      "mutators" => Enum.map(config["mutators"] || [], fn key -> %{"key" => key} end),
+      "daily" => %{
+        "date" => Date.to_iso8601(Date.utc_today()),
+        "objective" => "scripted",
+        "archetype" => archetype,
+        "faction" => faction,
+        "puppet_faction" => puppet_faction,
+        "setup" => %{
+          "name" => config["name"],
+          "grant_patents" => config["grant_patents"] || [],
+          "patent_discounts" => config["patent_discounts"] || %{},
+          "markup_free" => true,
+          "script" => source
+        }
+      }
+    }
+  end
+
+  @doc """
   Lightweight metadata mirror (for instance listing / filtering), derived
   from a generated `game_data`. Mirrors the `game_metadata` convention the
   scenario editor uses for mutators.

@@ -1,0 +1,4 @@
+# A value that grows by step each time: escalate(100, 50, 3) is 200.
+fn escalate(base, step, n) {
+  return base + step * (n - 1)
+}
