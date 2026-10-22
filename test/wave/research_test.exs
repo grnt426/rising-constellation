@@ -165,6 +165,116 @@ defmodule Wave.ResearchTest do
     end
   end
 
+  describe "follow-only patents" do
+    # Wave.defaults: infrastructure IV and V for planets, domes and orbitals.
+    defp follow_only do
+      names = Wave.defaults()["patent_follow_only"]
+      for p <- patents(), Atom.to_string(p.key) in names, do: p.key
+    end
+
+    test "the shipped list names six real building patents, the IV and V of each branch" do
+      assert Enum.sort(follow_only()) ==
+               Enum.sort([
+                 :infra_open_4,
+                 :infra_open_5,
+                 :infra_dome_4,
+                 :infra_dome_5,
+                 :infra_orbital_4,
+                 :infra_orbital_5
+               ])
+
+      assert length(follow_only()) == length(Wave.defaults()["patent_follow_only"])
+    end
+
+    test "the clock never buys them, at any stage, and buys the rest as before" do
+      starter = Research.starter_patents(patents(), %{open: 4, dome: 4, orbital: 4}, follow_only())
+
+      run = fn reserved, owned ->
+        Enum.reduce_while(1..200, owned, fn _, owned ->
+          case Research.building_pick(patents(), owned, :infinity, reserved) do
+            nil -> {:halt, owned}
+            key -> {:cont, owned ++ [key]}
+          end
+        end)
+      end
+
+      without = run.([], starter)
+      with_reserved = run.(follow_only(), starter)
+
+      # Left to itself the clock gets to all six.
+      assert Enum.all?(follow_only(), &(&1 in without))
+      refute Enum.any?(follow_only(), &(&1 in with_reserved))
+      assert Enum.sort(with_reserved) == Enum.sort(without -- follow_only())
+
+      # Followed in from the humans, a IV does not put its V on the clock.
+      assert Research.building_pick(patents(), with_reserved ++ [:infra_open_4], :infinity, follow_only()) == nil
+    end
+
+    test "the starter set never holds them, however large" do
+      big = %{open: 30, dome: 30, orbital: 30}
+
+      assert Enum.any?(follow_only(), &(&1 in Research.starter_patents(patents(), big)))
+      refute Enum.any?(follow_only(), &(&1 in Research.starter_patents(patents(), big, follow_only())))
+      # The shipped quotas never reached them anyway: the default set is unchanged.
+      assert Research.starter_patents(patents(), %{open: 4, dome: 4, orbital: 4}, follow_only()) ==
+               Research.starter_patents(patents(), %{open: 4, dome: 4, orbital: 4})
+    end
+
+    test "they wait for their own share of the humans while other patents follow two" do
+      urbanization_iv = Research.path(patents(), :infra_open_4)
+      credit = Research.path(patents(), :open_credit)
+      owned = [:citadel, :infra_open_1]
+
+      # Six humans: two hold Urbanization IV and three the credit patent.
+      rivals = [urbanization_iv ++ credit, urbanization_iv ++ credit, credit, [], [], []]
+      opts = [holders: 2, reserved: follow_only(), reserved_holders: 3]
+
+      plan = Research.follow_plan(patents(), rivals, owned, opts)
+      assert :open_credit in plan
+      refute :infra_open_4 in plan
+
+      # A third holder brings it in, with every ancestor it still needs, in order.
+      rivals = [urbanization_iv ++ credit | tl(rivals)] |> List.replace_at(2, urbanization_iv ++ credit)
+      plan = Research.follow_plan(patents(), rivals, owned, opts)
+      assert :infra_open_4 in plan
+      assert Enum.filter(plan, &(&1 in urbanization_iv)) == urbanization_iv -- owned
+
+      # Without a reserved list everything follows at two, as before.
+      assert :infra_open_4 in Research.follow_plan(patents(), Enum.take(rivals, 2), owned, holders: 2)
+    end
+
+    test "a patent behind a reserved one cannot pull it in early" do
+      catalog = [
+        %{key: :root, ancestor: nil, class: :root, cost: 0},
+        %{key: :a, ancestor: :root, class: :open, cost: 10},
+        %{key: :b, ancestor: :a, class: :open, cost: 10},
+        %{key: :c, ancestor: :b, class: :open, cost: 10}
+      ]
+
+      rivals = [[:root, :a, :b, :c], [:root, :a, :b, :c], []]
+      opts = [holders: 2, reserved: [:b], reserved_holders: 3]
+
+      assert Research.follow_plan(catalog, rivals, [:root], opts) == [:a]
+      assert Research.follow_plan(catalog, rivals, [:root, :a, :b], opts) == [:c]
+      assert Research.follow_plan(catalog, rivals ++ [[:root, :a, :b]], [:root], opts) == [:a, :b, :c]
+    end
+
+    test "the share is rounded up, never below the usual holders, never above the humans" do
+      third = 1 / 3
+
+      # i185: 13 humans
+      assert Research.follow_only_holders(13, third, 2) == 5
+      assert Research.follow_only_holders(9, third, 2) == 3
+      assert Research.follow_only_holders(6, third, 2) == 2
+      assert Research.follow_only_holders(3, third, 2) == 2
+      # a test game with one human follows that human
+      assert Research.follow_only_holders(1, third, 2) == 1
+      # no usable share: the usual holders
+      assert Research.follow_only_holders(13, nil, 2) == 2
+      assert Research.follow_only_holders(13, 0, 2) == 2
+    end
+  end
+
   describe "the economy lexes" do
     @economy [:mobility_1, :credit_perc_1, :tech_3, :ideo_3, :stab_1, :prod_1, :upgrade_repair, :spy_2]
 

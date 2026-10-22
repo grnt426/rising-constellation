@@ -421,7 +421,10 @@ settled a question.
    gets one or two randomly-placed skill points, so roughly half of them have
    nothing in the three offensive skills and are refused as `no_candidate`.
    Early Erased are therefore scarce as well as weak, which the day-1 ceiling
-   of ~1 per player already wanted.
+   of ~1 per player already wanted. *Superseded 2026-10-22:* the schedule
+   bought three-star agents for every hire from day 8, so `hire_rank_mix`
+   now gives each kind of hire the humans' rank mix by day. See "Hiring at
+   the humans' ranks" below.
 
 5. **Roaming.** An Erased with no legal strike no longer stands still: it
    repositions to ground the Rebellion is blind on — dominions first, since
@@ -1096,7 +1099,9 @@ replaced that once the systems were made to build from the patents held
   humans is bought, ancestors first. Each human specialises and the Rebellion
   plays every role, so what several of them hold between them is what a
   generalist would hold by now; it also keeps the Rebellion from running
-  ahead of the table.
+  ahead of the table. Since 2026-10-22 the infrastructure IV and V patents
+  come only this way and wait for a third of the humans (see "Infrastructure
+  IV and V follow the humans" below).
 - **The clock buys one cheap patent a day.** The timed purchases are lexes
   except once per `patent_interval_ut` (480), when the cheapest building
   patent on offer is bought, inside the stage the game has reached:
@@ -1667,6 +1672,236 @@ the humans).
   i185's lexes and patents day by day), the charged bot reached 53k system
   credit and 45k income on day 16.6 against 51k and 41k for the real
   (free) run, with a 178M building book against 302M and every hire paid.
+
+### Pacing from i185: hire ranks and infrastructure IV and V (2026-10-22)
+
+The players of i185, the first official Rebel Defense match, said two things
+about the Rebellion: its agents were all very high level, and every building
+in its systems was level 5. The post-match analysis confirmed both. The bot
+hired its Erased at about level 11 from day 8 and its fleet Navarchs at level
+11.5 to 12, while the humans hired at levels 2 to 7 and raised their agents
+through use and schooling. Its research clock bought the three level-5
+infrastructure patents on days 9.2, 10.2 and 11.2, where the median human who
+bought them did so on days 15.3 to 16.8. Two changes follow from that. User
+rulings: weaker fleet commanders are acceptable ("easier is an acceptable
+problem, where impossible to fight is not fun"); the threshold is a third of
+the humans; the rank is chosen by a running count.
+
+#### Hiring at the humans' ranks
+
+**What the humans hired.** Each human hire in i185 (the `replays` table)
+joined to the agent's first nightly sighting, with its rank read from its
+price: the price divided by the middle of its type's base cost range is under
+5 for one star, 20 to 110 for two and over 300 for three, with nothing in
+between. Share of each type's hires in each period, by days elapsed:
+
+Each row is one agent type in one period. The rank columns are shares of
+that row's hires and add up to 100.
+
+| Agent type | Days elapsed | Hires (count) | Common (% of hires) | Remarkable (% of hires) | Exceptional (% of hires) |
+|---|---|---|---|---|---|
+| Navarch | 0–5 | 19 | 95 | 5 | 0 |
+| Navarch | 5–8 | 10 | 90 | 10 | 0 |
+| Navarch | 8–11 | 11 | 82 | 18 | 0 |
+| Navarch | 11–14 | 7 | 71 | 29 | 0 |
+| Navarch | 14–17 | 17 | 76 | 24 | 0 |
+| Navarch | 17–23 | 18 | 61 | 33 | 6 |
+| Siderian | 0–5 | 27 | 93 | 7 | 0 |
+| Siderian | 5–8 | 9 | 33 | 67 | 0 |
+| Siderian | 8–11 | 11 | 45 | 55 | 0 |
+| Siderian | 11–14 | 8 | 38 | 62 | 0 |
+| Siderian | 14–17 | 8 | 50 | 25 | 25 |
+| Siderian | 17–23 | 9 | 33 | 33 | 33 |
+| Erased | 0–5 | 14 | 79 | 21 | 0 |
+| Erased | 5–8 | 4 | 75 | 25 | 0 |
+| Erased | 8–11 | 18 | 39 | 61 | 0 |
+| Erased | 11–14 | 10 | 30 | 40 | 30 |
+| Erased | 14–17 | 28 | 64 | 29 | 7 |
+| Erased | 17–23 | 36 | 39 | 47 | 14 |
+
+The first three-star hires came on day 11.1 (Erased), 15.1 (Siderian) and
+17.9 (Navarch). The human Navarchs that later led a fleet of four or more
+ships were 21 one-star and 4 two-star hires.
+
+**What a rank buys.** Sampled with the real constructor on Legacy content: a
+common agent is level 1 or 2 (mean 1.15), a remarkable one level 5 to 8 (6.7)
+and an exceptional one level 10 to 13 (11.4). An agent's first skill point
+always goes to its main specialization, so a one-star agent is useful only
+when that specialization is the trade wanted: 15.5%, 18.4% and 15.8% of
+common Siderians have a point in capture, destabilization and seduction, and
+54% of common Erased have one in infiltration, removal or sabotage (55% and
+93% at two stars).
+
+**The rule.** `hire_rank_mix` holds, for fleet Navarchs, Siderians and the
+Erased, steps of `[from_day, %{rank => weight}]` by days elapsed; the latest
+step whose day has arrived applies (`Warlord.rank_mix/2`), and a rank without
+weight cannot be bought that day.
+
+Each row is one step of the mix. The weights are relative and add up to 100.
+
+| Kind of hire | Step starts (days elapsed) | Common (weight) | Remarkable (weight) | Exceptional (weight) |
+|---|---|---|---|---|
+| Fleet Navarch | 0 | 95 | 5 | 0 |
+| Fleet Navarch | 8 | 75 | 25 | 0 |
+| Fleet Navarch | 17 | 60 | 33 | 7 |
+| Siderian | 0 | 100 | 0 | 0 |
+| Siderian | 5 | 40 | 60 | 0 |
+| Siderian | 14 | 40 | 35 | 25 |
+| Erased | 0 | 80 | 20 | 0 |
+| Erased | 8 | 40 | 60 | 0 |
+| Erased | 11 | 45 | 40 | 15 |
+
+Colonisers and the training Navarch take the cheapest open Navarch rank, as
+before. Since the Rebellion pays for its construction out of the same credit
+(see "Paying for construction" above), the mix also keeps its hires cheap: a
+two-star agent lists at about 10 times a one-star one and a three-star at 18
+times (the rank's `cost_factor`, 2, 21 and 36), and every refill of a slot adds
+a quarter of the first price at three stars against a hundredth at one
+(`nth_factor`). The fleet Navarch mix is every human Navarch hire, which is richer
+than the humans' own fleet commanders.
+
+Each kind keeps a count of what it bought at each rank since its step began
+(`hire_ranks` in the Warlord state, reset when a new step starts). The next
+hire tries the rank owed the most first — its share of the hires so far plus
+this one, less what it has — then the other open ranks, nearest first and
+cheaper first on ties (`Warlord.order_ranks/2`). Within a rank the score is
+unchanged: the strongest in the role, so nobody with zero capture or strike
+strength is ever bought, and for a fleet Navarch the highest level. A
+Siderian hire tries every role, most short first, at one rank before it moves
+to the next rank (`Warlord.pick_for_roles/3`), so the mix gives way only when
+nobody at that rank fits any role. Only when no open rank has anyone does the
+hire count `market::no_candidate` and wait `siderian_retry_ut` or
+`erased_retry_ut`, as before.
+
+The count is what keeps the mix honest. A hire that drew its rank at random
+would fall through to the next rank whenever the cheap one had nobody able,
+and with two one-star slots per type that is most looks for a single
+Siderian trade: drawn at 40% common, Siderians would come out about 80%
+remarkable. With the count, the hires that fell through count for the rank
+they bought, and the cheap rank comes first until it has caught up.
+
+Levels rise after the hire the way they already did: Siderians practise
+destabilization with no level cap, Erased train to `erased_train_max_level`
+(5) and practise whenever idle, and Navarchs gain levels from fights, raids
+and pillages. The bot never sends agents to school.
+
+`wave_siderian_hired`, `wave_erased_hired` and `wave_fleet_hired` carry the
+rank bought and the order tried (`rank`, `ranks`); the status readout has
+`hire_ranks` (each kind's step, mix, count and next order). `rank_unlock_days`
+is gone; `hire_rank` is the rank used when a kind has no usable step.
+
+#### Infrastructure IV and V follow the humans
+
+`patent_follow_only` lists Urbanization, Controlled Environment and
+Pressurized Environment IV and V (`infra_open_4`, `infra_open_5`,
+`infra_dome_4`, `infra_dome_5`, `infra_orbital_4`, `infra_orbital_5`). The
+research clock (`Research.building_pick/4`) and the starter set never take
+them; they come only from following the humans (`Research.follow_plan/4`),
+once `patent_follow_only_share` (a third) of the human players hold them,
+rounded up, never fewer than `patent_follow_humans` (2) and never more than
+the humans in the game (`Research.follow_only_holders/3`). Any other building
+patent whose way down the tree passes through one of them waits for it; in
+the Legacy catalog only the V patents do. The clock keeps buying one building
+patent a day from what is left.
+
+When each patent was bought in i185, and when it would have been at each holder threshold (13 humans). Every value is days elapsed.
+
+| Patent | Bot bought it (day) | 2nd human holder (day) | 5th human holder, a third (day) | 7th human holder, half (day) | Median human buyer (day) |
+|---|---|---|---|---|---|
+| Urbanization IV | 7.1 | 7.0 | 9.5 | 11.2 | 11.0 |
+| Urbanization V | 9.2 | 12.6 | 15.3 | 15.9 | 15.3 |
+| Controlled Environment IV | 7.2 | 11.0 | 14.1 | 14.9 | 14.5 |
+| Controlled Environment V | 10.2 | 13.5 | 16.0 | 16.7 | 15.8 |
+| Pressurized Environment IV | 8.2 | 8.8 | 12.1 | 15.0 | 13.1 |
+| Pressurized Environment V | 11.2 | 11.5 | 16.7 | 18.5 | 16.8 |
+
+The Rebellion still builds and upgrades for free once it holds them; how
+often it raises a system to level 4 and 5 is a separate lever.
+
+#### Replayed on i185
+
+Both changes were replayed on i185's own timeline before shipping. The hiring
+replay runs the real character market (`Instance.CharacterMarket` with Legacy
+characters) through the match: the humans' 264 hires at their times and
+ranks, each taking a character of that rank so the shop refreshes as it did,
+and the bot's 91 coloniser, 62 Siderian, 58 Erased and 26 pre-freeze fleet
+hires at the times it made them, each choosing by the rule under test. A hire
+with no candidate retries every 10 ut. Six market seeds per rule, cut at the
+freeze (day 16.9). Under the old rule the replay gives the levels the bot
+actually hired at in i185, which is what makes the new numbers worth reading.
+
+Mean level of the agents hired in each period. Human levels are each agent's
+level the first night it was seen, within a day of the hire, so they include
+up to a day of growth; the others are the level at the hire.
+
+| Agent type | Days elapsed | Humans, i185 (mean level) | Bot, i185 (mean level) | Old rule, replay (mean level) | New rule, replay (mean level) |
+|---|---|---|---|---|---|
+| Fleet Navarch | 11–14 | 3.3 | 11.7 | 11.3 | 2.6 |
+| Fleet Navarch | 14–16.9 | 3.0 | 11.7 | 11.8 | 2.5 |
+| Siderian | 0–5 | 2.1 | 4.6 | 4.4 | 2.1 |
+| Siderian | 5–8 | 5.7 | 6.5 | 5.9 | 4.6 |
+| Siderian | 8–11 | 4.5 | 8.2 | 10.3 | 4.2 |
+| Siderian | 11–14 | 5.2 | 8.7 | 9.0 | 4.7 |
+| Siderian | 14–16.9 | 5.0 | 8.9 | 9.3 | 6.0 |
+| Erased | 0–5 | 2.9 | 2.8 | 2.8 | 3.0 |
+| Erased | 5–8 | 2.8 | 6.8 | 6.5 | 2.9 |
+| Erased | 8–11 | 5.2 | 10.9 | 11.0 | 4.6 |
+| Erased | 11–14 | 6.7 | 10.3 | 10.9 | 5.1 |
+| Erased | 14–16.9 | 3.4 | 11.2 | 11.2 | 4.9 |
+
+The rank shares land on the mix (Siderians from day 5: 36–44% common against
+the mix's 40; Erased from day 8: 38–47% against 40–45). The fleets bought
+in i185 came after day 13.2, when they were switched on, so only the last
+two periods have them.
+
+The rank shares of the Erased before day 8 come out 69–71% common against
+the mix's 80, since the bot and the humans take the able one-star agents and
+the rest sit in the shop until their slot expires.
+
+One cost: Siderians on the one-star days wait. A one-star Siderian is useful
+only when its specialization is a trade, so on days 0 to 4 a hire waited for
+the shop to turn over under both rules (43% of hires under the old rule, 37%
+under the new, about 120 ut each). The old rule opened two-star Siderians on
+day 4; the new one waits until day 5, and in days 4 to 5, when i185's
+Siderian hires came every 30 ut, 8 of 9 waited, for a mean of 159 ut
+(longest 470 ut). Nothing waits after day 5. Replayed with remarkable open
+at 7% on days 0 to 5, nobody waits, but 40–50% of those hires come out
+remarkable, at a mean level of 3.5 to 3.9 against the humans' 2.1; the
+shipped mix keeps the levels and accepts the wait. The rank-first rule also
+hires a trade other than the most short one more often (34% of Siderian
+hires against 11%), which the quotas put right on the next hires.
+
+The research replay runs the research loop on the humans' patent purchases
+from the Rebellion's first research pass (day 3.25): the starter set, a look
+at the humans every 120 ut, and a patent turn every 120 ut with a clock patent
+at most every 480. Day each infrastructure IV and V patent was bought, days
+elapsed (the old-rule replay differs from i185 itself because the research
+rules changed during that match):
+
+| Patent | Bot, i185 (day) | Old rule, replay (day) | New rule, replay (day) | New rule bought it by |
+|---|---|---|---|---|
+| Urbanization IV | 7.1 | 6.6 | 9.5 | following 5 humans |
+| Pressurized Environment IV | 8.2 | 8.6 | 12.3 | following 5 humans |
+| Controlled Environment IV | 7.2 | 10.6 | 14.3 | following 5 humans |
+| Urbanization V | 9.2 | 11.6 | 15.5 | following 5 humans |
+| Controlled Environment V | 10.2 | 12.6 | 16.0 | following 5 humans |
+| Pressurized Environment V | 11.2 | 11.8 | 16.8 | following 5 humans |
+
+The clock kept its pace on the other patents: 20, 25 and 31 building patents
+owned on days 5, 8 and 11 under both rules, then 34 against 38 on day 14.
+
+Verified live on a dev game (2026-10-22, 300×, seven humans scaled to 13,
+fleets on, to day 15.5): every hire logged its rank, the Siderians were all
+one-star until day 5, the Erased opened three-star hires from day 11, and the
+23 fleet Navarchs came out 84% one-star at levels 1 to 3. Two humans were
+given Urbanization IV on day 5.6 and the Rebellion did not follow; a third
+on day 7.1 and it bought the patent at the next look (day 7.3). The clock
+bought 16 patents and none of the six. The harness humans never hire, so
+the able one-star agents ran out and the shop only turned over as slots
+expired: Siderians on days 8 to 11 came out 11% one-star against the mix's
+40. In a match the humans' own hires keep the shop turning (the replay above
+gives 44%). `market::no_candidate` was refused 166 times in 15.5 days, one
+look per 10 ut while nothing fitted.
 
 ### Deviations from the plan below
 
