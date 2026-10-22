@@ -51,6 +51,13 @@ uploaded via the instance role. Bucket lifecycle expires objects after
 30 days. Installed by `deploy/provision-dr.ps1` (current host) and
 `bootstrap-host.sh` (new hosts).
 
+The DB dump is uploaded first, so a snapshot problem only costs that
+night's tarball. The tarball holds hard links to snapshots at least 60 s
+old, frozen before tar runs, because games keep autosaving and pruning
+during the backup. Tarring the live dir used to make tar exit 1, which
+killed the whole run: 2026-10-04 and 2026-10-21 have no backup at all.
+A failed snapshot step still exits non-zero after the DB upload.
+
 Check freshness:
 
 ```
