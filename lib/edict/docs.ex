@@ -1824,8 +1824,9 @@ defmodule Edict.Docs do
     "setup:time_limit" => %{
       title: "time_limit",
       kind: "setup field",
-      summary: "How long a run lasts.",
-      details: "A time from 5m to 45m, written with units: 30m, or 22m30s. A bare number counts seconds: 1800 is 30m.",
+      summary: "How long a run lasts. In a match, a time_limit shorter than the map's sets the match's length.",
+      details:
+        "A time from 5m to 45m, written with units: 30m, or 22m30s. A bare number counts seconds: 1800 is 30m. When several scripts of a scenario set one, the shortest wins; the scenario editor says so.",
       usage: "time_limit = 30m",
       inputs: [%{name: "time_limit", doc: "A time from 5m to 45m. Left out, 30m."}],
       output: nil,

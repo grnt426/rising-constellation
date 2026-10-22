@@ -22,6 +22,11 @@ defmodule Edict.AttachmentTest do
     Map.put(map, "scripts", scripts)
   end
 
+  defp diagnostics(source, map \\ @map) do
+    [%{"diagnostics" => diagnostics}] = Attachment.check(attached(map, [source]))
+    diagnostics
+  end
+
   defp messages(source, map \\ @map) do
     [%{"diagnostics" => diagnostics}] = Attachment.check(attached(map, [source]))
     Enum.map(diagnostics, & &1["message"])
@@ -54,14 +59,18 @@ defmodule Edict.AttachmentTest do
     [faction] = messages(~s|setup {\n  faction = "cardan"\n}\nscore 1|)
     assert faction =~ "cardan, which isn't on this map (tetrarchy, myrmezir)"
 
-    [time] = messages("setup {\n  time_limit = 30m\n}\nscore 1")
+    # a shorter time_limit sets the matches' length: a note, not a problem
+    [%{"severity" => "info", "message" => time}] = diagnostics("setup {\n  time_limit = 30m\n}\nscore 1")
 
     assert time ==
-             ~s(It is timed for a 30m run, and this match lasts 2h. Its "at" and "every" timers don't stretch to fit: they count from the start of the match, so one set for the 30m mark goes off 1h30m before the match ends.)
+             "Matches of this scenario will last 30m instead of the map's 2h: this script's time_limit sets their length."
 
     # a run longer than the match: its late timers never go off
     [longer] = messages("setup {\n  time_limit = 45m\n}\nscore 1", %{@map | "time_limit" => 30})
-    assert longer =~ ~s(lasts 30m. Its "at" and "every" timers count from the start of the match)
+
+    assert longer =~
+             ~s(matches of this scenario last 30m. Its "at" and "every" timers count from the start of the match)
+
     assert longer =~ "any set after the 30m mark never goes off"
 
     [rival] = messages("setup {\n  rival = true\n}\nscore 1")
@@ -146,6 +155,36 @@ defmodule Edict.AttachmentTest do
     assert Attachment.prepare_instance(@map) == @map
   end
 
+  test "a script's shorter time_limit sets every match's length; the shortest of several wins" do
+    first = ~s|setup {\n  name = "Quick"\n  time_limit = 15m\n}\nscore 1|
+    second = ~s|setup {\n  name = "Slow"\n  time_limit = 30m\n}\nscore 1|
+    game_data = attached([second, first])
+
+    assert Attachment.time_limit(game_data) == {900.0, "Script 2"}
+
+    [slow, quick] = Attachment.check(game_data)
+    assert [%{"severity" => "info", "message" => note}] = quick["diagnostics"]
+    assert note =~ "will last 15m instead of the map's 2h"
+    assert [%{"severity" => "warning", "message" => warn}] = slow["diagnostics"]
+    assert warn =~ "timed for a 30m run, and matches of this scenario last 15m (Script 2 sets it)"
+    assert warn =~ "any set after the 15m mark never goes off"
+
+    # the match is created that long; the map's length and who set it are kept
+    prepared = Attachment.prepare_instance(game_data)
+    assert prepared["time_limit"] == 15
+    assert prepared["edict"]["time_limit"] == %{"seconds" => 900.0, "set_by" => "Script 2", "map_minutes" => 120}
+
+    # a length that isn't whole minutes stays exact
+    odd = attached([~s|setup {\n  time_limit = 7m30s\n}\nscore 1|])
+    assert Attachment.prepare_instance(odd)["time_limit"] == 7.5
+
+    # no time_limit written, or none shorter than the map's: the map decides
+    assert Attachment.time_limit(attached(["score 1"])) == nil
+    assert Attachment.prepare_instance(attached(["score 1"]))["time_limit"] == 120
+    long_map = %{@map | "time_limit" => 30}
+    assert Attachment.time_limit(attached(long_map, ["setup {\n  time_limit = 45m\n}\nscore 1"])) == nil
+  end
+
   test "only frozen entries with text count as attached" do
     assert Attachment.scripts(%{"scripts" => [%{"id" => 1}, "x", %{"source" => "score 1", "digest" => "d"}]}) ==
              [%{"source" => "score 1", "digest" => "d"}]
@@ -156,6 +195,9 @@ defmodule Edict.AttachmentTest do
   test "the map's facts: mode by speed, factions, time limit in seconds" do
     assert %{mode: "flash", factions: ["tetrarchy", "myrmezir"], time_limit: 7200.0, systems: 40} =
              Attachment.facts(@map)
+
+    assert %{time_limit: 900.0, map_time_limit: 7200.0, time_limit_by: "Script 1"} =
+             Attachment.facts(attached(["setup {\n  time_limit = 15m\n}\nscore 1"]))
 
     assert Attachment.mode("slow") == "legacy"
     assert Attachment.mode(:medium) == "tactic"

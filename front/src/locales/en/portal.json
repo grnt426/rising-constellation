@@ -733,7 +733,8 @@
         "privacy": "Saving keeps a copy of each script as it is now; save again to pick up a newer version. Anyone who can open this scenario can read its scripts, and in a match every player sees each script's scores on the leaderboard.",
         "saved_with_warnings": "Saved, with a warning about its scripts on this map. | Saved, with {count} warnings about its scripts on this map.",
         "detail_title": "Scripts",
-        "detail_hint": "Rules this scenario adds to its matches, as their authors wrote them."
+        "detail_hint": "Rules this scenario adds to its matches, as their authors wrote them.",
+        "detail_length": "Matches last {length}: {name} sets their length."
       }
     },
     "fight_simulator": {
@@ -1933,7 +1934,7 @@
         "simulate_title": "See it run",
         "simulate_body": "Simulate plays the whole run against a model player in a second and lists what your scenario did, and when.",
         "code_title": "The same scenario, as code",
-        "code_body": "Prefer typing? Switch to Code or Both. It’s the same scenario as text: edit either side and the other follows.",
+        "code_body": "Prefer typing? Switch to Code or Both. It’s the same scenario as text: edit either side and the other follows. If you program: it reads like Python written with braces, and Help → For programmers compares it with the languages you know.",
         "done_title": "Over to you",
         "done_body": "Open the examples for the dailies rebuilt as scenarios. Help (on the right) has the shortcuts; the tour button brings this back."
       },
@@ -2082,7 +2083,17 @@
         "refused_invalid": "It couldn't be saved: {detail}"
       },
       "template_match": "Rules for a match (attach to a Forge scenario)",
-      "flag_shared": "shared by all players"
+      "flag_shared": "shared by all players",
+      "programmers_title": "For programmers",
+      "programmers_intro": "Edict is a small language made for this game, not a cut-down version of another one. If you program, it reads like Python written with braces, borrowing a few things from others:",
+      "programmers_differs": "Where it differs from what you might expect:",
+      "programmers_lines": "No `;`: one statement per line. Blocks use `{ }`, and conditions need no parentheses.",
+      "programmers_bools": "Conditions must be `true` or `false`: there is no truthy `0` or `\"\"`. Write `if len(xs) > 0`, not `if xs`.",
+      "programmers_numbers": "Every number is a decimal, and `/` never truncates. `%` makes a percent (`25%` is `0.25`), so the remainder is `mod(17, 5)`.",
+      "programmers_values": "Values, not references: `let b = a` copies, so changing `b[0]` leaves `a` alone, and `push(xs, 4)` returns a new list.",
+      "programmers_functions": "Functions, not methods: `map(xs, f)`, `len(xs)`, `sort_by(xs, f)`. Text takes holes, `\"wave {n}\"`, and the inline if is `if c then a else b`.",
+      "programmers_lists": "Lists start at `0`, and `range(1, 3)` includes both ends: `[1, 2, 3]`.",
+      "programmers_events": "No classes, imports, exceptions or files. A script reacts to events (`on start`, `every 15s`, `when …`), changes the game only through actions such as `give()`, and each second has a step budget."
     }
   },
   "portal_components": {
@@ -2104,7 +2115,8 @@
     },
     "scripted_badge": {
       "label": "Scripted: this scenario runs scripts that add rules to its matches",
-      "named": "Scripted: {names}"
+      "named": "Scripted: {names}",
+      "length": "Matches last {length}"
     }
   }
 }

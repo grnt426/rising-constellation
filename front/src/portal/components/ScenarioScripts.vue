@@ -33,7 +33,7 @@
           v-else-if="checkFailed"
           class="scenario-script-state">{{ $t('page.create.scenario_scripts.check_failed') }}</p>
         <p
-          v-else-if="checks[i] && !checks[i].diagnostics.length"
+          v-else-if="checks[i] && !problems(checks[i]).length"
           class="scenario-script-state is-ok">{{ $t('page.create.scenario_scripts.fits') }}</p>
         <ul
           v-if="!checking && checks[i] && checks[i].diagnostics.length"
@@ -184,6 +184,8 @@ export default {
   },
   methods: {
     isAttached(s) { return this.attached.some((a) => a.id === s.id); },
+    // warnings and errors; notes ("info") are worth knowing, not problems
+    problems(check) { return check.diagnostics.filter((d) => d.severity !== 'info'); },
     emit(list) { this.$emit('change', list); },
     attach(s) {
       if (this.isAttached(s) || this.attached.length >= this.max) return;
@@ -364,6 +366,10 @@ export default {
 
   &.is-error {
     font-weight: bold;
+  }
+
+  &.is-info {
+    opacity: .85;
   }
 }
 

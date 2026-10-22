@@ -125,11 +125,20 @@ defmodule Portal.ScenarioController do
     # an update may leave game_metadata out: then it stays as it is
     case params["game_metadata"] do
       %{} = gm when frozen == [] ->
-        %{params | "game_metadata" => Map.drop(gm, ["scripted", "scripts"])}
+        %{params | "game_metadata" => Map.drop(gm, ["scripted", "scripts", "script_time_limit"])}
 
       %{} = gm ->
         scripts = Enum.map(frozen, &Map.take(&1, ["id", "name"]))
-        %{params | "game_metadata" => Map.merge(gm, %{"scripted" => true, "scripts" => scripts})}
+        gm = Map.merge(gm, %{"scripted" => true, "scripts" => scripts})
+
+        # a script that shortens every match made from the scenario
+        gm =
+          case Edict.Attachment.time_limit(gd) do
+            {seconds, name} -> Map.put(gm, "script_time_limit", %{"seconds" => seconds, "set_by" => name})
+            nil -> Map.delete(gm, "script_time_limit")
+          end
+
+        %{params | "game_metadata" => gm}
 
       _ ->
         params

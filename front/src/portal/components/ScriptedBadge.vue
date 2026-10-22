@@ -14,6 +14,8 @@
 </template>
 
 <script>
+import duration from '@/utils/script-length';
+
 export default {
   name: 'scripted-badge',
   props: {
@@ -27,9 +29,13 @@ export default {
       return scripts.map((s) => s && s.name).filter((n) => typeof n === 'string' && n);
     },
     label() {
-      return this.names.length
+      const base = this.names.length
         ? this.$t('portal_components.scripted_badge.named', { names: this.names.join(', ') })
         : this.$t('portal_components.scripted_badge.label');
+      const length = this.metadata && this.metadata.script_time_limit;
+      return length && typeof length.seconds === 'number'
+        ? `${base}. ${this.$t('portal_components.scripted_badge.length', { length: duration(length.seconds) })}`
+        : base;
     },
   },
 };

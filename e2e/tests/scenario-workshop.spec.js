@@ -432,6 +432,18 @@ test('editor kits download from the help tab', async ({ page }) => {
   expect(fs.readFileSync(kit.file).slice(0, 2).toString()).toBe('PK');
 });
 
+test('programmers find which languages Edict is like, in the help tab', async ({ page }) => {
+  await openWorkshop(page);
+  await endTour(page);
+  await page.locator('.wk-tabs button', { hasText: 'Help' }).click();
+  const section = page.locator('.wk-programmers');
+  await section.locator('summary', { hasText: 'For programmers' }).click();
+  await expect(section).toContainText('Python written with braces');
+  await expect(section.locator('.wk-like th', { hasText: 'JavaScript' })).toBeVisible();
+  // backticked copy shows as code
+  await expect(section.locator('li code', { hasText: 'mod(17, 5)' })).toBeVisible();
+});
+
 // A file someone sent can carry markup in its name and anywhere in its
 // text. Every way the workshop shows it (toasts, tooltips, the code view,
 // problems, the palette, the simulator) must show it as text.

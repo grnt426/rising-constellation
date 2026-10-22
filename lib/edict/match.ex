@@ -803,8 +803,16 @@ defmodule Edict.Match do
   @doc false
   def load(instance_id) do
     case RC.Repo.one(from(r in "edict_match_runs", where: r.instance_id == ^instance_id, select: r.state)) do
-      nil -> %{}
-      binary -> :erlang.binary_to_term(binary, [:safe])
+      nil ->
+        %{}
+
+      binary ->
+        # :safe refuses atoms the node doesn't know yet, and the saved state
+        # holds the runtime's own (:armed?, :next_due, a closure's tag): load
+        # the modules that define them first, or a fresh node would read
+        # nothing and every player's on start would run again
+        Enum.each([Edict.Runtime, Edict.Interpreter, Edict.Effects], &Code.ensure_loaded!/1)
+        :erlang.binary_to_term(binary, [:safe])
     end
   rescue
     e ->

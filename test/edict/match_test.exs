@@ -296,4 +296,27 @@ defmodule Edict.MatchTest do
     assert [%{"champion" => champion}] = Map.values(saved.shared)
     assert champion == first.name
   end
+
+  test "a script's shorter time_limit is the match's own length: the game's clock says so", %{conn: conn} do
+    owner = account!("owner", "admin")
+
+    source = """
+    setup {
+      name = "Quick"
+      time_limit = 5m
+    }
+
+    score player.credit
+    """
+
+    {iid, _players, instance} = start_match(conn, owner, login(conn, owner), scripted_scenario(owner, source))
+
+    assert instance.game_data["time_limit"] == 5
+    assert instance.game_data["edict"]["time_limit"]["map_minutes"] == 120
+
+    # Flash: 40 ut a minute of play, so five minutes is 200 ut (the map's two
+    # hours would be 4,800)
+    {:ok, victory} = Game.call(iid, :victory, :master, :get_state)
+    assert victory.ut_time_left <= 200.0 and victory.ut_time_left > 150.0
+  end
 end

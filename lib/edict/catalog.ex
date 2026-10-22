@@ -326,7 +326,8 @@ defmodule Edict.Catalog do
   @setup [
     {"name", "text", "Untitled scenario", "The scenario's title, as players see it."},
     {"description", "text", "", "One or two sentences telling the player what to do."},
-    {"time_limit", "number", 1800.0, "How long a run lasts, from 5m to 45m."},
+    {"time_limit", "number", 1800.0,
+     "How long a run lasts, from 5m to 45m. In a match, a time_limit shorter than the map's sets the match's length."},
     {"faction", {:enum, @factions}, nil, "The player's faction. Left out, the scenario picks one from its seed."},
     {"systems", "number", 1.0, "How many systems the starting sector holds, from 1 to 8. The player starts in one."},
     {"neighbors", {:enum, ["empty", "neutral"]}, "empty",

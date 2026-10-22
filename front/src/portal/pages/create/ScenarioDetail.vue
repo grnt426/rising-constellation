@@ -92,6 +92,9 @@
           class="panel-aside-info forge-detail-scripts">
           <h2>{{ $t('page.create.scenario_scripts.detail_title') }}</h2>
           <p class="forge-detail-scripts-hint">{{ $t('page.create.scenario_scripts.detail_hint') }}</p>
+          <p v-if="scriptLength">
+            {{ $t('page.create.scenario_scripts.detail_length', { length: scriptLength.length, name: scriptLength.name }) }}
+          </p>
           <details
             v-for="(s, i) in scripts"
             :key="`${s.id}-${i}`">
@@ -151,6 +154,7 @@ import DefaultLayout from '@/portal/layouts/Default.vue';
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import GalaxyPreview from '@/portal/components/GalaxyPreview.vue';
 import ScriptedBadge from '@/portal/components/ScriptedBadge.vue';
+import duration from '@/utils/script-length';
 
 export default {
   name: 'create-scenario-detail',
@@ -166,6 +170,11 @@ export default {
     scripts() {
       const list = this.scenario && this.scenario.game_data && this.scenario.game_data.scripts;
       return Array.isArray(list) ? list.filter((s) => s && typeof s.source === 'string') : [];
+    },
+    // a script that sets the length of every match made from the scenario
+    scriptLength() {
+      const l = this.scenario && this.scenario.game_metadata && this.scenario.game_metadata.script_time_limit;
+      return l && typeof l.seconds === 'number' ? { length: duration(l.seconds), name: l.set_by } : null;
     },
     scenarioSize() {
       return this.scenario.game_data.size || this.scenario.game_metadata.size;

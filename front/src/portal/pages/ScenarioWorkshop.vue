@@ -344,6 +344,41 @@
                 <p class="wk-muted">{{ $t(canLink ? 'page.scenario_workshop.editors_link' : 'page.scenario_workshop.editors_open') }}</p>
               </details>
 
+              <details
+                ref="programmersHelp"
+                class="wk-help-section wk-programmers"
+                :open="helpOpen.programmers"
+                @toggle="onHelpToggle('programmers', $event)">
+                <summary>{{ $t('page.scenario_workshop.programmers_title') }}</summary>
+                <p>{{ $t('page.scenario_workshop.programmers_intro') }}</p>
+                <table class="wk-like">
+                  <tr
+                    v-for="row in LANGUAGE_LIKE"
+                    :key="row.lang">
+                    <th>{{ row.lang }}</th>
+                    <td>
+                      <code
+                        v-for="(c, i) in row.code"
+                        :key="i">{{ c }}</code>
+                    </td>
+                  </tr>
+                </table>
+                <p>{{ $t('page.scenario_workshop.programmers_differs') }}</p>
+                <ul class="wk-help-list">
+                  <!-- `backticks` in the copy show as code; all of it plain text -->
+                  <li
+                    v-for="key in PROGRAMMER_NOTES"
+                    :key="key">
+                    <template v-for="(part, i) in ticks($t(`page.scenario_workshop.programmers_${key}`))">
+                      <code
+                        v-if="i % 2"
+                        :key="i">{{ part }}</code>
+                      <template v-else>{{ part }}</template>
+                    </template>
+                  </li>
+                </ul>
+              </details>
+
               <h3 class="wk-ref-title">{{ $t('page.scenario_workshop.reference_title') }}</h3>
               <p class="wk-muted">{{ $t('page.scenario_workshop.reference_hint') }}</p>
               <details
@@ -429,6 +464,16 @@ import Palette, { worldPaths } from '@/portal/workshop/Palette.vue';
 import SimPanel from '@/portal/workshop/SimPanel.vue';
 import WorkshopTour from '@/portal/workshop/Tour.vue';
 import AccountScripts from '@/portal/workshop/AccountScripts.vue';
+
+// For programmers (the Help tab): what Edict borrows from the languages
+// they know. Code, so not translated.
+const LANGUAGE_LIKE = [
+  { lang: 'Python', code: ['# comment', 'and  or  not', 'for x in xs { }', 'len(xs)', 'str(n)', '1_000_000'] },
+  { lang: 'JavaScript', code: ['{ … } blocks', 'x => x * 2', '{key: 1}', 'let  var'] },
+  { lang: 'Swift, Go', code: ['if x > 1 { }', 'nil', 'notify("Hi", tone: "good")'] },
+  { lang: 'Rust', code: ['fn total(a, b) { return a + b }'] },
+];
+const PROGRAMMER_NOTES = ['lines', 'bools', 'numbers', 'values', 'functions', 'lists', 'events'];
 
 const WORKSPACE_KEY = 'edict.workspace.v1';
 const LIBRARY_KEY = 'edict.library.v1';
@@ -536,7 +581,9 @@ export default {
       codeDocKey: null,
       hoverDoc: null,
       hoverTimer: null,
-      helpOpen: { how: true, editors: false, ...(storage(HELP_KEY) || {}) },
+      helpOpen: {
+        how: true, editors: false, programmers: false, ...(storage(HELP_KEY) || {}),
+      },
       library: [],
       builtinLibrary: [],
       activeLine: null,
@@ -556,6 +603,8 @@ export default {
       dropping: false,
       downloading: null,
       editorKits: EDITOR_KITS,
+      LANGUAGE_LIKE,
+      PROGRAMMER_NOTES,
       canLink: canLink(),
       loading: null,
       syncTimer: null,
@@ -1635,6 +1684,10 @@ export default {
       clearTimeout(this.hoverTimer);
       this.hoverDoc = null;
     },
+    // "a `b` c" -> ["a ", "b", " c"]: the odd parts are code
+    ticks(text) {
+      return String(text).split('`');
+    },
     onHelpToggle(key, e) {
       this.helpOpen = { ...this.helpOpen, [key]: e.target.open };
       storage(HELP_KEY, this.helpOpen);
@@ -2354,6 +2407,39 @@ $line: rgba(255, 255, 255, .12);
 
   li {
     margin-bottom: 8px;
+  }
+}
+
+// For programmers: code in the copy, and what Edict borrows from where
+.wk-programmers code {
+  padding: 0 3px;
+  background: rgba(255, 255, 255, .08);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+
+.wk-like {
+  width: 100%;
+  margin: 0 0 10px;
+  border-collapse: collapse;
+
+  th {
+    padding: 4px 8px 4px 0;
+    color: $white-alt-1;
+    font-weight: normal;
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 3px 0;
+  }
+
+  code {
+    display: inline-block;
+    margin: 0 4px 4px 0;
   }
 }
 

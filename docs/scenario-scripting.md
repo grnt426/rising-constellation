@@ -164,6 +164,19 @@ when "armoring" in player.patents {
 
 Edict is expression-oriented, with statements in blocks and no semicolons.
 
+**For programmers**, the question is usually "which language is it like?"
+It reads like Python written with braces: Python's `#` comments,
+`and`/`or`/`not`, `for x in xs` and free functions (`len(xs)`, `str(n)`);
+JavaScript's arrow functions (`x => x * 2`) and record literals
+(`{key: 1}`); Swift's and Go's conditions without parentheses
+(`if x > 1 { }`), `nil` and named arguments (`tone: "good"`); Rust's `fn`.
+What surprises programmers: conditions must be real booleans (no truthy
+`0`), every number is a decimal and `%` is a percent (the remainder is
+`mod()`), values are copied rather than shared (`push()` returns a new
+list), and there are no classes, imports or exceptions. The workshop's Help
+tab ("For programmers"), the tour's code card and the editor kits' READMEs
+say the same.
+
 - **Values:** numbers (all floating point; there is no integer type, so no
   bignum arithmetic to blow up), text, `true`/`false`, `nil`, lists,
   records (`{credit: 5, "two words": 2}`), functions.
@@ -620,6 +633,7 @@ script runs once for every player, as if each had their own copy.**
 | `end_match(message, winner: faction)` | ends the run, like `finish()` | ends the match for everyone; the named faction wins (left out, the match's own rules pick) |
 | `score` | ranks the day | each player's own score, shown to them with their place and to everyone on the leaderboard's Scenario tab |
 | `send_agent` | the rival court | refused: a match has no rival court |
+| `time_limit` (setup) | the run's length | the match's length, when shorter than the map's (see below) |
 | `time.limit` | the setup's | the match's time limit |
 
 So a daily script keeps its meaning when attached to a match, and a script
@@ -715,12 +729,12 @@ lists them, text included), since they are the rules of its matches.
 **Checks against the map** (`Edict.Attachment`). The point is not to prove a
 script does what its author meant, only that it starts correctly on this
 map. They run as scripts are picked (`POST /api/edict/check-scenario`) and
-again on save; all are warnings, and the scenario still saves.
+again on save; all are warnings or notes, and the scenario still saves.
 
 - *The setup against the map.* The setup describes the world a script was
   written for, and in a match the map makes that world, so the two must
   agree: `factions = 5` on a two-faction map, a `faction` the map doesn't
-  have, a `time_limit` that isn't the match's, `rival = true`, the
+  have, a `time_limit` that differs from the match's length, `rival = true`, the
   daily-only `systems` and `neighbors`, and granted or discounted patents
   that the speed's patent tree lacks (Flash and Tactic trees are smaller).
 - *A dry start.* The script starts once for a model player of every faction
@@ -733,6 +747,21 @@ again on save; all are warnings, and the scenario still saves.
 
 It can't catch the opposite case: a script that hard-codes two factions in a
 way that can't tell a five-faction map apart.
+
+**A script can set the match's length.** A `time_limit` written in a
+script's setup, shorter than the map's, becomes the length of every match
+made from the scenario; with several, the shortest wins. It is applied when
+the match is created: the match's own `time_limit` is shortened (the map's
+and the script's name are kept in `game_data["edict"]["time_limit"]`), so
+the game's clock, its time-up victory and every script's `time.left` agree,
+and the runner needs no special case. Nothing about it is hidden: the
+Forge check says so as a note ("Matches of this scenario will last 15m
+instead of the map's 2h: this script's time_limit sets their length"), the
+scripted badge and the scenario's page say "Matches last 15m", and a second
+script timed differently gets a warning naming the one that sets it. It was
+made explicit this way because every daily script sets a `time_limit`
+(5–45 minutes), so attaching one to a long map shortens it: the author must
+be able to see that before players join.
 
 **What a match boots with.** Creating a match from the scenario
 (`RC.Instances.create_instance/3`) merges the attached scripts' setups into

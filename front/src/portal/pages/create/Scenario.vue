@@ -977,7 +977,7 @@ export default {
     // author hears about it once more on the way out.
     warnScripts(saved) {
       const checks = (saved && saved.script_checks) || [];
-      const count = checks.reduce((n, c) => n + c.diagnostics.length, 0);
+      const count = checks.reduce((n, c) => n + c.diagnostics.filter((d) => d.severity !== 'info').length, 0);
       if (count) {
         this.$toasted.show(this.$tc('page.create.scenario_scripts.saved_with_warnings', count, { count }), { duration: 8000 });
       }

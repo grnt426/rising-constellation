@@ -25,6 +25,13 @@ defmodule Edict.Attachment do
 
   `instance_setup/1` merges the attached scripts' grants, discounts and
   mutators into what a new match boots with.
+
+  **A script can shorten a match.** A `time_limit` a script sets itself,
+  shorter than the map's, becomes the length of every match made from the
+  scenario (the shortest, when several do): `prepare_instance/1` writes it
+  into the match's own `time_limit`, so the game's clock, its time-up
+  victory and the scripts' `time.left` all agree. The checks say so as a
+  note, naming the script.
   """
 
   alias Edict.{Catalog, Checker, Parser, Runtime, Sandbox, Scenario, World}
@@ -87,9 +94,34 @@ defmodule Edict.Attachment do
         |> Enum.reject(&is_nil/1)
         # a map has a handful; a request can't make the check start thousands
         |> Enum.take(8),
+      map_time_limit: number(game_data["time_limit"]) * 60.0,
       time_limit: number(game_data["time_limit"]) * 60.0,
+      time_limit_by: nil,
       systems: length(List.wrap(game_data["systems"]))
     }
+    |> shortened_by(time_limit(game_data))
+  end
+
+  defp shortened_by(facts, nil), do: facts
+  defp shortened_by(facts, {seconds, name}), do: %{facts | time_limit: seconds, time_limit_by: name}
+
+  @doc """
+  The match length the attached scripts set: the shortest `time_limit` a
+  script writes in its setup, when shorter than the map's. `{seconds,
+  script name}`, or nil.
+  """
+  def time_limit(game_data) do
+    map = number(game_data["time_limit"]) * 60.0
+
+    game_data
+    |> scripts()
+    |> Enum.flat_map(fn script ->
+      case setup_of(script["source"]) do
+        {%{"time_limit" => t}, _config} when is_number(t) and t < map -> [{t / 1, script["name"]}]
+        _ -> []
+      end
+    end)
+    |> Enum.min_by(&elem(&1, 0), fn -> nil end)
   end
 
   defp number(n) when is_number(n), do: n
@@ -180,16 +212,7 @@ defmodule Edict.Attachment do
         _ ->
           nil
       end,
-      case fields["time_limit"] do
-        t when is_number(t) and abs(t - facts.time_limit) > 0.5 ->
-          warning(
-            "It is timed for a #{duration(t)} run, and this match lasts #{duration(facts.time_limit)}. " <>
-              timers_note(t, facts.time_limit)
-          )
-
-        _ ->
-          nil
-      end,
+      time_limit_note(fields["time_limit"], facts),
       if(fields["rival"] == true,
         do: warning("It asks for a rival court, which a match doesn't have: its send_agent calls will be refused.")
       ),
@@ -201,6 +224,30 @@ defmodule Edict.Attachment do
     ]
     |> Enum.reject(&is_nil/1)
   end
+
+  # A script's own time_limit: the one that sets the matches' length gets
+  # a note; another one that doesn't match it, a warning.
+  defp time_limit_note(t, facts) when is_number(t) do
+    cond do
+      abs(t - facts.time_limit) <= 0.5 and t < facts.map_time_limit - 0.5 ->
+        note(
+          "Matches of this scenario will last #{duration(t)} instead of the map's #{duration(facts.map_time_limit)}: this script's time_limit sets their length."
+        )
+
+      abs(t - facts.time_limit) > 0.5 ->
+        set_by = if facts.time_limit_by, do: " (#{facts.time_limit_by} sets it)", else: ""
+
+        warning(
+          "It is timed for a #{duration(t)} run, and matches of this scenario last #{duration(facts.time_limit)}#{set_by}. " <>
+            timers_note(t, facts.time_limit)
+        )
+
+      true ->
+        nil
+    end
+  end
+
+  defp time_limit_note(_t, _facts), do: nil
 
   # Flash and Tactic games have their own, smaller patent trees.
   defp missing_patents(fields, %{speed: speed}) do
@@ -367,26 +414,41 @@ defmodule Edict.Attachment do
   end
 
   defp config_of(%{"source" => source}) do
+    case setup_of(source) do
+      {_fields, config} -> [config]
+      nil -> []
+    end
+  end
+
+  # A script's setup as written and with defaults filled in: `{fields,
+  # config}`, or nil when it doesn't read or fails. Sandboxed: setup runs the
+  # script's own code.
+  defp setup_of(source) when is_binary(source) do
     run = fn ->
       with {:ok, program} <- Parser.parse(source),
            {:ok, fields} <- Runtime.setup_fields(program),
            {:ok, config} <- Scenario.config(fields) do
-        [config]
+        {fields, config}
       else
-        _ -> []
+        _ -> nil
       end
     end
 
     case Sandbox.run(run, timeout: 2_000) do
-      {:ok, configs} -> configs
-      {:error, _} -> []
+      {:ok, result} -> result
+      {:error, _} -> nil
     end
   end
 
+  defp setup_of(_), do: nil
+
   @doc """
   Prepare a new match's `game_data` from its scenario's: the merged setup
-  under `game_data["edict"]["setup"]` and the scripts' mutators added to the
-  map's own. Unscripted game data passes untouched.
+  under `game_data["edict"]["setup"]`, the scripts' mutators added to the
+  map's own, and the match's `time_limit` (minutes) shortened when a script
+  sets a shorter one (`time_limit/1`; the map's and the script's name are
+  kept under `game_data["edict"]["time_limit"]`). Unscripted game data
+  passes untouched.
   """
   def prepare_instance(game_data) when is_map(game_data) do
     case instance_setup(game_data) do
@@ -398,16 +460,36 @@ defmodule Edict.Attachment do
         have = MapSet.new(existing, &(is_map(&1) && &1["key"]))
         added = for key <- setup["mutators"], not MapSet.member?(have, key), do: %{"key" => key}
 
+        edict = %{"setup" => setup}
+
+        {game_data, edict} =
+          case time_limit(game_data) do
+            nil ->
+              {game_data, edict}
+
+            {seconds, name} ->
+              shortened = %{"seconds" => seconds, "set_by" => name, "map_minutes" => game_data["time_limit"]}
+              {Map.put(game_data, "time_limit", minutes(seconds)), Map.put(edict, "time_limit", shortened)}
+          end
+
         game_data
-        |> Map.put("edict", %{"setup" => setup})
+        |> Map.put("edict", edict)
         |> Map.put("mutators", existing ++ added)
     end
+  end
+
+  # whole minutes as an integer (what the Forge writes), else a decimal
+  defp minutes(seconds) do
+    m = seconds / 60
+    if m == Float.round(m), do: trunc(m), else: m
   end
 
   # --- wording ------------------------------------------------------------------
 
   defp error(message), do: %{"severity" => "error", "message" => message}
   defp warning(message), do: %{"severity" => "warning", "message" => message}
+  # worth knowing, not a problem
+  defp note(message), do: %{"severity" => "info", "message" => message}
 
   defp count(1, noun), do: "1 #{noun}"
   defp count(n, noun), do: "#{n} #{noun}s"
@@ -420,7 +502,7 @@ defmodule Edict.Attachment do
     ~s(Its "at" and "every" timers don't stretch to fit: they count from the start of the match, so one set for the #{duration(script)} mark goes off #{duration(match - script)} before the match ends.)
   end
 
-  defp timers_note(script, match) do
+  defp timers_note(_script, match) do
     ~s(Its "at" and "every" timers count from the start of the match, so any set after the #{duration(match)} mark never goes off.)
   end
 
