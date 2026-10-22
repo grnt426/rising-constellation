@@ -203,6 +203,13 @@ install -m 0644 "$DEPLOY_DIR/systemd/rc-db-backup.timer" /etc/systemd/system/rc-
 # Failure email (rc-db-backup.service has OnFailure=rc-alert@%n.service).
 install -m 0755 "$DEPLOY_DIR/bin/rc-alert-mail" /usr/local/bin/rc-alert-mail
 install -m 0644 "$DEPLOY_DIR/systemd/rc-alert@.service" /etc/systemd/system/rc-alert@.service
+# Legacy archive auto-import (hourly; needs the backup bucket for the
+# nightly snapshots, so it is enabled together with the backup timer).
+install -m 0755 "$DEPLOY_DIR/bin/rc-archive-import" /usr/local/bin/rc-archive-import
+install -m 0755 "$DEPLOY_DIR/bin/rc-archive-auto" /usr/local/bin/rc-archive-auto
+install -m 0644 "$DEPLOY_DIR/systemd/rc-archive-auto.service" /etc/systemd/system/rc-archive-auto.service
+install -m 0644 "$DEPLOY_DIR/systemd/rc-archive-auto.timer" /etc/systemd/system/rc-archive-auto.timer
+install -d -o rc -g rc -m 0775 /home/rc/archive-keep
 
 if [[ -n "$RC_BACKUP_BUCKET" ]]; then
   printf 'RC_BACKUP_BUCKET=%s\n' "$RC_BACKUP_BUCKET" > /etc/rc/backup.env
@@ -214,9 +221,9 @@ systemctl enable rc-fetch-secrets.service
 systemctl enable rc.service
 
 if [[ -f /etc/rc/backup.env ]]; then
-  systemctl enable rc-db-backup.timer
+  systemctl enable rc-db-backup.timer rc-archive-auto.timer
 else
-  echo "note: rc-db-backup.timer installed but not enabled (no RC_BACKUP_BUCKET)"
+  echo "note: rc-db-backup.timer and rc-archive-auto.timer installed but not enabled (no RC_BACKUP_BUCKET)"
 fi
 
 # Prime the env file now so the first deploy has it ready. Don't fail

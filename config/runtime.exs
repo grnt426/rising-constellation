@@ -159,7 +159,10 @@ if config_env() == :prod do
     # uses these snapshots to snapshot-before-stop and restore-after-start
     # so in-progress games survive code pushes.
     snapshot_backend: String.to_atom(System.get_env("RC_SNAPSHOT_BACKEND") || "local"),
-    snapshot_dir: System.get_env("RC_SNAPSHOT_DIR") || "/var/lib/rc-snapshots"
+    snapshot_dir: System.get_env("RC_SNAPSHOT_DIR") || "/var/lib/rc-snapshots",
+    # Official Legacy matches copy their last pre-victory autosave here at
+    # the victory (RC.Archive.Keep); deploy/bin/rc-archive-import reads it.
+    archive_keep_dir: System.get_env("RC_ARCHIVE_KEEP_DIR") || "/home/rc/archive-keep"
 
   # --- Database -------------------------------------------------------------
   database_url = get_env_required.("DATABASE_URL")

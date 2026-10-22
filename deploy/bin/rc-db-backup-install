@@ -1,23 +1,25 @@
 #!/bin/bash
 #
-# rc-db-backup-install — root-side installer for the nightly backup
-# pipeline. Run on the prod host as root; normally invoked by
-# deploy/provision-dr.ps1 over ssh, and by deploy/bin/bootstrap-host.sh
-# on fresh-host provisioning.
+# rc-db-backup-install — root-side installer for the host's scheduled
+# jobs: the nightly backup and the Legacy archive auto-import. Run on the
+# prod host as root; normally invoked by deploy/provision-dr.ps1 over ssh
+# (bootstrap-host.sh installs the same files on a fresh host).
 #
 #   rc-db-backup-install <bucket> [staging-dir]
 #
-# Installs the backup script + systemd units (and the failure-email
-# hook, rc-alert-mail + rc-alert@.service) from the staging dir,
-# records the bucket in /etc/rc/backup.env, and enables the daily timer.
-# Idempotent: safe to re-run to update the script or change the bucket.
+# Installs from the staging dir:
+#   - rc-db-backup + its units (daily timer)
+#   - rc-archive-import, rc-archive-auto + their units (hourly timer)
+#   - the failure-email hook both use: rc-alert-mail + rc-alert@.service
+# records the bucket in /etc/rc/backup.env and enables both timers.
+# Idempotent: safe to re-run to update the scripts or change the bucket.
 
 set -euo pipefail
 
 BUCKET="${1:?usage: rc-db-backup-install <bucket> [staging-dir]}"
 SRC="${2:-/home/rc/rc-backup-staging}"
 
-for f in rc-db-backup rc-db-backup.service rc-db-backup.timer rc-alert-mail rc-alert@.service; do
+for f in rc-db-backup rc-db-backup.service rc-db-backup.timer rc-alert-mail rc-alert@.service \n  rc-archive-import rc-archive-auto rc-archive-auto.service rc-archive-auto.timer; do
   [[ -r "$SRC/$f" ]] || { echo "rc-db-backup-install: missing $SRC/$f" >&2; exit 1; }
 done
 
@@ -26,13 +28,19 @@ install -m 0644 "$SRC/rc-db-backup.service" /etc/systemd/system/rc-db-backup.ser
 install -m 0644 "$SRC/rc-db-backup.timer" /etc/systemd/system/rc-db-backup.timer
 install -m 0755 "$SRC/rc-alert-mail" /usr/local/bin/rc-alert-mail
 install -m 0644 "$SRC/rc-alert@.service" /etc/systemd/system/rc-alert@.service
+install -m 0755 "$SRC/rc-archive-import" /usr/local/bin/rc-archive-import
+install -m 0755 "$SRC/rc-archive-auto" /usr/local/bin/rc-archive-auto
+install -m 0644 "$SRC/rc-archive-auto.service" /etc/systemd/system/rc-archive-auto.service
+install -m 0644 "$SRC/rc-archive-auto.timer" /etc/systemd/system/rc-archive-auto.timer
+# The app (RC.Archive.Keep) saves victory-time snapshots here.
+install -d -o rc -g rc -m 0775 /home/rc/archive-keep
 
 mkdir -p /etc/rc
 printf 'RC_BACKUP_BUCKET=%s\n' "$BUCKET" > /etc/rc/backup.env
 chmod 0644 /etc/rc/backup.env
 
 systemctl daemon-reload
-systemctl enable --now rc-db-backup.timer
+systemctl enable --now rc-db-backup.timer rc-archive-auto.timer
 
-echo "rc-db-backup-install: done. Next scheduled run:"
-systemctl list-timers rc-db-backup.timer --no-pager
+echo "rc-db-backup-install: done. Next scheduled runs:"
+systemctl list-timers rc-db-backup.timer rc-archive-auto.timer --no-pager

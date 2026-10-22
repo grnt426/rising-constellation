@@ -20,6 +20,10 @@
 #
 # Run as `rc`. AWS access comes from the instance role — the app env file's
 # AWS keys are deliberately NOT exported to the aws cli (see rc-db-backup).
+#
+# Installed as /usr/local/bin/rc-archive-import (rc-db-backup-install,
+# bootstrap-host.sh). rc-archive-auto.timer runs it by itself for every
+# official Legacy match that ends; run it by hand to rebuild an archive.
 
 set -euo pipefail
 
@@ -28,6 +32,7 @@ BACKUP_ENV_FILE="${RC_BACKUP_ENV_FILE:-/etc/rc/backup.env}"
 SNAPSHOT_DIR="${RC_SNAPSHOT_DIR:-/var/lib/rc-snapshots}"
 KEEP_DIR="${RC_ARCHIVE_KEEP_DIR:-/home/rc/archive-keep}"
 RC_BIN="${RC_BIN:-/home/rc/rc/bin/rc}"
+DEPLOY_LOCK="${RC_DEPLOY_LOCK:-/tmp/rc-deploy.lock}"
 
 log() { echo "rc-archive-import: $*"; }
 die() { echo "rc-archive-import: ERROR: $*" >&2; exit 1; }
@@ -65,7 +70,9 @@ WORK=$(mktemp -d "/tmp/rc-archive-$IID.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/nightly" "$WORK/local"
 
-aws s3 ls "s3://$BUCKET/snapshots/" | awk '{print $4}' | grep -E '^rc-snapshots-[0-9]{8}T' | while read -r key; do
+# `|| true`: with no tarball left in the bucket, grep's exit 1 would end
+# the script under pipefail; the import still has its DB series.
+aws s3 ls "s3://$BUCKET/snapshots/" | awk '{print $4}' | { grep -E '^rc-snapshots-[0-9]{8}T' || true; } | while read -r key; do
   day="${key:13:8}"
   [[ "$day" < "$START" || "$day" > "$LAST" ]] && continue
 
@@ -89,6 +96,14 @@ done
 cp -p "$SNAPSHOT_DIR"/snapshot-"$IID"-* "$WORK/local/" 2>/dev/null || true
 cp -p "$KEEP_DIR/$IID"/snapshot-"$IID"-* "$WORK/local/" 2>/dev/null || true
 log "$(find "$WORK" -type f | wc -l) snapshot files staged ($(du -sh "$WORK" | cut -f1))"
+
+# The eval VM runs from the release tree that a deploy wipes and replaces,
+# so hold the deploy lock (deploy/bin/deploy.sh) for this step only: it
+# takes seconds, while the tarball streaming above can take minutes. A
+# deploy that is already running is waited out (it waits on us the same
+# way, up to 10 min).
+exec 200>"$DEPLOY_LOCK"
+flock -w 900 200 || die "deploy lock $DEPLOY_LOCK still held after 15 min"
 
 # The eval VM needs the app env (DATABASE_URL, secrets) — scoped to this
 # subshell so the aws calls above never saw the app's AWS keys.

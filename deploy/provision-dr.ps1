@@ -221,7 +221,7 @@ if (-not $SkipSecret) {
 
 # --------------------------------------------------------------- Host --
 if (-not $SkipHost) {
-    Step "Install backup timer on $SshHost"
+    Step "Install backup + archive timers on $SshHost"
     $staging = "/home/rc/rc-backup-staging"
     ssh -i $SshKey $SshHost "mkdir -p $staging"
     if ($LASTEXITCODE -ne 0) { throw "ssh mkdir failed" }
@@ -234,6 +234,10 @@ if (-not $SkipHost) {
         "$PSScriptRoot\systemd\rc-db-backup.timer" `
         "$PSScriptRoot\bin\rc-alert-mail" `
         "$PSScriptRoot\systemd\rc-alert@.service" `
+        "$PSScriptRoot\bin\rc-archive-import" `
+        "$PSScriptRoot\bin\rc-archive-auto" `
+        "$PSScriptRoot\systemd\rc-archive-auto.service" `
+        "$PSScriptRoot\systemd\rc-archive-auto.timer" `
         "${SshHost}:$staging/"
     if ($LASTEXITCODE -ne 0) { throw "scp failed" }
 
