@@ -1626,6 +1626,48 @@ next review fuzzed both identities again.
   floors pay for it; the Rebellion's score reads fleet upkeep as strength, as
   it does for players.
 
+### Paying for construction (built 2026-10-22)
+
+Until now the Rebel Dominion tree ordered on the system alone
+(`StellarSystem.order_building_production/2`) while a human pays the level's
+`credit` in `Player.order_building/5`. On i185 that was 272M credits of free
+construction against 200M of real net income: the bot spent 13% of its
+income (hires), banked 180M, and half its buildings stood at level 5 (7% for
+the humans).
+
+- **Price.** A rebel system pays exactly a human's price: the level's credit
+  for a build or an upgrade, that times `building_repairs_factor` for a
+  repair (`Wave.Construction.credit/4`). Neutral systems and human
+  dominions keep the vanilla tree, for nothing, as before.
+- **Allowance.** A system agent must not call its owner from its own tick, so
+  each pass the Warlord sets a credit allowance in an ETS table
+  (`Wave.Budget`, one row per instance) and a rebel system draws from it with
+  a compare-and-swap. After the tree runs, `Wave.Construction.charge/2` prices
+  the orders it placed; a turn the allowance cannot cover is dropped whole
+  (a staple's displaced building stays). The tree's choices
+  (`Helper.allowed/2`, `affordable_upgrades/2`, the happiness builds and
+  upgrades) only offer what the allowance covers, so turns are rarely lost.
+  The drawn credit reaches the bot player by a cast, `{:pay_construction,
+  credit}`. A raid that cancels a paid upgrade refunds the player as before
+  and puts the credit back in the allowance.
+- **Income share** (user ruling 2026-10-22). The allowance grows by
+  `construction_income_share` (0.8) of the bot's net credit income per ut;
+  the rest is kept for hires. Unspent allowance carries over (a system can
+  save for a dear upgrade) but never exceeds the credit above the floor
+  (`Warlord.update_construction/3`).
+- **Credit floor** (user ruling 2026-10-22). A standing 10M floor would refill
+  whatever construction spent below it, so the bot now gets
+  `starting_credit` (10M) once, on the Warlord's first pass, split like income
+  (80% to the allowance), and `credit_floor` drops to 1M, a safety net for
+  hires. The technology and ideology floors (2M) are unchanged. A Warlord
+  restored from an older snapshot counts as granted.
+- **Status.** `Warlord.summary/1` (the harness status) carries
+  `construction: %{granted, allowance, spent, income_share, last_income}`.
+- **Replay.** On i185's capture timeline (the real engine tick per system,
+  i185's lexes and patents day by day), the charged bot reached 53k system
+  credit and 45k income on day 16.6 against 51k and 41k for the real
+  (free) run, with a 178M building book against 302M and every hire paid.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |
@@ -2175,7 +2217,9 @@ character `on_strike` and refuses hires/orders. The Warlord runs a solvency
 guard each tick: if the bot player's `credit.value < solvency_floor`, cast
 `{:add_resources, floor - value, 0, 0}` (engine-internal handler on
 `Instance.Player.Agent`, used by loot). Telemetry counts top-ups so the drain
-is visible when tuning.
+is visible when tuning. Since 2026-10-22 the credit floor is a 1M hire safety
+net after a one-time starting grant, and construction is paid for (see
+"Paying for construction" above).
 
 ### 4.3 "Rebel Dominion" build tree
 

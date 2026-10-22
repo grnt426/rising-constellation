@@ -29,6 +29,56 @@ defmodule Wave.WarlordTest do
     end
   end
 
+  describe "construction allowance" do
+    test "the bot gets its starting credit once, then only the floor" do
+      fresh = warlord()
+      assert Warlord.credit_target(fresh) == {Wave.defaults()["starting_credit"], :grant}
+
+      granted = Warlord.mark_granted(fresh, 10_000_000)
+      assert Warlord.credit_target(granted) == {Wave.defaults()["credit_floor"], :floor}
+
+      # restored from a snapshot taken before the grant existed: its start
+      # money came from the old floor
+      old = fresh |> Map.drop([:construction]) |> Map.put(:passes, 12)
+      assert Warlord.credit_target(old) == {Wave.defaults()["credit_floor"], :floor}
+    end
+
+    test "is what was left plus a share of the income, within the credit above the floor" do
+      assert Warlord.construction_allowance(100, 50, 2, 0.8, 1_000_000, 1_000) == 180.0
+      # nothing accrues from a deficit
+      assert Warlord.construction_allowance(100, -50, 2, 0.8, 1_000_000, 1_000) == 100
+      # never above the credit over the floor, never below zero
+      assert Warlord.construction_allowance(5_000, 50, 2, 0.8, 3_000, 1_000) == 2_000
+      assert Warlord.construction_allowance(5_000, 50, 2, 0.8, 500, 1_000) == 0
+    end
+
+    test "splits the starting credit like income, then adds the share of what was earned since" do
+      state = warlord()
+      on_exit(fn -> Wave.Budget.clear(state.instance_id) end)
+      share = Wave.defaults()["construction_income_share"]
+
+      state = state |> Warlord.mark_granted(10_000_000) |> Warlord.update_construction(10_000_000, 2_000)
+      assert Wave.Budget.available(state.instance_id) == trunc(share * 10_000_000)
+      refute Map.has_key?(state.construction, :grant)
+
+      # the systems spend 5M; ten ut later the pass adds the share of 10 ut of income
+      :ok = Wave.Budget.take(state.instance_id, 5_000_000)
+      state = state |> Warlord.advance(10.0) |> Warlord.update_construction(6_000_000, 2_000)
+
+      assert Wave.Budget.available(state.instance_id) ==
+               trunc(share * 10_000_000) - 5_000_000 + trunc(share * 2_000 * 10)
+
+      assert trunc(state.construction.allowance) == Wave.Budget.available(state.instance_id)
+
+      # the table lost its row (a restart): the pass carries on from what it last set
+      Wave.Budget.clear(state.instance_id)
+      before = trunc(state.construction.allowance)
+      state = Warlord.update_construction(state, 6_000_000, 2_000)
+      assert Wave.Budget.available(state.instance_id) == before
+      assert Warlord.summary(state).construction.allowance == before
+    end
+  end
+
   describe "order ledger" do
     test "counts taken and refused requests per kind, with the refusal reasons" do
       state =
@@ -430,6 +480,7 @@ defmodule Wave.WarlordTest do
       refute Map.has_key?(state.stats, :half_done)
 
       assert %{error: %ArgumentError{message: "boom"}, streak: 1, log?: true} = failure
+
       assert %{failed: 1, streak: 1, last_failed_ut: 7.0, last_error: "ArgumentError: boom at " <> _} =
                state.step_failures["recon"]
 

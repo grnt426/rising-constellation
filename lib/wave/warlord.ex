@@ -188,6 +188,15 @@ defmodule Wave.Warlord do
     # the pass steps that raised (Wave.Warlord.Agent.step/4). Step names and
     # errors are strings, never atoms built at runtime: see step_failed/3.
     field(:step_failures, map(), default: %{})
+
+    # --- added 2026-10-22 (back-filled by upgrade/1) ---
+    # What the Rebellion's systems may spend on construction (Wave.Budget):
+    # %{granted:, grant:, allowance:, at:, income:}. `granted` once the
+    # starting credit was handed over, `grant` that credit until the next
+    # construction step splits it, `allowance` and `at` the allowance last
+    # set and the game time it was set at. Read with Map.get: see
+    # credit_target/1.
+    field(:construction, map(), default: %{})
   end
 
   @added_fields %{
@@ -223,7 +232,8 @@ defmodule Wave.Warlord do
     human_hulls: [],
     capital_since: nil,
     pressure: %{},
-    step_failures: %{}
+    step_failures: %{},
+    construction: %{}
   }
 
   def new(instance_id, bot_faction) do
@@ -2077,6 +2087,90 @@ defmodule Wave.Warlord do
     jumps ++ [%{"type" => action_type, "data" => Map.merge(%{"target" => target_id}, extra)}]
   end
 
+  # --- construction: what the Rebellion's systems may spend ----------------------
+
+  @doc """
+  The credit the bot is topped up to on this pass: `{starting_credit,
+  :grant}` on its first pass, `{credit_floor, :floor}` on every pass after.
+  A Warlord restored from a snapshot taken before the grant existed has run
+  passes and got its start money from the old floor: it gets the floor.
+  """
+  def credit_target(%__MODULE__{} = state) do
+    state = upgrade(state)
+    floor = credit_knob(state, "credit_floor")
+
+    if Map.get(state.construction, :granted, state.passes > 0),
+      do: {floor, :floor},
+      else: {max(credit_knob(state, "starting_credit"), floor), :grant}
+  end
+
+  @doc "The starting credit was handed over: the bot now holds `credit`."
+  def mark_granted(%__MODULE__{} = state, credit) do
+    state = upgrade(state)
+    %{state | construction: state.construction |> Map.put(:granted, true) |> Map.put(:grant, credit)}
+  end
+
+  @doc """
+  Set what the Rebellion's systems may spend on construction (`Wave.Budget`),
+  from the bot's `credit` (already topped up to `credit_target/1`) and its
+  net credit `income` per ut, both as read at the start of the pass.
+
+  The allowance is what the systems had left, plus `construction_income_share`
+  of the starting credit on the pass it was handed over, plus that share of
+  the income earned since the last pass. The rest of the income is kept for
+  hires. Unspent allowance carries over, so a system can save up for a dear
+  upgrade, but it never exceeds the credit above `credit_floor`.
+  """
+  def update_construction(%__MODULE__{} = state, credit, income) do
+    state = upgrade(state)
+    construction = state.construction
+    share = state |> credit_knob("construction_income_share") |> min(1.0)
+    remaining = Wave.Budget.available(state.instance_id) || Map.get(construction, :allowance, 0)
+    elapsed = state.elapsed - Map.get(construction, :at, state.elapsed)
+    seed = share * Map.get(construction, :grant, 0)
+
+    allowance =
+      construction_allowance(remaining + seed, income, elapsed, share, credit, credit_knob(state, "credit_floor"))
+
+    Wave.Budget.put(state.instance_id, allowance)
+
+    construction =
+      construction
+      |> Map.delete(:grant)
+      |> Map.merge(%{allowance: allowance, at: state.elapsed, income: income})
+
+    %{state | construction: construction}
+  end
+
+  @doc """
+  `remaining` plus `share` of `income` (per ut, nothing when negative) over
+  `elapsed` ut, held between 0 and the credit above `floor`.
+  """
+  def construction_allowance(remaining, income, elapsed, share, credit, floor) do
+    accrued = remaining + share * max(income, 0) * max(elapsed, 0)
+
+    accrued
+    |> min(credit - floor)
+    |> max(0)
+  end
+
+  defp credit_knob(state, key) do
+    case Wave.Config.knob(state.instance_id, key, 0) do
+      value when is_number(value) and value > 0 -> value
+      _ -> 0
+    end
+  end
+
+  defp construction_view(state) do
+    %{
+      granted: Map.get(state.construction, :granted, state.passes > 0),
+      allowance: Wave.Budget.available(state.instance_id),
+      spent: Wave.Budget.spent(state.instance_id),
+      income_share: credit_knob(state, "construction_income_share"),
+      last_income: Map.get(state.construction, :income)
+    }
+  end
+
   @doc "JSON-able snapshot for the harness status endpoint."
   def summary(%__MODULE__{} = state) do
     state = upgrade(state)
@@ -2102,6 +2196,7 @@ defmodule Wave.Warlord do
       intel_known: map_size(Map.get(state, :erased_intel, %{})),
       pressure: pressure_view(state),
       research: research_view(state),
+      construction: construction_view(state),
       gauges: state.gauges,
       telemetry: telemetry_view(state.telemetry),
       perf: %{

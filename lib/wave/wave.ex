@@ -532,9 +532,21 @@ defmodule Wave do
       # at 9-10 hires (Citadel run 5), so the floors sit far above any price the
       # roster reaches. Paired with the bankruptcy suppression in
       # Instance.Player.Player.
-      "credit_floor" => 10_000_000,
+      #
+      # Credit pays for the Rebellion's construction too (Wave.Construction),
+      # so it no longer has a standing 10M floor, which would refill whatever
+      # construction spent below it. The bot gets `starting_credit` once, on
+      # the Warlord's first pass, and a 1M floor after that, a safety net for
+      # hires (an Erased or fleet Navarch costs about 300k).
+      "starting_credit" => 10_000_000,
+      "credit_floor" => 1_000_000,
       "technology_floor" => 2_000_000,
       "ideology_floor" => 2_000_000,
+      # What the Rebellion's systems may spend on construction: this share of
+      # its net credit income (and of the starting credit), the rest kept for
+      # hires. Unspent allowance carries over, never above the credit over the
+      # floor (Warlord.update_construction/3).
+      "construction_income_share" => 0.8,
 
       # --- research -------------------------------------------------------
       # Patents and lexes, bought through the player agent at the engine's

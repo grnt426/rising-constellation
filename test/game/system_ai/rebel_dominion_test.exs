@@ -909,11 +909,14 @@ defmodule SystemAI.RebelDominionTest do
 
   describe "what the Rebellion holds the patent for" do
     # A system the Rebellion holds, in a wave game whose Warlord has published
-    # these patents and this stage of the game.
+    # these patents and this stage of the game, and a construction allowance
+    # that covers anything (the credit gate has tests of its own,
+    # SystemAI.ConstructionChargingTest).
     defp rebel(state, patents, stage \\ :early) do
       Data.Data.update_metadata(state.instance_id, :wave, true)
       Data.Data.update_metadata(state.instance_id, :wave_config, %{"bot_faction" => "rebellion"})
       Wave.Config.publish_economy(state.instance_id, patents, stage)
+      Wave.Budget.put(state.instance_id, 1_000_000_000)
       %{state | owner: %{id: 1, faction: :rebellion}}
     end
 

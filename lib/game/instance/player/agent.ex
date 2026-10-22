@@ -316,6 +316,18 @@ defmodule Instance.Player.Agent do
     {:noreply, %{state | data: data}}
   end
 
+  # What a Rebellion system's tree ordered, already drawn from the
+  # construction allowance (Wave.Construction). Only the bot player is sent
+  # this.
+  @decorate tick()
+  def on_cast({:pay_construction, credit}, state) do
+    data = Player.add_credit(state.data, -credit)
+
+    broadcast_player(state, %{player_player: data})
+
+    {:noreply, %{state | data: data}}
+  end
+
   # Faction-government effects (faction-wide bonuses + tax rates),
   # pushed by the Faction.Agent on every government change and on its
   # periodic self-heal sync. Recomputes the bonus pipeline so the new

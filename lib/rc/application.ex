@@ -12,6 +12,10 @@ defmodule RC.Application do
 
     # List all child processes to be supervised
     children = [
+      # Owns the Rebellion's construction-allowance ETS table (Wave.Budget).
+      # Before Game: a restored wave instance's systems read it on their
+      # first tick.
+      Wave.Budget,
       # Start the Game supervisor
       Game,
       {Phoenix.PubSub, name: RC.PubSub},
