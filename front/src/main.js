@@ -24,6 +24,7 @@ import '@/assets/fonts/fonts.scss';
 // beta + phone viewport). Must load with the app shell — importing it only
 // from game components leaves portal pages unstamped until a game is opened.
 import { onViewportChange } from '@/utils/viewport';
+import installTouchTooltips from '@/utils/touchTooltips';
 
 import axios from '@/plugins/axios';
 import { i18n } from '@/plugins/i18n';
@@ -82,13 +83,15 @@ VTooltip.options.defaultHtml = false;
 
 // Touch has no hover. v-tooltip's 'hover' trigger shows on mouseenter
 // and hides on click, and a tap fires both back to back — so every
-// tooltip flashed and vanished in the same gesture, which is why
-// resource figures and icon buttons were unreadable on a phone. At
-// phone widths a tap toggles the tooltip instead (a second tap, or a
-// tap anywhere else, closes it); the pointer keeps hover.
+// tooltip flashed and vanished in the same gesture. Its 'click' trigger
+// was no better: a tap on a button ran the button AND left its tooltip
+// hanging over what the button opened. At phone widths tooltips are
+// 'manual' and open on press-and-hold (utils/touchTooltips); the
+// pointer keeps hover.
 onViewportChange((isMobile) => {
-  VTooltip.options.defaultTrigger = isMobile ? 'click' : 'hover focus';
+  VTooltip.options.defaultTrigger = isMobile ? 'manual' : 'hover focus';
 });
+installTouchTooltips();
 
 // Vue's dev-mode performance instrumentation wraps every component
 // lifecycle hook with performance.mark/measure calls. It's useful for

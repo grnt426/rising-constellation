@@ -84,16 +84,6 @@
                       {{ $t(`data.patent.${row.key}.name`) }}
                     </div>
                   </div>
-                  <div
-                    v-if="isMobileView"
-                    class="tree-node-card"
-                    :class="{ 'is-open': activeCardKey === row.key }">
-                    <patent-card
-                      :patent="row"
-                      :costFactor="costFactor"
-                      :theme="theme"
-                      @purchase="purchaseFromCard" />
-                  </div>
                 </template>
               </div>
             </div>
@@ -118,20 +108,21 @@
             <div class="tree-node-label">
               {{ $t(`data.patent.${root.key}.name`) }}
             </div>
-            <div
-              v-if="isMobileView"
-              class="tree-node-card"
-              :class="{ 'is-open': activeCardKey === root.key }">
-              <patent-card
-                :patent="root"
-                :costFactor="costFactor"
-                :theme="theme"
-                @purchase="purchaseFromCard" />
-            </div>
           </div>
         </div>
       </div>
     </v-scrollbar>
+
+    <tree-card-sheet
+      v-if="isMobileView && activeCardPatent"
+      @close="activeCardKey = null">
+      <patent-card
+        :key="`sheet-${activeCardPatent.key}`"
+        :patent="activeCardPatent"
+        :costFactor="costFactor"
+        :theme="theme"
+        @purchase="purchaseFromCard" />
+    </tree-card-sheet>
 
     <!-- desktop detail dock: one sticky card, never auto-closed — the
          tree stays hoverable and the card reachable at any speed.
@@ -161,6 +152,7 @@ import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
 import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 
 import PatentCard from '@/game/components/card/PatentCard.vue';
+import TreeCardSheet from '@/game/components/mini-panel/TreeCardSheet.vue';
 
 export default {
   name: 'patent-mini-panel',
@@ -223,12 +215,23 @@ export default {
     detailPatent() {
       return this.patents.find((p) => p.key === this.detailKey) || null;
     },
+    // the node the phone card sheet shows, live (status follows a buy)
+    activeCardPatent() {
+      return this.patents.find((p) => p.key === this.activeCardKey) || null;
+    },
+  },
+  props: {
+    activePanel: String,
   },
   watch: {
+    // The panel stays mounted (v-show): a card left open must not be
+    // waiting the next time it opens.
+    activePanel() { this.activeCardKey = null; },
     // covers panel open too: the mixin's mounted() calls switchTab
     activeTab() {
       this.hoverCardClearTimers();
       this.dockLocked = false;
+      this.activeCardKey = null;
       const fallback = this.patents.find((p) => p.status === 'available')
         || this.patents.find((p) => p.key === this.detailKey)
         || this.patents[0];
@@ -310,6 +313,7 @@ export default {
   },
   components: {
     PatentCard,
+    TreeCardSheet,
   },
 };
 </script>

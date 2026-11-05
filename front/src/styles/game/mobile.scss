@@ -25,6 +25,20 @@
     touch-action: manipulation;
   }
 
+  // The phone UI's one accent is the player's faction colour, as on
+  // desktop: active tabs, pager dots, gauges, primary buttons. Set once
+  // on the game root (Game.vue's .theme-<key>) so every rule below can
+  // say var(--m-accent) instead of carrying its own theme loop.
+  // Destructive and negative marks use $color-alert (orange), never
+  // red: red is a faction's colour.
+  @each $class, $color in $themes-list {
+    .theme-#{$class} {
+      --m-accent: #{$color};
+      --m-accent-light: #{lighten($color, $color-variant-3)};
+      --m-accent-ink: #{darken($color, 30%)};
+    }
+  }
+
   /* --- top/bottom bars: static flex rows, swipeable, slimmer --- */
 
   .navbar {
@@ -268,9 +282,27 @@
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    height: 34px;
-    padding: 0 48px 0 10px; // right gutter clears the close button
+    gap: 4px;
+    height: 38px;
+    padding: 0 10px 0 0;
     border-bottom: 1px solid rgba(255, 255, 255, .08);
+  }
+
+  // Back to the map: in the header flow at its left end, full header
+  // height, no box — the ✕ boxes are the docks'.
+  .system-close-button.is-back {
+    position: static;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 100%;
+    background: none;
+    border: none;
+    border-right: 1px solid rgba(255, 255, 255, .08);
+
+    .svg-icon {
+      width: 16px;
+      height: 16px;
+    }
   }
 
   .msv-title {
@@ -326,8 +358,8 @@
 
     &.active {
       opacity: 1;
-      color: $primary;
-      border-bottom-color: $primary;
+      color: var(--m-accent-light);
+      border-bottom-color: var(--m-accent-light);
     }
 
     .msv-tab-badge {
@@ -401,35 +433,99 @@
       background: rgba(255, 255, 255, .25);
 
       &.active {
-        background: $primary;
+        background: var(--m-accent);
       }
     }
   }
 
-  // Chevrons parked on the page edges: a second, unmissable way to
-  // change screens for anyone who never tries the swipe.
-  .msv-edge {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 26px;
-    height: 54px;
-    z-index: 5;
+  // Summary readouts (Details.vue): two figures per row, each label
+  // over its value, instead of one full-width 40px row per figure —
+  // thirteen rows became seven. Labels get two lines (the ship-class
+  // XP ones are long).
+  .mobile-details .system-content-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    padding: 8px 8px 10px;
+
+    .system-content-group-header {
+      grid-column: 1 / -1;
+    }
+
+    .system-content-group-item {
+      margin: 0;
+      padding: 3px 4px 4px;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 2px;
+    }
+
+    .details-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 2.5em;
+      padding: 0 2px;
+      font-size: .95rem;
+      line-height: 1.25;
+
+      .help-button,
+      .info {
+        flex: 0 0 auto;
+        margin-right: 0;
+      }
+    }
+
+    // v-popover's wrappers are inline-block (inline style), which left
+    // each value box shrunk to its digits at the cell's left edge
+    .v-popover,
+    .v-popover .trigger {
+      display: block !important;
+    }
+
+    .yield-box {
+      display: block;
+      width: auto;
+      min-width: 0;
+      line-height: 24px;
+
+      &.large {
+        width: auto;
+      }
+    }
+  }
+
+  // "This system belongs to you" under a header that already names
+  // you as the owner: on a phone, the one block that says nothing new.
+  .mobile-state .system-content-group.is-claim.is-own-system {
+    display: none;
+  }
+
+  // Empty placeholder discs: a foreign system's governor slot with no
+  // governor, and the queue toggle with nothing queued (the Build tab
+  // is the queue). A grey 50px disc each, holding nothing.
+  .mobile-system-summary .governor-box.round-icon.is-disabled,
+  .mobile-production .round-icon.is-disabled {
+    display: none;
+  }
+
+  // Your own system's empty governor slot is the deploy-a-governor
+  // button: smaller, and marked as one.
+  .mobile-system-summary .governor-box.round-icon.is-assign {
+    top: 6px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
 
-    background: rgba(0, 0, 0, .45);
-    border: 1px solid rgba(255, 255, 255, .12);
-    color: $white;
-    opacity: .6;
-
-    &.is-left { left: 0; border-left: none; }
-    &.is-right { right: 0; border-right: none; }
-
-    .svg-icon {
-      width: 12px;
-      height: 12px;
+    &::after {
+      content: '+';
+      font-size: 2.2rem;
+      font-weight: bold;
+      line-height: 1;
+      color: rgba(0, 0, 0, .7);
     }
   }
 
@@ -497,22 +593,25 @@
       }
     }
 
+    // Closes the sheet only. Thumb-sized, and the only ✕ in the top
+    // corner now that leaving the system is the header's back arrow.
     .msv-dock-dismiss {
-      margin-left: auto;
-      flex: 0 0 24px;
-      width: 24px;
-      height: 24px;
+      margin: -5px -8px -5px auto;
+      flex: 0 0 38px;
+      width: 38px;
+      height: 34px;
       display: flex;
       align-items: center;
       justify-content: center;
 
       background: none;
       border: none;
+      border-left: 1px solid rgba(255, 255, 255, .08);
       color: $white;
 
       .svg-icon {
-        width: 11px;
-        height: 11px;
+        width: 12px;
+        height: 12px;
       }
     }
   }
@@ -543,7 +642,7 @@
       position: relative;
 
       &.is-selected {
-        outline: 1px solid $primary;
+        outline: 1px solid var(--m-accent);
         outline-offset: 1px;
       }
 
@@ -647,13 +746,13 @@
     text-transform: uppercase;
 
     &.is-primary {
-      border-color: $primary;
-      color: $primary;
+      border-color: var(--m-accent-light);
+      color: var(--m-accent-light);
     }
 
     &.is-danger {
-      border-color: rgba(188, 36, 51, .8);
-      color: $theme-red;
+      border-color: rgba($color-alert, .8);
+      color: $color-alert;
     }
 
     // Armed: the second tap is the one that demolishes.
@@ -788,14 +887,14 @@
     }
 
     .action-item.is-armed {
-      outline: 1px solid $theme-red;
+      outline: 1px solid $color-alert;
       outline-offset: 1px;
     }
 
     .action-cancel-hint {
       margin-top: 3px;
       font-size: 1rem;
-      color: $theme-red;
+      color: $color-alert;
     }
   }
 
@@ -844,7 +943,6 @@
     background: rgba(0, 0, 0, .35);
     border: 1px solid rgba(255, 255, 255, .08);
     padding: 8px;
-    margin-right: 48px; // room for the close button on short titles
 
     .system-properties {
       // The pager header already carries the system name and coords, so
@@ -1287,7 +1385,7 @@
     width: 34px;
     height: 34px;
     flex: 0 0 34px;
-    color: $primary;
+    color: var(--m-accent-light);
 
     svg {
       width: 100%;
@@ -1316,8 +1414,10 @@
       stroke-linecap: round;
     }
 
-    &.is-full .mg-fill {
-      stroke: $theme-red;
+    // At the cap: the faction colour still (no red — that is a faction's
+    // colour too), with the count lit to match the full ring.
+    &.is-full .mg-value {
+      fill: currentColor;
     }
 
     .mg-value {
@@ -1388,8 +1488,8 @@
       text-align: center;
       border-radius: 7px;
 
-      background: $primary;
-      color: darken($primary, 30%);
+      background: var(--m-accent);
+      color: var(--m-accent-ink);
       font-size: 1rem;
       font-weight: bold;
     }
@@ -1418,7 +1518,7 @@
 
     // Lit while its page of the resource drawer is showing.
     &.is-active {
-      color: $primary;
+      color: var(--m-accent-light);
     }
   }
 
@@ -1488,7 +1588,7 @@
       width: 15px;
       height: 15px;
       flex: 0 0 15px;
-      color: $primary;
+      color: var(--m-accent-light);
     }
 
     .mrd-peek-name {
@@ -1511,10 +1611,10 @@
       min-width: 58px;
       text-align: right;
       font-size: 1.1rem;
-      color: $theme-green;
+      color: var(--m-accent-light);
 
       &.is-negative {
-        color: $theme-red;
+        color: $color-alert;
       }
     }
 
@@ -1564,8 +1664,8 @@
 
       &.active {
         opacity: 1;
-        color: $primary;
-        border-bottom-color: $primary;
+        color: var(--m-accent-light);
+        border-bottom-color: var(--m-accent-light);
       }
     }
 
@@ -1626,7 +1726,7 @@
       background: rgba(255, 255, 255, .25);
 
       &.active {
-        background: $primary;
+        background: var(--m-accent);
       }
     }
   }
@@ -1818,9 +1918,6 @@
       font-weight: bold;
     }
 
-    .mg-fill.is-seg-full {
-      stroke: $theme-red;
-    }
   }
 
   /* --- slide-in side panels (600/900/1200px on desktop) --- */
@@ -2377,11 +2474,281 @@
      and top/bottom mini-panels (victory, markets, patent/lex trees):
      keep them inside the viewport and let their content scroll --- */
 
+  // Exactly between the phone bars (40px top, 44px bottom). The desktop
+  // box is "top: 54px, height: 100vh - 108px" — desktop bar heights,
+  // and on a phone 100vh is the viewport with the URL bar hidden, so
+  // while the bar showed, every panel's last rows (Overview's footer,
+  // the leaderboard's points) sat under the bottom bar. Insets against
+  // the same box the bars are placed in can't drift from them.
+  .panels-container {
+    top: 40px;
+    bottom: 44px;
+    height: auto;
+  }
+
   .panel-container .panel-content {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+  }
+
+  // Possessions: the desktop row is nine fixed-width cells (180px
+  // toasts, 100px figures, a 2rem name on a 62px line) — at phone width
+  // the name wrapped to three lines and the figures ran off the edge.
+  // Two lines instead: icon + name (one line, ellipsis), then every
+  // figure in one wrapping strip of small chips.
+  .pcb-system {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px 6px;
+    padding: 5px 8px 6px;
+    margin-bottom: 4px;
+    font-size: 1.1rem;
+
+    & > div:not(:last-child) {
+      border-right: none;
+    }
+
+    .icon {
+      padding: 0;
+
+      .svg-icon {
+        width: 22px;
+        height: 22px;
+        display: block;
+      }
+    }
+
+    .name {
+      flex: 1 1 calc(100% - 30px);
+      min-width: 0;
+      padding: 0;
+      line-height: 24px;
+      font-size: 1.4rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      .svg-icon {
+        width: 16px;
+        height: 16px;
+        margin-left: 4px;
+        vertical-align: -3px;
+      }
+
+      .is-small {
+        font-size: 1rem;
+        opacity: .7;
+      }
+    }
+
+    .resource-toast,
+    .resource {
+      flex: 0 0 auto;
+      width: auto;
+      padding: 0;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 3px;
+      line-height: 20px;
+      font-size: 1.1rem;
+      text-align: left;
+    }
+
+    .resource:empty {
+      display: none;
+    }
+
+    .resource-toast {
+      .header {
+        padding: 0 2px 0 0;
+        line-height: 20px;
+        font-size: 1.1rem;
+        border: none;
+
+        .svg-icon {
+          top: -1px;
+          width: 13px;
+          height: 13px;
+        }
+      }
+
+      .toast {
+        margin: 0;
+        padding: 0 4px;
+        line-height: 17px;
+        font-size: .95rem;
+        white-space: nowrap;
+      }
+    }
+
+    .resource .svg-icon {
+      width: 13px;
+      height: 13px;
+    }
+  }
+
+  // Leaderboard (overall): five 160px-ish cells on a ~300px panel ran
+  // the points column off the right edge as soon as a name or a score
+  // got long. Each row becomes a small grid: rank | name over its
+  // systems and population | points, the points always in view.
+  .ranking-table.is-overall {
+    display: block;
+    top: 0;
+
+    tbody {
+      display: block;
+    }
+
+    tr {
+      display: grid;
+      grid-template-columns: 2.6em minmax(0, 1fr) minmax(0, 1fr) auto;
+      grid-template-areas:
+        "rank name name pts"
+        "rank sys  pop  pts";
+      margin-bottom: 5px;
+      border: 1px solid rgba($white, .1);
+      background: rgba($white, .1);
+    }
+
+    td {
+      width: auto;
+      padding: 2px 8px;
+      border: none;
+      background: none;
+      font-size: 1.1rem;
+      line-height: 1.3;
+
+      &:nth-child(1) {
+        grid-area: rank;
+        width: auto;
+        align-self: center;
+        font-size: 1.3rem;
+      }
+
+      &:nth-child(2) {
+        grid-area: name;
+        padding-top: 6px;
+        font-size: 1.4rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      &:nth-child(3) {
+        grid-area: sys;
+        width: auto;
+        padding-bottom: 6px;
+        white-space: nowrap;
+      }
+
+      &:nth-child(4) {
+        grid-area: pop;
+        width: auto;
+        padding-bottom: 6px;
+        white-space: nowrap;
+      }
+
+      &:nth-child(5) {
+        grid-area: pts;
+        width: auto;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 4px;
+        padding: 0 10px;
+        background: rgba($white, .2);
+        font-size: 1.5rem;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  // The other leaderboard tabs: a long name ellipsizes instead of
+  // pushing the figure out.
+  .ranking-table td.name {
+    max-width: 0;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ranking-table.is-overall td.name {
+    max-width: none;
+  }
+
+  // Galactic Survey: a fixed-layout table whose name column took "the
+  // leftover" after ~50em of stat columns — nothing, at phone width, so
+  // the stats were drawn over the names. The name column gets a real
+  // width, it and the star icon stay pinned at the left edge, and the
+  // stat columns scroll sideways under them. The per-row copy buttons
+  // (desktop tools) give their room back to the name.
+  .gs-table {
+    min-width: 60em;
+  }
+
+  .gs-c-name {
+    width: 10em;
+  }
+
+  .gs-table td.gs-cell-icon,
+  .gs-table th.gs-cell-name {
+    position: sticky;
+    z-index: 1;
+    background: rgb(12, 15, 24);
+  }
+
+  .gs-table td.gs-cell-icon {
+    left: 0;
+  }
+
+  .gs-table th.gs-cell-name {
+    left: 2.5em;
+    box-shadow: 6px 0 6px -6px rgba(0, 0, 0, .9);
+  }
+
+  // the header's first two cells pin both ways (they are sticky-top
+  // already)
+  .gs-table thead th:nth-child(1) {
+    left: 0;
+    z-index: 3;
+  }
+
+  .gs-table thead th:nth-child(2) {
+    left: 2.5em;
+    z-index: 3;
+  }
+
+  .gs-row-actions {
+    display: none;
+  }
+
+  .gs-name-line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .gs-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @each $class, $color in $themes-list {
+    .theme-#{$class} .pcb-system {
+      & > div:not(:last-child) {
+        border-right: none;
+      }
+
+      .resource-toast .header {
+        border: none;
+      }
+    }
   }
 
   .panel-navbar {
@@ -2411,9 +2778,16 @@
   // to leave two scrollers fighting: PS binds its own touchmove and
   // stops looking for an outer scroller at its own element, so drags
   // inside the tree were consumed and went nowhere.
+  // Height budget = the space between the bars (40px top, 44px
+  // bottom, a few px of air). dvh, not vh: a phone's 100vh is the
+  // viewport with the URL bar hidden, so while the bar shows, a 100vh
+  // budget ran the top mini-panels (market, victory) under the bottom
+  // bar and pushed the bottom ones (lex, patents) up under the top bar
+  // — the tree tabs and the victory time limit were what got covered.
   .mp-container {
     max-width: 100vw;
-    max-height: calc(100vh - 100px);
+    max-height: calc(100vh - 96px);
+    max-height: calc(100dvh - 96px);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -2892,17 +3266,58 @@
     }
   }
 
-  // Node detail cards: centered overlay, opened by tapping the node
-  // (tap again to close; tapping another node switches).
-  .tree-node-card {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 700;
+  // Node detail cards live in one TreeCardSheet per panel on phones.
+  // The per-node desktop cards stay off — including the :hover rule
+  // that a tap's sticky emulated hover used to trigger.
+  .tree-node-card,
+  .mpc-tree .tree-row:hover .tree-node-card,
+  .mpc-splashscreen .tree-node:hover .tree-node-card {
+    display: none;
+  }
 
-    &.is-open {
+  .tree-card-sheet {
+    position: fixed;
+    top: 40px;
+    bottom: 44px;
+    left: 0;
+    right: 0;
+    z-index: 50; // inside the mini-panels layer, over its scroller
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+
+    background: rgba(0, 0, 0, .6);
+    touch-action: none;
+
+    .tcs-body {
+      position: relative;
       display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      max-height: 100%;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+    }
+
+    .tcs-close {
+      flex: 0 0 auto;
+      width: 38px;
+      height: 34px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: rgba(0, 0, 0, .6);
+      border: 1px solid rgba(255, 255, 255, .25);
+      color: $white;
+
+      .svg-icon {
+        width: 12px;
+        height: 12px;
+      }
     }
   }
 
@@ -2974,29 +3389,160 @@
     max-width: calc(100vw - 72px);
   }
 
-  // Doctrine lex slots: compact full-width row at the panel's bottom
-  // instead of the fixed 305px right rail overlapping the tree.
+  // Doctrine lex slots: a two-row strip at the panel's bottom instead
+  // of the desktop's 305px right rail (which, stacked, took half the
+  // screen with 20px paddings and a 50px stamp hung 35px low):
+  //   3/3 ACTIVE · [stamp + timer] ··········· [+1 SLOT  800]
+  //   [CANCEL THE CHANGES]          [REMOVE ALL LEXES]
+  // The wrapper divs dissolve (display: contents) so every piece is a
+  // cell of one grid. The "LEX SLOTS" title goes; the warning / next-
+  // wait sentences that replace it stay, as a full-width first row.
   .mini-panel-policies {
     position: static;
+    // a flex item stacks by z-index even when static: the desktop 401
+    // put this strip over the card sheet's backdrop
+    z-index: auto;
     order: 99;
     width: auto;
-    flex-flow: row wrap;
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    grid-template-areas:
+      "note note  note note"
+      "num  apply .    buy"
+      "lbl  apply .    buy"
+      "acts acts  acts acts";
     align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 6px 8px;
+    column-gap: 10px;
+    padding: 6px 10px 8px;
     border-top: 1px solid rgba(255, 255, 255, .15);
-    background: rgba(0, 0, 0, .35);
+    background: rgba(0, 0, 0, .55);
+
+    > div:first-child,
+    .mpp-header,
+    .mpp-lex {
+      display: contents;
+    }
+
+    .mpp-header-title {
+      grid-area: note;
+      display: none;
+
+      &.is-warning,
+      &.is-info {
+        display: block;
+        padding: 0 0 6px;
+        font-size: 1.1rem;
+      }
+    }
+
+    .mpp-header-apply {
+      grid-area: apply;
+      top: 0;
+      width: 36px;
+      height: 36px;
+      line-height: 36px;
+      margin-right: 54px; // the timer sits to the right of the stamp
+
+      .generic-circle-progress-container {
+        top: -4px;
+        left: -4px;
+        transform: scale(.88);
+        transform-origin: 0 0;
+      }
+
+      .svg-icon {
+        width: 20px;
+        height: 20px;
+      }
+
+      .timer {
+        top: 50%;
+        left: 42px;
+        transform: translateY(-50%);
+        font-size: 1rem;
+        white-space: nowrap;
+      }
+
+      .tutorial-pointer {
+        display: none;
+      }
+    }
+
+    .mpp-lex-number {
+      grid-area: num;
+      font-size: 2rem;
+      line-height: 22px;
+
+      .small {
+        font-size: 1.4rem;
+      }
+    }
+
+    .mpp-lex-title {
+      grid-area: lbl;
+      font-size: .9rem;
+      line-height: 12px;
+    }
+
+    .mpp-lex-button {
+      grid-area: buy;
+      width: auto;
+      min-width: 0;
+      margin: 0;
+      height: 28px;
+      line-height: 28px;
+
+      > div {
+        padding: 0 8px;
+      }
+    }
+
+    .mpp-actions {
+      grid-area: acts;
+      display: flex;
+      gap: 10px;
+      padding: 8px 0 0;
+      border: 0;
+
+      button {
+        flex: 1 1 0;
+        min-width: 0;
+        margin: 0;
+        height: 26px;
+        line-height: 26px;
+        font-size: 1rem;
+
+        > div {
+          padding: 0 6px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+    }
   }
 
-  // Help modal: full-screen sheet on phones.
+  // Help modal: full-screen sheet on phones — over the bars too: its
+  // header (back / close) sits at the very top, and under the top bar
+  // (z 600, the overlay's desktop 560 is below it) the ✕ was covered,
+  // which left the sheet with no way out but a reload.
   .help-overlay {
     top: 0; left: 0; right: 0; bottom: 0;
+    z-index: $z-navbar + 20;
     width: auto;
     max-width: none;
     max-height: none;
     transform: none;
     border: 0;
+
+    .help-overlay-header {
+      min-height: 44px;
+    }
+
+    .help-overlay-button {
+      min-width: 40px;
+      min-height: 36px;
+    }
   }
   }
 }

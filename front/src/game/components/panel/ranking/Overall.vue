@@ -2,7 +2,7 @@
   <div class="panel-content is-medium">
     <v-scrollbar class="has-padding">
       <h1 class="panel-default-title">{{ $t(`panel.ranking.overall_title`) }}</h1>
-      <table class="panel-table ranking-table">
+      <table class="panel-table ranking-table is-overall">
         <tr
           v-for="(stat, index) in players"
           :key="stat.player_id">

@@ -17,9 +17,7 @@
 
         <div
           class="mobile-gauge-press"
-          @pointerdown="gaugePressStart('systems', $event)"
-          @pointerup="gaugePressEnd('systems', $event)"
-          @pointercancel="gaugePressCancel"
+          @click="openSystemsModal('systems')"
           @contextmenu.prevent>
           <mobile-gauge
             :value="ownSystems.length"
@@ -29,9 +27,7 @@
         </div>
         <div
           class="mobile-gauge-press"
-          @pointerdown="gaugePressStart('dominions', $event)"
-          @pointerup="gaugePressEnd('dominions', $event)"
-          @pointercancel="gaugePressCancel"
+          @click="openSystemsModal('dominions')"
           @contextmenu.prevent>
           <mobile-gauge
             :value="ownDominions.length"
@@ -377,6 +373,7 @@
         @close="closeMiniPanel" />
       <patent-mini-panel
         v-show="activeMiniPanel.name === 'patent'"
+        :active-panel="activeMiniPanel.name"
         :height="activeMiniPanel.height"
         @close="closeMiniPanel" />
       <doctrine-mini-panel
@@ -496,8 +493,11 @@ export default {
     // --- mobile long-press gauges -----------------------------------
     // Tap the tri-gauge: toggles the radial (then tap a letter).
     // Long-press: radial opens mid-hold, releasing over a letter picks
-    // it — the gesture the user described. Systems/dominions gauges
-    // long-press straight into their list modal.
+    // it — the gesture the user described. The systems / dominions
+    // gauges open their list on CLICK, not here: opened on pointerup,
+    // the list's bottom sheet was already under the finger when the
+    // tap's click landed, and that click picked its first row — a tap
+    // on the gauge "opened a random system".
     gaugePressStart(kind, event) {
       this.pressFiredLong = false;
       clearTimeout(this.pressTimer);
@@ -510,13 +510,6 @@ export default {
     },
     gaugePressEnd(kind, event) {
       clearTimeout(this.pressTimer);
-
-      if (kind !== 'nes') {
-        // Systems/dominions: a plain tap opens the list (long-press
-        // proved unreliable on real devices).
-        this.openSystemsModal(kind === 'systems' ? 'systems' : 'dominions');
-        return;
-      }
 
       if (!this.pressFiredLong) {
         // plain tap: toggle the radial
@@ -657,7 +650,12 @@ export default {
         new TimelineLite({
           onComplete() { resolve(); },
         }).set(this.$refs.miniPanelsContainer, { bottom: `-${this.activeMiniPanel.height}px` })
-          .to(this.$refs.miniPanelsContainer, { bottom: '52px', ease: Expo.easeOut, duration: 0.8 }, 0);
+          .to(this.$refs.miniPanelsContainer, {
+            // the mobile bottom bar is 44px tall, the desktop one 52px
+            bottom: this.isMobileView ? '44px' : '52px',
+            ease: Expo.easeOut,
+            duration: 0.8,
+          }, 0);
       });
     },
     animateCloseMiniPanelContainer() {

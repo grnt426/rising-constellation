@@ -915,10 +915,10 @@
         "agents_hostile": "Hostile agents",
         "agents_own": "Your agents",
         "build": "Build",
-        "build_hint": "Tap an empty slot to build, or a building to inspect it.",
+        "build_hint": "Tap an empty slot to build. Tap a building to upgrade it, or hold it to see its card.",
         "confirm_destroy": "Tap again to destroy",
         "construction": "Construction",
-        "inspect_hint": "Tap a building to inspect it.",
+        "inspect_hint": "Tap a building to see its card.",
         "pick_building": "Pick a building above to see what it does.",
         "tab_agents": "Agents",
         "tab_build": "Build",
@@ -927,7 +927,10 @@
         "agent_bubble_hint": "Tap to jump · double-tap for the card",
         "multi_move": "Multi-move",
         "multi_move_banner": "Tap a system to queue a move there. Double-tap to stop.",
-        "multi_move_done": "Done"
+        "multi_move_done": "Done",
+        "upgrade_queued": "{name}: level {level} queued",
+        "repair_queued": "{name}: repair queued",
+        "back": "Back to the map"
       }
     },
     "school": {
@@ -1238,6 +1241,11 @@
         "title": "Galactic value",
         "trade_hint": "Galactic value: {price} credits per point ({total} for this quantity)",
         "unavailable": "Galactic values are not available in this game."
+      },
+      "unit_price": "{price} per point",
+      "own_terms": {
+        "donation": "No price · the claimer pays the tax",
+        "request": "Free to you · the fulfiller pays the tax"
       }
     },
     "patent": {

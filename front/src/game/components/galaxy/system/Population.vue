@@ -100,6 +100,7 @@
 
 <script>
 import { TimelineLite, Expo } from 'gsap';
+import viewport from '@/utils/viewport';
 import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
@@ -137,6 +138,8 @@ export default {
     },
   },
   mounted() {
+    // Desktop slide-in only: on a phone the block sits in the page flow.
+    if (viewport.isMobile) return;
     new TimelineLite()
       .set(this.$refs.container, { left: -500 })
       .to(this.$refs.container, { left: 0, ease: Expo.easeOut, duration: 0.8 }, 0);
