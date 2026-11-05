@@ -224,7 +224,7 @@
         v-else-if="isOwnSystem"
         v-tooltip.bottom="$t('galaxy.system.properties.deploy_governor')"
         @click="prepareGovernorAssignment()"
-        class="governor-box round-icon has-hover">
+        class="governor-box round-icon has-hover is-assign">
       </div>
       <div
         v-else
@@ -347,6 +347,11 @@ export default {
     },
   },
   mounted() {
+    // The slide-in belongs to the desktop square. On a phone the card is
+    // in the page flow, and the inline `top` the tween leaves behind
+    // (position: relative there) pushed it 50px down over the
+    // population block.
+    if (this.isMobileView) return;
     new TimelineLite()
       .set(this.$refs.container, { top: -100 })
       .to(this.$refs.container, { top: 50, ease: Expo.easeOut, duration: 1 }, 0);

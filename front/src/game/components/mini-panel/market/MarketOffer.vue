@@ -124,10 +124,30 @@
           <svgicon name="resource/credit" />
         </div>
       </button>
+      <!-- Your own listing: its terms. On other players' offers the
+           price rides on the Buy button; yours only had Cancel, so a
+           posted sale showed the amount and nothing about what you were
+           asking for it. -->
+      <div
+        v-if="button === 'cancel'"
+        class="mpc-oi-terms">
+        <template v-if="mode === 'trade'">
+          <span class="icon-value">
+            {{ offer.price | integer }}
+            <svgicon name="resource/credit" />
+          </span>
+          <span
+            v-if="unitPrice"
+            class="mpc-oi-terms-sub">{{ $t('minipanel.market.unit_price', { price: unitPrice }) }}</span>
+        </template>
+        <span
+          v-else
+          class="mpc-oi-terms-sub">{{ $t(`minipanel.market.own_terms.${mode}`) }}</span>
+      </div>
       <button
         v-if="button === 'cancel'"
         @click="handelClick('cancel')"
-        class="default-button"
+        class="default-button is-cancel"
         :disabled="clicked">
         <div>{{ $t('minipanel.market.cancel') }}</div>
       </button>
@@ -233,6 +253,12 @@ export default {
       return this.$t(`minipanel.market.tax_rule.${this.offer.type}`, { percent });
     },
     finalPrice() { return this.offer.price + this.fees; },
+    // credits per point, for a resource sale (agents are one unit)
+    unitPrice() {
+      const amount = (this.offer.data || {}).amount;
+      if (!['technology', 'ideology'].includes(this.offer.type) || !amount) return null;
+      return this.$options.filters.float(this.offer.price / amount, 1);
+    },
     requestCreditCost() {
       return this.fees + (this.offer.type === 'credit' ? this.offer.data.amount : 0);
     },

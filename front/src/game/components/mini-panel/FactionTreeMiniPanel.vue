@@ -96,28 +96,29 @@
                     {{ $t(`data.${dataKey}.${row.key}.name`) }}
                   </div>
                 </div>
-                <div
-                  v-if="isMobileView"
-                  class="tree-node-card"
-                  :class="{ 'is-open': activeCardKey === row.key }">
-                  <faction-tree-card
-                    :node="row"
-                    :kind="activeTab"
-                    :theme="theme"
-                    :isBuyer="isBuyer"
-                    :treasury="treasury"
-                    :enacted="activeLaws.includes(row.key)"
-                    :canEnact="isLawmaker"
-                    :enactDisabled="enactDisabled(row)"
-                    @purchase="purchaseFromCard"
-                    @toggle-law="toggleLaw" />
-                </div>
               </template>
             </div>
           </div>
         </div>
       </div>
     </v-scrollbar>
+
+    <tree-card-sheet
+      v-if="isMobileView && activeCardNode"
+      @close="activeCardKey = null">
+      <faction-tree-card
+        :key="`sheet-${activeTab}-${activeCardNode.key}`"
+        :node="activeCardNode"
+        :kind="activeTab"
+        :theme="theme"
+        :isBuyer="isBuyer"
+        :treasury="treasury"
+        :enacted="activeLaws.includes(activeCardNode.key)"
+        :canEnact="isLawmaker"
+        :enactDisabled="enactDisabled(activeCardNode)"
+        @purchase="purchaseFromCard"
+        @toggle-law="toggleLaw" />
+    </tree-card-sheet>
 
     <!-- desktop detail dock, as on the player's patent tree: one sticky
          card that hovering a node retargets after a dwell, and that a
@@ -156,6 +157,7 @@ import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 
 import Counter from '@/game/components/generic/Counter.vue';
 import FactionTreeCard, { NODE_ICONS } from '@/game/components/card/FactionTreeCard.vue';
+import TreeCardSheet from '@/game/components/mini-panel/TreeCardSheet.vue';
 
 export default {
   name: 'faction-tree-mini-panel',
@@ -236,6 +238,10 @@ export default {
     nodesAsGrid() { return Tree.trimGrid(Tree.toGrid(this.root)); },
     detailNode() {
       return this.nodes.find((node) => node.key === this.detailKey) || null;
+    },
+    // the node the phone card sheet shows, live
+    activeCardNode() {
+      return this.nodes.find((node) => node.key === this.activeCardKey) || null;
     },
   },
   watch: {
@@ -340,6 +346,7 @@ export default {
   components: {
     Counter,
     FactionTreeCard,
+    TreeCardSheet,
   },
 };
 </script>

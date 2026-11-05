@@ -103,6 +103,7 @@ import CalcMixin from '@/game/mixins/CalcMixin';
 import CalcInput from '@/game/components/calc/CalcInput.vue';
 import CalcLine from '@/game/components/calc/CalcLine.vue';
 import format from '@/utils/format';
+import viewport from '@/utils/viewport';
 
 export default {
   name: 'empire-financials',
@@ -154,7 +155,14 @@ export default {
     },
   },
   methods: {
+    // Desktop parks focus in the input whenever the tab shows or is
+    // clicked, so typed text never lands as a game hotkey. A phone has
+    // no hotkeys to protect, and focus there summons the on-screen
+    // keyboard: it covered half the tab on every open and every tap
+    // (scrolling included), with nothing to put it away. On a phone the
+    // input takes focus only when tapped.
     focusInput() {
+      if (viewport.isMobile) return;
       if (this.$refs.input) this.$refs.input.focus();
     },
     // Esc in an empty input closes the panel. The blur matters: this tab

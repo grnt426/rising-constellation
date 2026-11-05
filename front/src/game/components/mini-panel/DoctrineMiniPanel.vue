@@ -230,6 +230,20 @@
         </div>
       </div>
     </v-scrollbar>
+
+    <tree-card-sheet
+      v-if="isMobileView && activeCardDoctrine"
+      @close="activeCardKey = null">
+      <doctrine-card
+        :key="`sheet-${activeCardDoctrine.key}`"
+        :doctrine="activeCardDoctrine"
+        :canActivate="canActivate"
+        :costFactor="costFactor"
+        :theme="theme"
+        @choose="chooseFromCard"
+        @purchase="purchaseFromCard"
+        @purchase-activate="purchaseActivateFromCard" />
+    </tree-card-sheet>
   </div>
 </template>
 
@@ -241,6 +255,7 @@ import { formatDuration } from '@/utils/format';
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
 import CircleProgressValue from '@/game/components/generic/CircleProgressValue.vue';
 import DoctrineCard from '@/game/components/card/DoctrineCard.vue';
+import TreeCardSheet from '@/game/components/mini-panel/TreeCardSheet.vue';
 
 import Counter from '@/game/components/generic/Counter.vue';
 
@@ -320,6 +335,15 @@ export default {
     },
     doctrinesAsGrid() { return Tree.trimGrid(Tree.toGrid(this.root)); },
     root() { return this.doctrinesAsTree[0]; },
+    // The node the phone card sheet shows, as it stands in the live tree
+    // (its status follows a purchase without a re-tap).
+    activeCardDoctrine() {
+      const key = this.activeCardKey;
+      if (!key) return null;
+      if (this.root && this.root.key === key) return this.root;
+      const rows = [].concat(...this.doctrinesAsGrid);
+      return rows.find((row) => row && row.key === key) || null;
+    },
   },
   methods: {
     clickDoctrine(doctrine) {
@@ -453,15 +477,20 @@ export default {
   },
   watch: {
     activePanel(active, previouslyActive) {
+      // The panel stays mounted (v-show): a card left open must not be
+      // waiting the next time it opens.
+      this.activeCardKey = null;
       if (active === 'doctrine' && active !== previouslyActive) {
         this.resetPolicies();
       }
     },
+    activeTab() { this.activeCardKey = null; },
   },
   beforeDestroy() {
     if (this.underCapTimer) { clearTimeout(this.underCapTimer); }
   },
   components: {
+    TreeCardSheet,
     DoctrineCard,
     CircleProgressValue,
     Counter,

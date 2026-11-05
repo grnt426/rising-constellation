@@ -353,6 +353,36 @@
       width: auto;
       min-width: 0;
     }
+
+    // your own listing: its terms take the row, Cancel keeps its label
+    .default-button.is-cancel {
+      flex: 0 0 auto;
+    }
+  }
+
+  .mpc-oi-terms {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+    padding: 0 8px 0 4px;
+    font-weight: bold;
+    font-size: 1.3rem;
+    line-height: 1.2;
+
+    .svg-icon {
+      width: 14px;
+      height: 14px;
+      vertical-align: -2px;
+    }
+  }
+
+  .mpc-oi-terms-sub {
+    font-weight: normal;
+    font-size: 1.1rem;
+    opacity: .7;
   }
 
   .mpc-oi-icon-button {

@@ -33,12 +33,21 @@
         </div>
       </div>
       <div class="body-tiles">
+        <!-- Phones: tap = the tile's next step (upgrade, or repair),
+             press-and-hold = its card (level comparison, demolish). The
+             corner buttons below are desktop-only: 20px hover targets
+             that a thumb hits by accident. -->
         <div
           v-for="({ tile, status, icon, level, classes, iconClasses, actions }, index) in tiles"
           :key="index"
           :class="classes"
           class="tile"
-          @click="clickTile(tile)">
+          data-long-press
+          @pointerdown="pressStart(tile, $event)"
+          @pointermove="pressMove"
+          @pointerup="pressEnd"
+          @pointercancel="pressEnd"
+          @click="clickTile(tile, actions)">
           <template v-if="status === 'visible'">
             <svgicon
               class="tile-icon"
@@ -57,7 +66,7 @@
               class="tile-level">
               {{ level }}
             </div>
-            <template v-if="isOwnSystem">
+            <template v-if="isOwnSystem && !isMobileView">
               <div
                 v-if="actions.includes('repair')"
                 v-tooltip="$t('card.building.repair')"
@@ -91,6 +100,12 @@
 
 <script>
 import buildingValidation from '@/utils/buildingValidation';
+import viewport from '@/utils/viewport';
+
+// Same hold time as the bottom-bar gauges and the map's action wheel.
+const LONG_PRESS_MS = 450;
+// A finger that travels this far is scrolling the list, not pressing.
+const PRESS_SLOP_PX = 10;
 
 export default {
   name: 'system-bodies-item',
@@ -104,6 +119,14 @@ export default {
       ],
     };
   },
+  created() {
+    // Phone press-and-hold state (see pressStart). Not reactive: it
+    // holds a timer, and nothing renders from it.
+    this.press = null;
+  },
+  beforeDestroy() {
+    this.clearPress();
+  },
   props: {
     body: Object,
     isOwnSystem: Boolean,
@@ -111,6 +134,7 @@ export default {
     visibility: Number,
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
     patents() { return this.$store.state.game.player.patents; },
     production() { return this.$store.state.game.production; },
     buildings() { return this.$store.state.game.data.building; },
@@ -245,13 +269,69 @@ export default {
     leaveTile() {
       this.$emit('leaveTile');
     },
-    clickTile(tile) {
+    isInspectable(tile) {
+      return !!(tile && tile.building_key && tile.building_status !== 'hidden'
+        && tile.building_key !== 'hidden');
+    },
+    // Phones: holding a built tile opens its card in the construction
+    // dock (every level's numbers, the demolish button). The click the
+    // release produces is swallowed in clickTile: the hold already did
+    // what it meant.
+    pressStart(tile, event) {
+      this.clearPress();
+      if (!this.isMobileView || event.pointerType === 'mouse' || !this.isInspectable(tile)) return;
+
+      const press = {
+        x: event.clientX, y: event.clientY, fired: false, timer: null,
+      };
+      press.timer = setTimeout(() => {
+        press.fired = true;
+        this.$emit('inspectTile', { body: this.body, tile });
+      }, LONG_PRESS_MS);
+      this.press = press;
+    },
+    pressMove(event) {
+      const { press } = this;
+      if (!press || press.fired) return;
+      if (Math.abs(event.clientX - press.x) > PRESS_SLOP_PX
+        || Math.abs(event.clientY - press.y) > PRESS_SLOP_PX) {
+        this.clearPress();
+      }
+    },
+    pressEnd(event) {
+      if (!this.press) return;
+      clearTimeout(this.press.timer);
+      // A cancelled pointer is the browser taking the touch for a
+      // scroll: no click follows, so nothing is left to swallow.
+      if (event.type === 'pointercancel') this.press = null;
+    },
+    clearPress() {
+      if (this.press) clearTimeout(this.press.timer);
+      this.press = null;
+    },
+    clickTile(tile, actions = []) {
+      const held = this.press && this.press.fired;
+      this.clearPress();
+      if (held) return;
+
       // A tile that already holds something is an inspect target, not a
       // build target: emitting on the CLICK (rather than relying on the
       // browser's emulated mouseenter) is what makes the phone build
       // dock predictable.
-      if (tile && tile.building_key && tile.building_status !== 'hidden'
-        && tile.building_key !== 'hidden') {
+      if (this.isInspectable(tile)) {
+        // Phones: a tap is the tile's next step. A building with no next
+        // step (top level, waiting on a patent, already in the queue)
+        // opens its card instead, which shows why.
+        if (this.isMobileView && this.isOwnSystem) {
+          if (actions.includes('repair')) {
+            this.buildTile(tile, 'repair');
+            return;
+          }
+          if (actions.includes('upgrade')) {
+            this.buildTile(tile, 'build');
+            return;
+          }
+        }
         this.$emit('inspectTile', { body: this.body, tile });
         return;
       }
@@ -295,6 +375,16 @@ export default {
             prod_key: tile.building_key,
             prod_level: productionLevel,
           },
+        }).receive('ok', () => {
+          // On a phone the tap that queued this is the whole gesture:
+          // say what it did, since nothing else on the tile changes
+          // until the next sync.
+          if (!this.isMobileView) return;
+          const name = this.$t(`data.building.${tile.building_key}.name`);
+          this.$toasted.show(type === 'repair'
+            ? this.$t('galaxy.system.mobile.repair_queued', { name })
+            : this.$t('galaxy.system.mobile.upgrade_queued', { name, level: productionLevel }),
+          { duration: 2500 });
         }).receive('error', (data) => {
           this.$toastError(data.reason);
         });

@@ -2,13 +2,13 @@
   <div class="mobile-list-modal">
     <div
       class="mlm-backdrop"
-      @click="$emit('close')"></div>
+      @click="close"></div>
     <div class="mlm-sheet">
       <div class="mlm-header">
         <span>{{ title }}</span>
         <button
           class="mlm-close"
-          @click="$emit('close')">
+          @click="close">
           <svgicon name="close" />
         </button>
       </div>
@@ -17,7 +17,7 @@
           v-for="item in items"
           :key="item.id"
           class="mlm-row"
-          @click="$emit('select', item)">
+          @click="select(item)">
           <svgicon
             v-if="item.icon"
             class="mlm-icon"
@@ -41,11 +41,32 @@
 </template>
 
 <script>
+// The sheet rises from the bottom edge, right where the bar's buttons
+// are: a click left over from the gesture that opened it (a long-press
+// released on the agents radial, a pointerup-driven opener) lands on a
+// row or the backdrop and picks or closes it. Taps in the first moments
+// after opening are therefore ignored.
+const GHOST_CLICK_MS = 400;
+
 export default {
   name: 'mobile-list-modal',
   props: {
     title: { type: String, required: true },
     items: { type: Array, required: true },
+  },
+  created() {
+    this.openedAt = Date.now();
+  },
+  methods: {
+    isGhost() {
+      return Date.now() - this.openedAt < GHOST_CLICK_MS;
+    },
+    close() {
+      if (!this.isGhost()) this.$emit('close');
+    },
+    select(item) {
+      if (!this.isGhost()) this.$emit('select', item);
+    },
   },
 };
 </script>

@@ -912,10 +912,10 @@
         "agents_hostile": "Agents hostiles",
         "agents_own": "Vos agents",
         "build": "Construire",
-        "build_hint": "Touchez un emplacement vide pour construire, ou un bâtiment pour l’inspecter.",
+        "build_hint": "Touchez un emplacement vide pour construire. Touchez un bâtiment pour l’améliorer, ou maintenez-le pour voir sa carte.",
         "confirm_destroy": "Touchez à nouveau pour détruire",
         "construction": "Construction",
-        "inspect_hint": "Touchez un bâtiment pour l’inspecter.",
+        "inspect_hint": "Touchez un bâtiment pour voir sa carte.",
         "pick_building": "Choisissez un bâtiment ci-dessus pour voir son effet.",
         "tab_agents": "Agents",
         "tab_build": "Construction",
@@ -924,7 +924,10 @@
         "agent_bubble_hint": "Touchez pour y aller · double-touchez pour la carte",
         "multi_move": "Déplacements multiples",
         "multi_move_banner": "Touchez un système pour y ajouter un déplacement. Double-touchez pour arrêter.",
-        "multi_move_done": "Terminer"
+        "multi_move_done": "Terminer",
+        "upgrade_queued": "{name} : niveau {level} en file",
+        "repair_queued": "{name} : réparation en file",
+        "back": "Retour à la carte"
       }
     },
     "school": {
@@ -1235,6 +1238,11 @@
         "title": "Valeur galactique",
         "trade_hint": "Valeur galactique : {price} crédits par point ({total} pour cette quantité)",
         "unavailable": "Les valeurs galactiques ne sont pas disponibles dans cette partie."
+      },
+      "unit_price": "{price} par point",
+      "own_terms": {
+        "donation": "Sans prix · la taxe est payée par qui la récupère",
+        "request": "Gratuit pour vous · la taxe est payée par qui y répond"
       }
     },
     "patent": {

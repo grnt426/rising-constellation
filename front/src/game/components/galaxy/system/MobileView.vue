@@ -1,22 +1,29 @@
 <template>
   <!-- Phone system view: three focused screens instead of one long
-       scroll. Summary / Construction / Agents, paged by swipe, by the
-       tab strip, or by the edge chevrons. The tab strip is the standing
-       affordance — it is always visible and always says which of three
-       you are on, so the swipe never has to be discovered to be used. -->
+       scroll. Summary / Construction / Agents, paged by swipe or by the
+       tab strip. The tab strip is the standing affordance — it is
+       always visible and always says which of three you are on, so the
+       swipe never has to be discovered to be used. (Edge chevrons used
+       to double it; they sat over the content at mid-height.) -->
   <div
     class="mobile-system-view"
     :class="`f-${color}`">
+    <!-- Leaving the system is a BACK arrow on the left, where phones
+         put "leave this screen". The top-right corner then belongs to
+         the docks alone: their ✕ closes a sheet, never the system — the
+         two used to be a big and a small ✕ in the same corner. -->
     <div class="msv-header">
+      <button
+        type="button"
+        class="system-close-button is-back"
+        :aria-label="$t('galaxy.system.mobile.back')"
+        @click="$emit('close')">
+        <svgicon name="caret-left" />
+      </button>
       <div class="msv-title">
         <span class="name">{{ system.name }}</span>
         <span class="coords">{{ coords }}</span>
       </div>
-      <button
-        @click="$emit('close')"
-        class="system-close-button">
-        <svgicon name="close" />
-      </button>
     </div>
 
     <div class="msv-tabs">
@@ -79,12 +86,14 @@
 
             <system-details
               v-if="isVisible"
+              class="mobile-details"
               :system="system"
               :isOwnSystem="isOwnSystem"
               :color="color" />
 
             <system-state
               v-if="isVisible"
+              class="mobile-state"
               :system="system"
               :isOwnProperty="isOwnProperty"
               :color="color" />
@@ -146,19 +155,6 @@
         </div>
       </div>
     </div>
-
-    <button
-      v-if="page > 0"
-      class="msv-edge is-left"
-      @click="goTo(page - 1)">
-      <svgicon name="caret-left" />
-    </button>
-    <button
-      v-if="page < pages.length - 1"
-      class="msv-edge is-right"
-      @click="goTo(page + 1)">
-      <svgicon name="caret-right" />
-    </button>
 
     <!-- Ship orders still come from a fleet's tiles (Army), not from a
          build slot, so they keep the shared production sheet. Buildings
@@ -283,7 +279,7 @@ export default {
   },
   methods: {
     // Once per device: the track rocks a few pixels left on first open,
-    // showing the next screen's edge. Tabs and chevrons already say the
+    // showing the next screen's edge. The tabs already say the
     // pages exist — this is what says they are reachable by dragging.
     maybeNudge() {
       let seen = false;

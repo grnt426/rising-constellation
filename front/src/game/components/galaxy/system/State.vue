@@ -1,6 +1,8 @@
 <template>
   <div>
-    <div class="system-content-group">
+    <div
+      class="system-content-group is-claim"
+      :class="{ 'is-own-system': isOwnProperty && system.status === 'inhabited_player' }">
       <div class="system-content-group-header">
         <div class="main">
           {{ $t('system.system_owner_title') }}
