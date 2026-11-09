@@ -1,7 +1,7 @@
 <template>
   <div
     class="card-container"
-    :class="[`f-${theme}`, { 'is-mobile-card': isMobileView }]"
+    :class="[`f-${theme}`, { 'is-mobile-card': isCompact }]"
     ref="card"
     role="group"
     :aria-label="ariaName"
@@ -207,7 +207,7 @@
                           @click.stop="give(i)">+</button>
                       </div>
                       <span
-                        v-if="isMobileView"
+                        v-if="isCompact"
                         class="skill-value">{{ skill }}</span>
                       <div class="character-skill-points">
                         <template v-if="diff && skill !== diff.skills[i]">
@@ -251,7 +251,7 @@
                       class="is-sparse-y">
                       <div class="skill-name">{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
                       <span
-                        v-if="isMobileView"
+                        v-if="isCompact"
                         class="skill-value">&#9617;</span>
                       <div class="character-skill-points">
                         <span
@@ -495,6 +495,12 @@ export default {
       type: Boolean,
       default: false,
     },
+    // Phones: draw the full desktop card (the host scales it to the
+    // screen) instead of the compact mobile one.
+    expanded: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
@@ -507,6 +513,8 @@ export default {
   },
   computed: {
     isMobileView() { return viewport.isMobile; },
+    // the compact phone layout: split skill chart, smaller frame
+    isCompact() { return this.isMobileView && !this.expanded; },
     // Agent training (docs/agent-training.md)
     isInClass() { return this.character.status === 'student' && inClass(this.character.training); },
     studentExperience() {

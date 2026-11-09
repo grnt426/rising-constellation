@@ -1,6 +1,6 @@
 <template>
   <div
-    class="panel-container is-left"
+    class="panel-container is-left help-panel"
     :class="theme"
     @click.self="close">
     <div

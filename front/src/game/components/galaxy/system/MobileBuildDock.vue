@@ -105,11 +105,23 @@
           @click="orderTile('repair')">
           {{ $t('card.building.repair') }}
         </button>
+        <!-- the tile tap only opened this card: here is what the
+             upgrade costs, and this tap is the one that orders it -->
         <button
           v-if="inspectActions.includes('upgrade')"
           class="msv-dock-button is-primary"
           @click="orderTile('build')">
-          {{ $t('card.building.upgrade') }}
+          <span>{{ $t('galaxy.system.mobile.upgrade_to', { level: upgrade.level }) }}</span>
+          <span class="msv-dock-cost">
+            <span v-if="upgrade.production > 0">
+              {{ upgrade.production | integer }}
+              <svgicon name="resource/production" />
+            </span>
+            <span v-if="upgrade.credit > 0">
+              {{ upgrade.credit | integer }}
+              <svgicon name="resource/credit" />
+            </span>
+          </span>
         </button>
         <button
           v-if="inspectActions.includes('delete')"
@@ -247,6 +259,19 @@ export default {
 
       return actions;
     },
+    // The level an Upgrade tap queues, and what it costs.
+    upgrade() {
+      if (!this.inspected) return null;
+      const { tile } = this.inspected;
+      const data = this.$store.state.game.data.building.find((b) => b.key === tile.building_key);
+      const level = tile.building_level + 1;
+      const levelData = data && data.levels[level - 1];
+      return {
+        level,
+        production: levelData ? levelData.production : 0,
+        credit: levelData ? levelData.credit : 0,
+      };
+    },
     queue() {
       return this.system.queue ? this.system.queue.queue : [];
     },
@@ -307,6 +332,14 @@ export default {
           prod_key: tile.building_key,
           prod_level: level,
         },
+      }).receive('ok', () => {
+        // nothing on the tile changes until the next sync: say what
+        // the tap did
+        const name = this.$t(`data.building.${tile.building_key}.name`);
+        this.$toasted.show(type === 'repair'
+          ? this.$t('galaxy.system.mobile.repair_queued', { name })
+          : this.$t('galaxy.system.mobile.upgrade_queued', { name, level }),
+        { duration: 2500 });
       }).receive('error', (data) => {
         this.$toastError(data.reason);
       });

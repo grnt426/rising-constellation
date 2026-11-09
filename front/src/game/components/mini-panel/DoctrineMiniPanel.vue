@@ -203,10 +203,12 @@
         <div
           class="mpc-splashscreen"
           v-else>
-          <div class="tree-node available">
-            <div
-              @click="clickDoctrine(root)"
-              class="tree-node-icon">
+          <!-- the whole node takes the tap, as on the patent splash:
+               the lone first lex is the only target on screen -->
+          <div
+            class="tree-node available"
+            @click="clickSplash">
+            <div class="tree-node-icon">
               <svgicon
                 class="main-icon"
                 :name="`doctrine/${root.key}`" />
@@ -366,6 +368,12 @@ export default {
       if (doctrine.status === 'chosen') {
         this.discardPolicy(doctrine.key);
       }
+    },
+    // The splash node holds its own desktop hover card: a click on the
+    // card's text must not reach the node and buy the lex.
+    clickSplash(event) {
+      if (event.target.closest('.tree-node-card')) return;
+      this.clickDoctrine(this.root);
     },
     chooseFromCard(doctrineKey) {
       this.activeCardKey = null;

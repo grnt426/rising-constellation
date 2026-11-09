@@ -588,8 +588,34 @@
       padding: 2px 6px;
       font-size: .95rem;
 
-      + .msv-dock-dismiss {
+      + .msv-dock-dismiss,
+      + .msv-dock-size {
         margin-left: 4px;
+      }
+    }
+
+    // compact / full card toggle (agent dock), left of the dismiss
+    .msv-dock-size {
+      margin: -5px 0 -5px auto;
+      flex: 0 0 36px;
+      width: 36px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: none;
+      border: none;
+      border-left: 1px solid rgba(255, 255, 255, .08);
+      color: $white;
+
+      .svg-icon {
+        width: 14px;
+        height: 14px;
+      }
+
+      + .msv-dock-dismiss {
+        margin-left: 0;
       }
     }
 
@@ -764,6 +790,27 @@
     &.is-disabled {
       opacity: .35;
     }
+
+    // "Upgrade to 3" over what it costs
+    .msv-dock-cost {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 2px;
+      font-size: .95rem;
+      text-transform: none;
+      color: $white;
+
+      .svg-icon {
+        width: 11px;
+        height: 11px;
+        vertical-align: -1px;
+      }
+    }
+
+    > span {
+      display: block;
+    }
   }
 
   .msv-dock-queue {
@@ -851,10 +898,40 @@
     flex: 1 1 auto;
     min-height: 0;
     padding: 4px;
-    overflow: hidden;
+    // the third of a screen rarely holds card AND fleet: what doesn't
+    // fit scrolls instead of being cut off (maximize for the rest)
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 
     .adp-card .card-container { zoom: .62; }
     .adp-aside { zoom: .7; }
+
+    // compact: the orders strip and Recall share one line
+    &:not(.is-expanded) {
+      .adp-queue {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+
+      .adp-top {
+        flex: 0 0 auto;
+        align-self: flex-start;
+      }
+    }
+  }
+
+  // Maximized: the dock takes the whole Agents page (the roster under
+  // it shrinks to nothing until the card is minimized or closed).
+  .msv-agent-dock.is-expanded {
+    height: 100%;
+    max-height: none;
+
+    .msv-agent-dock-body {
+      padding: 6px;
+
+      .adp-aside { zoom: .9; }
+    }
   }
 
   // The queue's desktop chips are 20px hover affordances; on a card
@@ -1141,6 +1218,26 @@
           width: 28px;
           height: 28px;
           margin: 2px;
+        }
+
+        // An upgrade (or repair) is waiting: a corner badge, not a
+        // button. The tap that follows opens the card that orders it.
+        .tile-toast.is-badge {
+          top: -3px;
+          left: -3px;
+          width: 14px;
+          height: 14px;
+          padding: 1px;
+          border-radius: 50%;
+          background: var(--m-accent-light);
+          box-shadow: 0 0 0 1px $black;
+          pointer-events: none;
+
+          .svg-icon {
+            width: 12px;
+            height: 12px;
+            color: $black;
+          }
         }
       }
     }
@@ -2162,23 +2259,25 @@
       height: 27px;
     }
 
+    // The portrait gives up 28px so every skill row can carry its name.
     .card-body {
       height: 279px;
     }
 
     .card-illustration {
       width: 238px;
-      height: 119px;
+      height: 91px;
 
       img {
         width: 238px;
-        height: 119px;
+        height: 91px;
         object-fit: cover;
+        object-position: 50% 25%;
       }
     }
 
     .card-information {
-      height: 160px;
+      height: 188px;
     }
 
     .card-panel {
@@ -2196,8 +2295,9 @@
 
     // Split skill chart: AGENT | GOVERNOR halves around a center
     // origin. Bars grow outward-from-center toward 12; the value digit
-    // anchors to the window edge. Skill names drop (tooltips keep the
-    // detail); the 1px segment seams keep the levelled look.
+    // anchors to the window edge, the skill's name sits over it (the
+    // numbers alone meant nothing to anyone who hadn't memorized the
+    // order of the six skills).
     .card-skills {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -2211,17 +2311,47 @@
       h2 {
         display: block;
         width: fit-content;
-        margin: 2px auto 4px;
+        margin: 2px auto 3px;
+      }
+
+      // name over [value | bar]; the rewire -/+ pair, when shown, at the
+      // end of the name line
+      .is-sparse-y {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas:
+          "name  name name"
+          "value bar  bar";
+        align-items: center;
+        column-gap: 4px;
+        row-gap: 1px;
+        padding: 2px 0;
       }
 
       .skill-name {
-        display: none;
+        grid-area: name;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 1.05rem;
+        line-height: 1.25;
+        text-transform: none;
+        opacity: .75;
       }
 
-      .is-sparse-y {
-        align-items: center;
-        gap: 4px;
-        padding: 3px 0;
+      .skill-reallocation {
+        grid-area: name;
+        justify-self: end;
+        margin: 0;
+      }
+
+      .skill-value {
+        grid-area: value;
+      }
+
+      .character-skill-points {
+        grid-area: bar;
       }
 
       .skill-value {
@@ -2287,7 +2417,18 @@
         padding-left: 3px;
 
         .is-sparse-y {
-          flex-direction: row-reverse;
+          grid-template-columns: 1fr auto;
+          grid-template-areas:
+            "name name"
+            "bar  value";
+        }
+
+        .skill-name {
+          text-align: right;
+        }
+
+        .skill-reallocation {
+          justify-self: start;
         }
 
         .skill-value {
@@ -2491,6 +2632,25 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+  }
+
+  // The side panels (Overview, Leaderboard, Operations' agents and
+  // reports, Faction, ...) set their type for a 600-1200px desktop
+  // column: 16px body, 20-22px names and figures. On a phone that read
+  // a size too large beside the manual's 13px, and agent names broke
+  // over two lines. A quarter off, proportionally (16 → 12, 22 → 16.5):
+  // `zoom` scales type and spacing together, and auto widths still fill
+  // the column. It goes on what the scroller holds, never on the
+  // scroller itself: perfect-scrollbar moves scrollTop by the finger's
+  // travel in screen pixels, and a zoomed scroller counts scrollTop in
+  // zoomed ones, so the page would trail the finger by a quarter.
+  // The Help panel (the manual, the shortcuts) is already set at the
+  // manual's size and keeps it.
+  .panel-container:not(.help-panel) .panel-content > .ps-container,
+  .panel-container:not(.help-panel) .panel-content > .faction-government > .ps-container {
+    > :not(.ps__rail-x):not(.ps__rail-y) {
+      zoom: .75;
+    }
   }
 
   // Possessions: the desktop row is nine fixed-width cells (180px
@@ -2941,6 +3101,30 @@
       white-space: nowrap;
     }
 
+    // compact / full card toggle, beside the close button
+    .mas-size {
+      margin-left: auto;
+      flex: 0 0 34px;
+      width: 34px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: none;
+      border: none;
+      color: $white;
+
+      .svg-icon {
+        width: 15px;
+        height: 15px;
+      }
+    }
+
+    .mas-size + .mas-close {
+      margin-left: 0;
+    }
+
     .mas-close {
       margin-left: auto;
       flex: 0 0 30px;
@@ -2977,6 +3161,12 @@
 
     .adp-card .card-container { zoom: .78; }
 
+    // A 375px-or-wider phone fits the card at .9 with the plan's 140px
+    // beside it; at .78 the card left half the sheet's width empty.
+    @media (min-width: 375px) {
+      .adp-card .card-container { zoom: .9; }
+    }
+
     // as tall as the card beside it (338px at that zoom), scrolling
     // within: a long plan must not push the fleet off the sheet
     .adp-plan {
@@ -2986,6 +3176,83 @@
     .adp-aside {
       zoom: .8;
       min-width: 180px;
+    }
+  }
+
+  // Maximized: the sheet runs from the top bar to the bottom bar, and
+  // the pair stacks — full card, plan, fleet — scrolling as one.
+  .mobile-agent-sheet.is-expanded {
+    height: calc(100vh - 84px);
+    height: calc(100dvh - 84px);
+    max-height: none;
+  }
+
+  .mas-body.is-expanded {
+    .adp-plan {
+      max-height: none;
+    }
+
+    .adp-aside {
+      zoom: .9;
+      min-width: 0;
+    }
+  }
+
+  // The expanded pair, in the sheet and in the dock: the desktop card
+  // (CharacterCard expanded = no compact layout), scaled to the
+  // screen's width in steps; everything else full width under it.
+  .agent-detail-pair.is-expanded {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 8px;
+
+    > * {
+      flex: 0 0 auto;
+    }
+
+    .adp-card {
+      align-self: center;
+      overflow: visible;
+
+      .card-container { zoom: 1; }
+
+      @media (min-width: 360px) {
+        .card-container { zoom: 1.15; }
+      }
+
+      @media (min-width: 390px) {
+        .card-container { zoom: 1.2; }
+      }
+
+      @media (min-width: 412px) {
+        .card-container { zoom: 1.28; }
+      }
+
+      @media (min-width: 460px) {
+        .card-container { zoom: 1.4; }
+      }
+    }
+
+    .adp-plan {
+      min-width: 0;
+    }
+
+    .adp-aside {
+      overflow: visible;
+    }
+  }
+
+  // Recall: the second tap is the one that sends the agent home.
+  .agent-recall-button {
+    &.is-armed {
+      border-color: $color-alert;
+      color: $color-alert;
+      background: rgba($color-alert, .15);
+    }
+
+    &.is-disabled {
+      opacity: .4;
     }
   }
 
@@ -3266,6 +3533,19 @@
     }
   }
 
+  // First patent / first lex: the lone root node. It used to sit
+  // flush on the bottom bar with the scroller 1px short of its content
+  // (so the "tree" claimed a 1px scroll); give it air on both sides.
+  .mpc-splashscreen {
+    width: auto;
+    padding: 14px 0 18px;
+
+    .tree-node {
+      cursor: pointer;
+      margin: 0;
+    }
+  }
+
   // Node detail cards live in one TreeCardSheet per panel on phones.
   // The per-node desktop cards stay off — including the :hover rule
   // that a tap's sticky emulated hover used to trigger.
@@ -3299,6 +3579,31 @@
       overflow-y: auto;
       overscroll-behavior: contain;
       touch-action: pan-y;
+    }
+
+    // The card's Buy / Activate row hangs below the card box on desktop
+    // (absolute, top: 418px), so the sheet sized itself to the card and
+    // then scrolled to reach the buttons. In the sheet the row is part
+    // of the card, and the sheet only scrolls when the screen is
+    // genuinely too short for both.
+    .card-container {
+      height: auto;
+
+      // bottom room: the buttons' frame is drawn outside their box,
+      // and the sheet's scroller would clip it
+      .card-action {
+        position: relative;
+        top: auto;
+        padding-bottom: 6px;
+      }
+    }
+
+    // The sheet has the screen to itself: on a phone tall enough to fit
+    // the card, its buttons and the close button, read it larger.
+    @media (min-height: 700px) and (min-width: 360px) {
+      .card-container:not(.closed) {
+        zoom: .9;
+      }
     }
 
     .tcs-close {
@@ -3398,7 +3703,11 @@
   // cell of one grid. The "LEX SLOTS" title goes; the warning / next-
   // wait sentences that replace it stay, as a full-width first row.
   .mini-panel-policies {
-    position: static;
+    // Positioned, or it paints UNDER the panel's blurred backdrop
+    // (.mp-container:before is absolute): every unpositioned piece of
+    // the strip — the active count, the next-wait note — showed as a
+    // dark smudge, while the positioned "/2" beside it stayed sharp.
+    position: relative;
     // a flex item stacks by z-index even when static: the desktop 401
     // put this strip over the card sheet's backdrop
     z-index: auto;
@@ -3440,17 +3749,31 @@
       top: 0;
       width: 36px;
       height: 36px;
-      line-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: normal;
       margin-right: 54px; // the timer sits to the right of the stamp
 
+      // The ring is drawn for the desktop 50px disc (r 25 in a 58px
+      // box). Scaled from its corner it sat 3.5px right of and below
+      // the 36px disc; pinned to the disc's centre and scaled around its
+      // own, r 25 × .72 lands on the disc's edge.
       .generic-circle-progress-container {
-        top: -4px;
-        left: -4px;
-        transform: scale(.88);
-        transform-origin: 0 0;
+        top: 50%;
+        left: 50%;
+        width: 58px;
+        height: 58px;
+        transform: translate(-50%, -50%) scale(.72);
+        transform-origin: 50% 50%;
+
+        svg {
+          display: block;
+        }
       }
 
       .svg-icon {
+        position: relative;
         width: 20px;
         height: 20px;
       }

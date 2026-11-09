@@ -33,21 +33,17 @@
         </div>
       </div>
       <div class="body-tiles">
-        <!-- Phones: tap = the tile's next step (upgrade, or repair),
-             press-and-hold = its card (level comparison, demolish). The
-             corner buttons below are desktop-only: 20px hover targets
-             that a thumb hits by accident. -->
+        <!-- Phones: a tap opens the tile's card in the build dock, where
+             Upgrade / Repair / Destroy wait to be confirmed; the corner
+             badge says there is a next step. The corner buttons below are
+             desktop-only: 20px hover targets that a thumb hits by
+             accident. -->
         <div
           v-for="({ tile, status, icon, level, classes, iconClasses, actions }, index) in tiles"
           :key="index"
           :class="classes"
           class="tile"
-          data-long-press
-          @pointerdown="pressStart(tile, $event)"
-          @pointermove="pressMove"
-          @pointerup="pressEnd"
-          @pointercancel="pressEnd"
-          @click="clickTile(tile, actions)">
+          @click="clickTile(tile)">
           <template v-if="status === 'visible'">
             <svgicon
               class="tile-icon"
@@ -66,6 +62,19 @@
               class="tile-level">
               {{ level }}
             </div>
+            <!-- phones: says what a tap leads to; the dock asks first -->
+            <template v-if="isOwnSystem && isMobileView">
+              <div
+                v-if="actions.includes('repair')"
+                class="tile-toast top left is-active is-badge">
+                <svgicon name="check" />
+              </div>
+              <div
+                v-else-if="actions.includes('upgrade')"
+                class="tile-toast top left is-active is-badge">
+                <svgicon name="caret-up" />
+              </div>
+            </template>
             <template v-if="isOwnSystem && !isMobileView">
               <div
                 v-if="actions.includes('repair')"
@@ -102,11 +111,6 @@
 import buildingValidation from '@/utils/buildingValidation';
 import viewport from '@/utils/viewport';
 
-// Same hold time as the bottom-bar gauges and the map's action wheel.
-const LONG_PRESS_MS = 450;
-// A finger that travels this far is scrolling the list, not pressing.
-const PRESS_SLOP_PX = 10;
-
 export default {
   name: 'system-bodies-item',
   data() {
@@ -118,14 +122,6 @@ export default {
         'asteroid',
       ],
     };
-  },
-  created() {
-    // Phone press-and-hold state (see pressStart). Not reactive: it
-    // holds a timer, and nothing renders from it.
-    this.press = null;
-  },
-  beforeDestroy() {
-    this.clearPress();
   },
   props: {
     body: Object,
@@ -273,65 +269,13 @@ export default {
       return !!(tile && tile.building_key && tile.building_status !== 'hidden'
         && tile.building_key !== 'hidden');
     },
-    // Phones: holding a built tile opens its card in the construction
-    // dock (every level's numbers, the demolish button). The click the
-    // release produces is swallowed in clickTile: the hold already did
-    // what it meant.
-    pressStart(tile, event) {
-      this.clearPress();
-      if (!this.isMobileView || event.pointerType === 'mouse' || !this.isInspectable(tile)) return;
-
-      const press = {
-        x: event.clientX, y: event.clientY, fired: false, timer: null,
-      };
-      press.timer = setTimeout(() => {
-        press.fired = true;
-        this.$emit('inspectTile', { body: this.body, tile });
-      }, LONG_PRESS_MS);
-      this.press = press;
-    },
-    pressMove(event) {
-      const { press } = this;
-      if (!press || press.fired) return;
-      if (Math.abs(event.clientX - press.x) > PRESS_SLOP_PX
-        || Math.abs(event.clientY - press.y) > PRESS_SLOP_PX) {
-        this.clearPress();
-      }
-    },
-    pressEnd(event) {
-      if (!this.press) return;
-      clearTimeout(this.press.timer);
-      // A cancelled pointer is the browser taking the touch for a
-      // scroll: no click follows, so nothing is left to swallow.
-      if (event.type === 'pointercancel') this.press = null;
-    },
-    clearPress() {
-      if (this.press) clearTimeout(this.press.timer);
-      this.press = null;
-    },
-    clickTile(tile, actions = []) {
-      const held = this.press && this.press.fired;
-      this.clearPress();
-      if (held) return;
-
+    clickTile(tile) {
       // A tile that already holds something is an inspect target, not a
       // build target: emitting on the CLICK (rather than relying on the
       // browser's emulated mouseenter) is what makes the phone build
-      // dock predictable.
+      // dock predictable. On a phone that card is also where an upgrade
+      // or repair is ordered: a tap never spends resources by itself.
       if (this.isInspectable(tile)) {
-        // Phones: a tap is the tile's next step. A building with no next
-        // step (top level, waiting on a patent, already in the queue)
-        // opens its card instead, which shows why.
-        if (this.isMobileView && this.isOwnSystem) {
-          if (actions.includes('repair')) {
-            this.buildTile(tile, 'repair');
-            return;
-          }
-          if (actions.includes('upgrade')) {
-            this.buildTile(tile, 'build');
-            return;
-          }
-        }
         this.$emit('inspectTile', { body: this.body, tile });
         return;
       }
@@ -375,16 +319,6 @@ export default {
             prod_key: tile.building_key,
             prod_level: productionLevel,
           },
-        }).receive('ok', () => {
-          // On a phone the tap that queued this is the whole gesture:
-          // say what it did, since nothing else on the tile changes
-          // until the next sync.
-          if (!this.isMobileView) return;
-          const name = this.$t(`data.building.${tile.building_key}.name`);
-          this.$toasted.show(type === 'repair'
-            ? this.$t('galaxy.system.mobile.repair_queued', { name })
-            : this.$t('galaxy.system.mobile.upgrade_queued', { name, level: productionLevel }),
-          { duration: 2500 });
         }).receive('error', (data) => {
           this.$toastError(data.reason);
         });

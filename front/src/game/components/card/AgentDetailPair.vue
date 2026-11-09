@@ -5,7 +5,7 @@
        same thing; the hosts only size it. -->
   <div
     class="agent-detail-pair"
-    :class="{ 'has-plan': showPlan }">
+    :class="{ 'has-plan': showPlan, 'is-expanded': expanded }">
     <!-- Orders first: "what is this agent doing" is the question the
          card is usually opened to answer. Absent on a foreign agent,
          whose redacted payload carries no action queue. A host with room
@@ -30,7 +30,8 @@
         :key="`adp-${character.id}`"
         :character="character"
         :theme="theme"
-        :noAction="noAction" />
+        :noAction="noAction"
+        :expanded="expanded" />
     </div>
 
     <agent-plan
@@ -79,6 +80,10 @@ export default {
     // Show the orders as the editable plan (AgentPlan) beside the card,
     // not as the icon strip above it.
     plan: { type: Boolean, default: false },
+    // Phones: the full desktop card across the host's width, with the
+    // plan and what the agent commands stacked under it (the host
+    // scales the card; see utils/agentCardSize.js).
+    expanded: { type: Boolean, default: false },
   },
   computed: {
     // Only the owner may cancel queued orders.

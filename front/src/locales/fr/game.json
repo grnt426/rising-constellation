@@ -912,7 +912,7 @@
         "agents_hostile": "Agents hostiles",
         "agents_own": "Vos agents",
         "build": "Construire",
-        "build_hint": "Touchez un emplacement vide pour construire. Touchez un bâtiment pour l’améliorer, ou maintenez-le pour voir sa carte.",
+        "build_hint": "Touchez un emplacement vide pour construire. Touchez un bâtiment pour voir sa carte et l’améliorer. Une pastille marque ceux qui peuvent l’être.",
         "confirm_destroy": "Touchez à nouveau pour détruire",
         "construction": "Construction",
         "inspect_hint": "Touchez un bâtiment pour voir sa carte.",
@@ -926,6 +926,10 @@
         "multi_move_banner": "Touchez un système pour y ajouter un déplacement. Double-touchez pour arrêter.",
         "multi_move_done": "Terminer",
         "upgrade_queued": "{name} : niveau {level} en file",
+        "card_maximize": "Afficher la carte complète",
+        "card_minimize": "Afficher la carte compacte",
+        "recall_confirm": "Touchez encore pour rappeler",
+        "upgrade_to": "Améliorer au niveau {level}",
         "repair_queued": "{name} : réparation en file",
         "back": "Retour à la carte"
       }

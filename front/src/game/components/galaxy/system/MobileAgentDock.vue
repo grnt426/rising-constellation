@@ -5,7 +5,7 @@
        always has somewhere useful to land. -->
   <div
     class="msv-dock msv-agent-dock"
-    :class="{ 'is-active': !!summary }">
+    :class="{ 'is-active': !!summary, 'is-expanded': !!summary && expanded }">
     <template v-if="summary">
       <div class="msv-dock-head">
         <span class="msv-dock-title">{{ summary.name }}</span>
@@ -16,6 +16,15 @@
           class="chat-report-button"
           @click="report">
           {{ $t('in_game_chat.sighting.report_agent') }}
+        </button>
+        <!-- maximized, the dock takes the whole Agents page: the full
+             card across the screen, the fleet under it -->
+        <button
+          class="msv-dock-size"
+          :aria-label="$t(expanded ? 'galaxy.system.mobile.card_minimize' : 'galaxy.system.mobile.card_maximize')"
+          :aria-pressed="String(expanded)"
+          @click="toggleSize">
+          <svgicon :name="expanded ? 'minimize' : 'maximize'" />
         </button>
         <button
           class="msv-dock-dismiss"
@@ -29,7 +38,17 @@
         class="msv-agent-dock-body"
         :character="detail"
         :theme="theme"
-        noAction />
+        :expanded="expanded"
+        noAction>
+        <div
+          v-if="isOwn && detail.status === 'on_board'"
+          slot="top"
+          class="mas-bulk">
+          <agent-recall-button
+            :character="detail"
+            @recalled="$emit('close')" />
+        </div>
+      </agent-detail-pair>
 
       <div
         v-else
@@ -51,6 +70,8 @@
 
 <script>
 import AgentDetailPair from '@/game/components/card/AgentDetailPair.vue';
+import AgentRecallButton from '@/game/components/galaxy/AgentRecallButton.vue';
+import agentCardSize from '@/utils/agentCardSize';
 import { canReportAgent, reportAgent } from '@/game/components/chat/reportSighting';
 
 export default {
@@ -74,6 +95,7 @@ export default {
         ? this.$store.getters['game/themeByKey'](this.summary.owner.faction)
         : 'none';
     },
+    expanded() { return agentCardSize.expanded; },
     isOwn() {
       return !!this.summary
         && this.summary.owner.id === this.$store.state.game.player.id;
@@ -91,6 +113,9 @@ export default {
     },
   },
   methods: {
+    toggleSize() {
+      agentCardSize.toggle();
+    },
     report() {
       reportAgent(this, this.$store.state.game.selectedSystem.id, this.summary.id);
     },
@@ -120,6 +145,6 @@ export default {
         });
     },
   },
-  components: { AgentDetailPair },
+  components: { AgentDetailPair, AgentRecallButton },
 };
 </script>
