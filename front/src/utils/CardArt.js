@@ -1,4 +1,5 @@
 import { cardArtSrcset, prefersLowData } from '@/utils/card-art';
+import { portraitSrcFor } from '@/utils/portraits';
 
 // The global <card-art>: a card illustration as
 //   <picture>
@@ -16,7 +17,18 @@ import { cardArtSrcset, prefersLowData } from '@/utils/card-art';
 //   eager  load at once (always-visible art: the navbar avatar, a page's
 //          hero portrait); otherwise lazy, which matters in long lists
 //          like the patent tree and the avatar picker
+//
+// Player portraits: an AI-generated portrait shows as its classic stand-in
+// unless this viewer opted in (settings.aigc_portraits; utils/portraits.js).
+// Every portrait on screen renders through here, so this is the one place
+// that rule lives. Reading the store inside a functional render ties it to
+// the parent's render, so flipping the setting updates every portrait.
 const LOW_DATA = prefersLowData();
+
+function showAigc(parent) {
+  const store = parent && parent.$store;
+  return Boolean(store && store.state.portal.settings.aigc_portraits);
+}
 
 export default {
   name: 'card-art',
@@ -27,19 +39,20 @@ export default {
     sizes: { type: String, default: '304px' },
     eager: Boolean,
   },
-  render(h, { props, data }) {
+  render(h, { props, data, parent }) {
+    const src = portraitSrcFor(props.src, showAigc(parent));
     const img = h('img', {
       ...data,
       attrs: {
         ...data.attrs,
-        src: props.src,
+        src,
         alt: props.alt,
         loading: props.eager ? 'eager' : 'lazy',
         decoding: 'async',
       },
     });
 
-    const srcset = cardArtSrcset(props.src, { lowData: LOW_DATA });
+    const srcset = cardArtSrcset(src, { lowData: LOW_DATA });
     if (!srcset) return img;
 
     return h('picture', [

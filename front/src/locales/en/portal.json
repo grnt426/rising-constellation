@@ -1337,6 +1337,8 @@
       "title": "Characters"
     },
     "profile_detail": {
+      "aigc_stand_in": "Players who hide AI-generated portraits see you with this portrait instead:",
+      "aigc_more": "More portraits, made with AI image generation, can be shown from Settings.",
       "begin": "Begin the adventure…",
       "create": "Create",
       "daily_completed_line": "{completed} completed of {played} played",
@@ -1402,6 +1404,12 @@
         }
       },
       "number_format": "Number format",
+      "aigc_portraits": {
+        "title": "AI-generated portraits",
+        "hide": "Hide",
+        "show": "Show",
+        "note": "Some player portraits were made with AI image generation. Shown, you can pick them for your profile and you see them on other players. Hidden, they never appear: players who use one show a classic portrait instead."
+      },
       "income_display": {
         "title": "Income display",
         "per_tick": "Per tick",

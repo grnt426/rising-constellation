@@ -99,6 +99,47 @@
 
           <div class="radio-input is-horizontal">
             <div
+              id="settings-aigc-portraits"
+              class="label">
+              {{ $t('page.settings.aigc_portraits.title') }}
+            </div>
+            <div
+              class="content"
+              role="radiogroup"
+              aria-labelledby="settings-aigc-portraits"
+              aria-describedby="settings-aigc-portraits-note">
+              <div class="content-item">
+                <input
+                  type="radio"
+                  id="aigc-portraits-hide"
+                  :value="false"
+                  v-model="aigcPortraits"
+                  @change="setAigcPortraits">
+                <label for="aigc-portraits-hide">
+                  <strong>{{ $t('page.settings.aigc_portraits.hide') }}</strong>
+                </label>
+              </div>
+              <div class="content-item">
+                <input
+                  type="radio"
+                  id="aigc-portraits-show"
+                  :value="true"
+                  v-model="aigcPortraits"
+                  @change="setAigcPortraits">
+                <label for="aigc-portraits-show">
+                  <strong>{{ $t('page.settings.aigc_portraits.show') }}</strong>
+                </label>
+              </div>
+            </div>
+            <p
+              id="settings-aigc-portraits-note"
+              class="settings-note">
+              {{ $t('page.settings.aigc_portraits.note') }}
+            </p>
+          </div>
+
+          <div class="radio-input is-horizontal">
+            <div
               id="settings-resource-copy"
               class="label">
               {{ $t('page.settings.resource_copy.title') }}
@@ -388,6 +429,7 @@ export default {
         || 'en',
       numberFormats: ['en', 'fr', 'de'],
       incomePerHour: this.$store.state.portal.settings.incomePerHour === true,
+      aigcPortraits: this.$store.state.portal.settings.aigc_portraits === true,
       resourceCopyMode: this.$store.state.portal.settings.resourceCopyMode || 'plaintext',
       resourceCopyModes: ['plaintext', 'discord', 'picture', 'spreadsheet'],
       ambiance: this.$store.state.portal.settings.ambiance,
@@ -464,6 +506,9 @@ export default {
     async setIncomePerHour() {
       await this.$store.dispatch('portal/setIncomePerHour', this.incomePerHour);
     },
+    async setAigcPortraits() {
+      await this.$store.dispatch('portal/setAigcPortraits', this.aigcPortraits);
+    },
     async setResourceCopyMode() {
       await this.$store.dispatch('portal/setResourceCopyMode', this.resourceCopyMode);
     },
@@ -535,6 +580,13 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.settings-note {
+  margin: 6px 0 0;
+  font-size: 1.2rem;
+  line-height: 1.6rem;
+  opacity: 0.7;
+}
+
 .mute-empty {
   margin: 0.5rem 0;
   opacity: 0.6;

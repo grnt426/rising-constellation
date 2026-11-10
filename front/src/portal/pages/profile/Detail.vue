@@ -57,36 +57,49 @@
 
           <div class="hero-identity">
             <div class="hero-portrait">
-              <card-art
-                :src="avatarPath"
-                sizes="340px"
-                eager />
-              <button
-                ref="picker-toggle-icon"
-                class="hero-badge"
-                type="button"
-                :title="$t('page.profile_detail.favorite_icon')"
-                :aria-label="$t('page.profile_detail.favorite_icon')"
-                :aria-expanded="activePicker === 'icon' ? 'true' : 'false'"
-                @click="togglePicker('icon')">
-                <svgicon
-                  v-if="profile.favorite_icon"
-                  aria-hidden="true"
-                  :name="profile.favorite_icon" />
-                <span
-                  v-else
-                  aria-hidden="true">+</span>
-              </button>
-              <button
-                ref="picker-toggle-avatar"
-                class="hero-portrait-edit"
-                type="button"
-                :title="$t('page.profile_detail.profile_picture')"
-                :aria-label="$t('page.profile_detail.profile_picture')"
-                :aria-expanded="activePicker === 'avatar' ? 'true' : 'false'"
-                @click="togglePicker('avatar')">
-                <span aria-hidden="true">✎</span>
-              </button>
+              <!-- the frame anchors the two buttons to the image, so the
+                   note below it doesn't push them around -->
+              <div class="hero-portrait-frame">
+                <card-art
+                  :src="avatarPath"
+                  sizes="340px"
+                  eager />
+                <button
+                  ref="picker-toggle-icon"
+                  class="hero-badge"
+                  type="button"
+                  :title="$t('page.profile_detail.favorite_icon')"
+                  :aria-label="$t('page.profile_detail.favorite_icon')"
+                  :aria-expanded="activePicker === 'icon' ? 'true' : 'false'"
+                  @click="togglePicker('icon')">
+                  <svgicon
+                    v-if="profile.favorite_icon"
+                    aria-hidden="true"
+                    :name="profile.favorite_icon" />
+                  <span
+                    v-else
+                    aria-hidden="true">+</span>
+                </button>
+                <button
+                  ref="picker-toggle-avatar"
+                  class="hero-portrait-edit"
+                  type="button"
+                  :title="$t('page.profile_detail.profile_picture')"
+                  :aria-label="$t('page.profile_detail.profile_picture')"
+                  :aria-expanded="activePicker === 'avatar' ? 'true' : 'false'"
+                  @click="togglePicker('avatar')">
+                  <span aria-hidden="true">✎</span>
+                </button>
+              </div>
+              <!-- an AI-generated portrait: who sees what instead -->
+              <p
+                v-if="aigcStandIn"
+                class="hero-portrait-note">
+                <span>{{ $t('page.profile_detail.aigc_stand_in') }}</span>
+                <card-art
+                  :src="resolvePath(aigcStandIn)"
+                  sizes="80px" />
+              </p>
             </div>
 
             <div class="hero-text">
@@ -329,6 +342,11 @@
               </label>
             </div>
           </div>
+          <p
+            v-if="!showAigc"
+            class="picker-note">
+            {{ $t('page.profile_detail.aigc_more') }}
+          </p>
         </div>
 
         <!-- favorite faction picker -->
@@ -432,13 +450,14 @@ import Loading from '@/portal/mixins/Loading';
 import Path from '@/utils/path';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
+import {
+  AIGC_PORTRAITS, AIGC_STAND_INS, CLASSIC_PORTRAITS, isAigcPortrait, isKnownPortrait,
+} from '@/utils/portraits';
 import { FACTIONS, factionColor } from '@/utils/factions';
 
 const genders = ['male', 'female'];
-const availableAvatars = [
-  'avatarM_001.jpg', 'avatarM_002.jpg', 'avatarM_003.jpg', 'avatarM_004.jpg', 'avatarM_005.jpg', 'avatarM_006.jpg', 'avatarM_007.jpg',
-  'avatarF_001.jpg', 'avatarF_002.jpg', 'avatarF_003.jpg', 'avatarF_004.jpg', 'avatarF_005.jpg', 'avatarF_006.jpg', 'avatarF_007.jpg',
-];
+
+const shuffled = (list) => [...list].sort(() => Math.random() - 0.5);
 
 // Mirrors the backend registry (bin/gen_profile_icons.exs): game-flavored
 // icon groups only, no UI chrome, no frame_* container art. The picker
@@ -458,7 +477,9 @@ export default {
     return {
       mode: '',
       waiting: false,
-      avatars: [],
+      // Picker order, shuffled once per visit: classic portraits first,
+      // then the AI-generated ones (listed only when shown, see avatars).
+      avatarOrder: [],
       factions: FACTIONS,
       iconCategory: null,
       // Which inline field is being edited ('name' | 'full_name' |
@@ -489,8 +510,10 @@ export default {
     },
     isValid() {
       if (this.profile) {
+        // Any known portrait: a profile keeps an AI-generated one after
+        // its owner hides them (it then shows as its stand-in).
         return this.nameValid
-          && availableAvatars.includes(this.profile.avatar)
+          && isKnownPortrait(this.profile.avatar)
           && !this.waiting;
       }
 
@@ -498,6 +521,16 @@ export default {
     },
     avatarPath() {
       return Path.relative(`data/avatars/${this.profile.avatar || 'empty.jpg'}`);
+    },
+    // Settings → AI-generated portraits (utils/portraits.js)
+    showAigc() { return this.$store.state.portal.settings.aigc_portraits === true; },
+    avatars() {
+      return this.showAigc ? this.avatarOrder : this.avatarOrder.filter((a) => !isAigcPortrait(a));
+    },
+    // The classic portrait players who hide AI-generated ones see instead
+    // of this profile's, when it is one and its owner shows them.
+    aigcStandIn() {
+      return this.showAigc && isAigcPortrait(this.profile.avatar) ? AIGC_STAND_INS[this.profile.avatar] : null;
     },
     factionColor() {
       return factionColor(this.profile.favorite_faction);
@@ -668,8 +701,8 @@ export default {
     },
   },
   async mounted() {
-    const shuffledAvatars = availableAvatars.sort(() => Math.random() - 0.5);
-    this.avatars = shuffledAvatars;
+    const classicOrder = shuffled(CLASSIC_PORTRAITS);
+    this.avatarOrder = [...classicOrder, ...shuffled(AIGC_PORTRAITS)];
 
     // fetch query params, setup mode
     this.mode = !this.$route.query.mode
@@ -678,7 +711,7 @@ export default {
 
     if (this.mode === 'new') {
       this.profile = {
-        avatar: shuffledAvatars[0],
+        avatar: classicOrder[0],
         name: this.account.name,
         full_name: '',
         description: '',
@@ -816,6 +849,36 @@ export default {
   &:hover {
     filter: brightness(1.25);
   }
+}
+
+.hero-portrait-frame {
+  position: relative;
+}
+
+// Beats `.hero-portrait img` (the 340px hero) for the small stand-in.
+.hero-portrait .hero-portrait-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 340px;
+  margin: 6px 0 0;
+  font-size: 1.2rem;
+  line-height: 1.5rem;
+  opacity: 0.75;
+
+  img {
+    flex: 0 0 auto;
+    width: 80px;
+    height: 40px;
+    border-radius: 3px;
+  }
+}
+
+.picker-note {
+  margin: 10px 0 0;
+  font-size: 1.2rem;
+  line-height: 1.5rem;
+  opacity: 0.7;
 }
 
 .hero-portrait-edit {
