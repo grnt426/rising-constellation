@@ -22,7 +22,7 @@
 import isIdleAndAtHome from '@/game/recall';
 
 // an armed button left sitting there is one stray thumb from a recall
-const ARM_MS = 4000;
+const ARM_MS = 5000;
 
 export default {
   name: 'agent-recall-button',

@@ -75,10 +75,11 @@
   white-space: nowrap;
 }
 
+// top-right: the chat owns the top-left corner
 .map-overlay {
   position: absolute;
   top: $navbar-height + 10px;
-  left: 0;
+  right: 0;
 }
 
 // Label beside a hovered radar blip (another faction's fleet): what
@@ -112,16 +113,16 @@
 
 // Sector card (far zoom, shown while a sector's name is hovered): who
 // holds the sector and by how much, then what the viewer's own faction
-// has there. Never takes the pointer: it sits where the map is.
+// has there. It takes the pointer (the map stops picking under it, see
+// Map#onMouseMove) so its faction pager can be clicked.
 .sector-summary {
   width: 340px;
-  margin-left: 10px;
+  margin-right: 10px;
   padding: 10px 12px 12px;
   background: rgba($grey-darker, .94);
   border: solid 1px $grey-light;
   border-radius: 3px;
   color: $white;
-  pointer-events: none;
 
   .ss-header {
     display: flex;
@@ -264,18 +265,34 @@
   .ss-pager {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 1px;
     opacity: 1 !important;
+
+    // the dot is small; the button around it is a fair target
+    .ss-page {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      padding: 0;
+      background: none;
+      border: 0;
+      cursor: pointer;
+
+      &:hover .ss-dot,
+      &:focus-visible .ss-dot { opacity: .75; }
+
+      &.is-current .ss-dot {
+        opacity: 1;
+        box-shadow: 0 0 0 2px rgba($white, .85);
+      }
+    }
 
     .ss-dot {
       width: 7px;
       height: 7px;
       opacity: .35;
-
-      &.is-current {
-        opacity: 1;
-        box-shadow: 0 0 0 2px rgba($white, .85);
-      }
     }
   }
 

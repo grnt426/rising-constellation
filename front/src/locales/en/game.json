@@ -332,6 +332,8 @@
       "about": "About",
       "admiral_limit_reached": "Navarch limit reached",
       "agent": "Agent",
+      "click_again_confirm": "Click again to confirm",
+      "tap_again_confirm": "Tap again to confirm",
       "deploy": "Deploy",
       "determination": "Determination",
       "eject": "Send home",
@@ -455,7 +457,7 @@
       "fleets_in_sight": "Fleets in sight",
       "nothing_own": "Your faction has nothing here.",
       "nothing_known": "Nothing known of this faction here yet.",
-      "next_faction": "Click the sector's name for the next faction."
+      "next_faction": "Click a dot above, or the sector's name, for another faction."
     },
     "ship": {
       "about": "About",

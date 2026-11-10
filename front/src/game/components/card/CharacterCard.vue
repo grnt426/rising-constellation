@@ -406,34 +406,47 @@
           v-else-if="character.status === 'in_deck' && queue"
           key="queue-buttons"
           class="button-container">
+          <!-- armed, the square Fire takes the row: the question
+               would not fit in 36px -->
           <div
+            v-if="armedAction === 'fire'"
             v-press
-            class="button"
-            @click="leaveQueue">
-            <div>{{ $t('card.character.queue_leave') }}</div>
-          </div>
-          <div
-            v-press
-            v-tooltip="$t('card.character.fire')"
-            class="button is-icon"
-            :aria-label="$t('card.character.fire')"
+            class="button is-armed"
             @click="dismiss">
-            <div><svgicon name="close" /></div>
+            <div>{{ confirmAgainLabel }}</div>
           </div>
+          <template v-else>
+            <div
+              v-press
+              class="button"
+              @click="leaveQueue">
+              <div>{{ $t('card.character.queue_leave') }}</div>
+            </div>
+            <div
+              v-press
+              v-tooltip="$t('card.character.fire')"
+              class="button is-icon"
+              :aria-label="$t('card.character.fire')"
+              @click="dismiss">
+              <div><svgicon name="close" /></div>
+            </div>
+          </template>
         </div>
         <div
           v-else-if="character.status === 'in_deck' && !assignment"
           v-press
           class="button"
+          :class="{ 'is-armed': armedAction === 'fire' }"
           @click="dismiss">
-          <div>{{ $t('card.character.fire') }}</div>
+          <div>{{ armedAction === 'fire' ? confirmAgainLabel : $t('card.character.fire') }}</div>
         </div>
         <div
           v-else-if="['governor', 'student'].includes(character.status) && character.owner.id === playerId"
           v-press
           class="button"
+          :class="{ 'is-armed': armedAction === 'recall' }"
           @click="deactivate">
-          <div>{{ $t('card.character.recall') }}</div>
+          <div>{{ armedAction === 'recall' ? confirmAgainLabel : $t('card.character.recall') }}</div>
         </div>
         <!-- a faction-mate's student in one of the player's schools -->
         <div
@@ -455,6 +468,9 @@ import CardMixin from '@/game/mixins/CardMixin';
 import HelpButton from '@/game/components/generic/HelpButton.vue';
 import { agentCardSummary, agentTypeName, fleetStats } from '@/game/a11y/describe';
 import viewport from '@/utils/viewport';
+
+// how long Fire / Recall wait for the confirming second click
+const ARM_MS = 5000;
 
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
 import { formatCountdown } from '@/game/clock';
@@ -507,10 +523,16 @@ export default {
       draftSkills: null,
       // the Discard button was clicked once and now asks "are you sure?"
       discardArmed: false,
+      // Fire or Recall was clicked once and now asks for a second click
+      // ('fire' | 'recall' | null); it lapses after ARM_MS
+      armedAction: null,
     };
   },
   computed: {
     isMobileView() { return viewport.isMobile; },
+    confirmAgainLabel() {
+      return this.$t(`card.character.${this.isMobileView ? 'tap' : 'click'}_again_confirm`);
+    },
     // the compact phone layout: split skill chart, smaller frame
     isCompact() { return this.isMobileView && !this.expanded; },
     // Agent training (docs/agent-training.md)
@@ -675,15 +697,38 @@ export default {
   },
   watch: {
     // another agent in the same card, or the points were spent
-    'character.id': function onCharacterChanged() { this.draftSkills = null; },
+    'character.id': function onCharacterChanged() {
+      this.draftSkills = null;
+      this.disarmAction();
+    },
+    // seated, sent home, sold: whatever was armed no longer applies
+    'character.status': function onStatusChanged() { this.disarmAction(); },
     // any change of plan takes the question back
     draftSkills() { this.disarmDiscard(); },
     reallocationsHeld(held) { if (held === 0) this.draftSkills = null; },
   },
   beforeDestroy() {
     clearTimeout(this.discardTimer);
+    clearTimeout(this.armTimer);
   },
   methods: {
+    // First click arms the button ("Click again to confirm"), a second
+    // click within ARM_MS runs it; left alone, it goes back to normal.
+    armed(action) {
+      if (this.armedAction === action) {
+        this.disarmAction();
+        return true;
+      }
+
+      this.armedAction = action;
+      clearTimeout(this.armTimer);
+      this.armTimer = setTimeout(() => { this.armedAction = null; }, ARM_MS);
+      return false;
+    },
+    disarmAction() {
+      this.armedAction = null;
+      clearTimeout(this.armTimer);
+    },
     // Protection or Determination as an attacker meets it: cut while the
     // agent is in class (the server's Character.effective_protection/1).
     // In the template it is the obfuscate filter's argument, which is what
@@ -853,6 +898,8 @@ export default {
     },
     deactivate() {
       if (['governor', 'on_board', 'student'].includes(this.character.status)) {
+        if (!this.armed('recall')) return;
+
         this.$socket.player.push('deactivate_character', {
           character_id: this.character.id,
         }).receive('ok', () => {
@@ -885,6 +932,8 @@ export default {
     },
     dismiss() {
       if (this.character.status === 'in_deck') {
+        if (!this.armed('fire')) return;
+
         const boundingBox = this.$refs.card.getBoundingClientRect();
 
         this.$emit('dismiss', {

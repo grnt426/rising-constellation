@@ -237,11 +237,11 @@ export default {
     };
   },
   computed: {
-    mapOverlay() { return this.$store.state.game.mapOverlay; },
     isMobileView() { return viewport.isMobile; },
-    // On screen: open, and not hidden behind a map overlay. Messages are
-    // only ever counted as read while this holds.
-    visible() { return this.open && !this.mapOverlay; },
+    // On screen (the sector card sits in the opposite corner, so nothing
+    // on the map hides it). Messages are only ever counted as read while
+    // this holds.
+    visible() { return this.open; },
     // With a system view open, the room under the top bar belongs to the
     // view's own panels: the chat rests as a strip of its latest lines
     // and opens to its full size under the pointer. (Phones keep the

@@ -332,6 +332,8 @@
       "about": "À propos",
       "admiral_limit_reached": "Limite de navarque atteinte",
       "agent": "Agent",
+      "click_again_confirm": "Cliquez encore pour confirmer",
+      "tap_again_confirm": "Touchez encore pour confirmer",
       "deploy": "Déployer",
       "determination": "Détermination",
       "eject": "Renvoyer",
@@ -455,7 +457,7 @@
       "fleets_in_sight": "Flottes en vue",
       "nothing_own": "Votre faction n'a rien ici.",
       "nothing_known": "Rien de connu sur cette faction ici pour l'instant.",
-      "next_faction": "Cliquez sur le nom du secteur pour la faction suivante."
+      "next_faction": "Cliquez sur un point ci-dessus, ou sur le nom du secteur, pour une autre faction."
     },
     "ship": {
       "about": "À propos",

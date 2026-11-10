@@ -53,14 +53,20 @@
         :crosshair="crosshair"
         :faction="playerFaction" />
     </div>
+    <!-- the hovered sector's card: it lingers long enough to be
+         reached, and holds still while the pointer is on it (the map
+         stops picking under it) so its pager can be clicked -->
     <div
-      v-if="activeSector"
-      class="map-overlay">
+      v-if="shownSector"
+      class="map-overlay"
+      @mouseenter="hoverCardEnter"
+      @mouseleave="onSectorCardLeave">
       <sector-card
-        :sector="activeSector"
+        :sector="shownSector"
         :map-data="data"
         :page="sectorPage"
-        :key="`sector-${activeSector.id}`" />
+        :key="`sector-${shownSector.id}`"
+        @page="sectorPage = $event" />
     </div>
     <system-icon-picker />
     <map-action-radial :data="data" />
@@ -77,6 +83,7 @@ import SectorCard from '@/game/components/card/SectorCard.vue';
 import CrosshairMarks from '@/game/components/galaxy/CrosshairMarks.vue';
 import SystemIconPicker from '@/game/components/galaxy/system/SystemIconPicker.vue';
 import MapActionRadial from '@/game/components/galaxy/MapActionRadial.vue';
+import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 
 // declare it outside of the component because we don't want it to be 'Observe'd by Vue,
 // it would slow things down and potentially mess with the map object.
@@ -84,6 +91,7 @@ let map;
 
 export default {
   name: 'universe-map',
+  mixins: [HoverCardMixin],
   props: {
     data: Object,
   },
@@ -96,8 +104,19 @@ export default {
         { key: 'overview', icon: 'overview' },
       ],
       intelTimer: null,
-      // clicks on the hovered sector's name: the sector card's page
+      // which faction the sector card shows: its pager, or a click on
+      // the hovered sector's name
       sectorPage: 0,
+      // the sector whose card is up: follows the hovered one through
+      // the hover-intent timers (HoverCardMixin), so the card survives
+      // the trip from the sector to the corner it sits in
+      shownSectorId: null,
+      // the card sits in a corner, far from most sectors: crossing other
+      // sectors on the way there must not swap it
+      hoverCardSwapDwell: 400,
+      // ...and the way there often crosses empty space past the
+      // galaxy's edge, which clears the hover
+      hoverCardCloseGrace: 1000,
     };
   },
   computed: {
@@ -124,7 +143,8 @@ export default {
       if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`;
       return `${s}s`;
     },
-    activeSector() {
+    // the sector under the pointer (the map's hover)
+    hoveredSector() {
       if (this.$store.state.game.mapOverlay) {
         if (this.$store.state.game.mapOverlay.type === 'sector') {
           return this.$store.state.game.galaxy.sectors
@@ -134,16 +154,36 @@ export default {
 
       return null;
     },
+    shownSector() {
+      if (this.shownSectorId === null) return null;
+      return this.$store.state.game.galaxy.sectors.find((s) => s.id === this.shownSectorId) || null;
+    },
   },
   watch: {
     // entering overview mode: fetch at once rather than at the next poll
     'mapOptions.mode': 'pollMapIntel',
     // another sector's card starts on the viewer's own faction
-    activeSector(sector, previous) {
-      if (!sector || !previous || sector.id !== previous.id) this.sectorPage = 0;
+    shownSectorId() { this.sectorPage = 0; },
+    hoveredSector(sector) {
+      // the pointer is on the card: the map does not pick under it, but
+      // anything else that clears the hover must not take the card away
+      if (this.cardPinned) return;
+      if (sector) this.hoverCardShow(sector.id);
+      else this.hoverCardHide();
     },
   },
   methods: {
+    hoverCardApply(sectorId) { this.shownSectorId = sectorId; },
+    hoverCardVisible() { return this.shownSectorId !== null; },
+    // Off the card: back onto a sector (the same one, or another after
+    // the dwell), or into empty space and closed after the grace. The
+    // map's hover is still the one from before the card was entered,
+    // and the next move on the map corrects it through the watcher.
+    onSectorCardLeave() {
+      this.cardPinned = false;
+      if (this.hoveredSector) this.hoverCardShow(this.hoveredSector.id);
+      else this.hoverCardHide();
+    },
     // The overview mode explains its glyph in its tooltip: the fixed line
     // every mode has, then one line per part of the glyph.
     modeTooltip(key) {

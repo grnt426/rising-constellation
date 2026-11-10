@@ -70,11 +70,20 @@
         <span
           v-if="factions.length > 1"
           class="ss-pager">
-          <i
-            v-for="key in factions"
-            class="ss-dot"
-            :class="[colorClass(key), { 'is-current': key === faction }]"
-            :key="`page-${key}`"></i>
+          <button
+            v-for="(key, i) in factions"
+            type="button"
+            class="ss-page"
+            :class="{ 'is-current': key === faction }"
+            :aria-label="factionName(key)"
+            :aria-pressed="String(key === faction)"
+            v-tooltip="factionName(key)"
+            :key="`page-${key}`"
+            @click="$emit('page', i)">
+            <i
+              class="ss-dot"
+              :class="colorClass(key)"></i>
+          </button>
         </span>
       </h2>
 
@@ -188,9 +197,9 @@ export default {
       type: Object,
       default: null,
     },
-    // Which faction's figures are up: a count of clicks on the sector's
-    // name (the card itself never takes the pointer), wrapped over the
-    // factions there.
+    // Which faction's figures are up: the pager's pick (emitted as
+    // `page`), or a count of clicks on the sector's name on the map,
+    // wrapped over the factions there.
     page: {
       type: Number,
       default: 0,
