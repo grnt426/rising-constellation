@@ -57,9 +57,10 @@
 
           <div class="hero-identity">
             <div class="hero-portrait">
-              <img
+              <card-art
                 :src="avatarPath"
-                alt="" />
+                sizes="340px"
+                eager />
               <button
                 ref="picker-toggle-icon"
                 class="hero-badge"
@@ -321,9 +322,10 @@
                 @change="onPicked"
                 @keydown.enter.prevent="closePicker">
               <label :for="`avatar-${i}`">
-                <img
+                <card-art
                   :src="resolvePath(avatar)"
-                  :alt="$t('a11y_portal.portrait_n', { n: i + 1 })">
+                  :alt="$t('a11y_portal.portrait_n', { n: i + 1 })"
+                  sizes="280px" />
               </label>
             </div>
           </div>

@@ -16,7 +16,7 @@
 
     <div class="card-body">
       <div class="card-illustration">
-        <img :src="`data/doctrines/${doctrine.illustration}`">
+        <card-art :src="`data/doctrines/${doctrine.illustration}`" />
       </div>
 
       <div class="card-information">

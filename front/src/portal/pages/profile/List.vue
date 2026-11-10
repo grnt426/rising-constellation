@@ -35,7 +35,7 @@
             </div>
             <div class="card-body">
               <div class="card-illustration">
-                <img :src="path('empty.jpg')" alt="" />
+                <card-art :src="path('empty.jpg')" />
               </div>
 
               <div class="card-information">

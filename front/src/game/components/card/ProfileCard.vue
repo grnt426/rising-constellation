@@ -23,7 +23,7 @@
 
     <div class="card-body">
       <div class="card-illustration">
-        <img :src="`data/avatars/${profile.avatar}`" />
+        <card-art :src="`data/avatars/${profile.avatar}`" />
       </div>
 
       <div class="card-information">

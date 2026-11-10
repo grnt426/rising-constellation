@@ -36,7 +36,7 @@
 
     <div class="card-body">
       <div class="card-illustration">
-        <img
+        <card-art
           v-if="!disabled"
           :src="`data/buildings/${buildingData.illustration}`" />
         <div

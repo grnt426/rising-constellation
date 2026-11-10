@@ -61,9 +61,7 @@
       class="card-body"
       aria-hidden="true">
       <div class="card-illustration">
-        <img
-          :src="`data/agents/${character.illustration}`"
-          alt="">
+        <card-art :src="`data/agents/${character.illustration}`" />
         <div
           v-if="trainingRibbon"
           v-tooltip="trainingRibbon.hint"
