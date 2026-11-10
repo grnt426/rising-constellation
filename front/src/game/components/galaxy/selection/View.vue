@@ -130,6 +130,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import armadaUtil from '@/utils/armada';
+import isIdleAndAtHome from '@/game/recall';
 import CharacterCard from '@/game/components/card/CharacterCard.vue';
 import AgentPlan from '@/game/components/galaxy/selection/AgentPlan.vue';
 
@@ -140,14 +141,9 @@ import Speaker from '@/game/components/galaxy/selection/Speaker.vue';
 export default {
   name: 'selection-view',
   computed: {
-    constant() { return this.$store.state.game.data.constant[0]; },
     theme() { return this.$store.getters['game/theme']; },
     character() { return this.$store.state.game.selectedCharacter; },
     playerCharacters() { return this.$store.state.game.player.characters; },
-    isAtHome() {
-      return (!!this.$store.state.game.player.stellar_systems.find((s) => s.id === this.character.system)
-        || !!this.$store.state.game.player.dominions.find((d) => d.id === this.character.system));
-    },
     // "Orders list (G)": the hint follows the player's own binding
     ordersLabel() {
       return this.$t('a11y.orders.open') + this.$store.getters['portal/hotkeyHint']('agent_orders');
@@ -185,19 +181,7 @@ export default {
       });
     },
     isIdleAndAtHome() {
-      if (this.character.type === 'spy' && this.character.spy.cover.value <= this.constant.cover_threshold) {
-        return false;
-      }
-
-      if (this.character.type === 'speaker' && this.character.speaker && this.character.speaker.cooldown.value > 0) {
-        return false;
-      }
-
-      return ['idle', 'docking'].includes(this.character.action_status) && (this.isAtHome || this.recallAnywhere);
-    },
-    // "Recall from anywhere" cheat toggle (server-enforced as well).
-    recallAnywhere() {
-      return !!this.$store.state.game.instanceInfo.recall_anywhere;
+      return isIdleAndAtHome(this.$store.state.game, this.character);
     },
   },
   watch: {

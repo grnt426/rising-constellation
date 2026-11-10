@@ -915,7 +915,7 @@
         "agents_hostile": "Hostile agents",
         "agents_own": "Your agents",
         "build": "Build",
-        "build_hint": "Tap an empty slot to build. Tap a building to upgrade it, or hold it to see its card.",
+        "build_hint": "Tap an empty slot to build. Tap a building to see its card and upgrade it. A badge marks the ones that can be upgraded.",
         "confirm_destroy": "Tap again to destroy",
         "construction": "Construction",
         "inspect_hint": "Tap a building to see its card.",
@@ -929,6 +929,10 @@
         "multi_move_banner": "Tap a system to queue a move there. Double-tap to stop.",
         "multi_move_done": "Done",
         "upgrade_queued": "{name}: level {level} queued",
+        "card_maximize": "Show the full card",
+        "card_minimize": "Show the compact card",
+        "recall_confirm": "Tap again to recall",
+        "upgrade_to": "Upgrade to level {level}",
         "repair_queued": "{name}: repair queued",
         "back": "Back to the map"
       }

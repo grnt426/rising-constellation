@@ -394,7 +394,7 @@
         "agents_hostile": "Feindliche Agenten",
         "agents_own": "Ihre Agenten",
         "build": "Bauen",
-        "build_hint": "Auf einen freien Platz tippen zum Bauen. Auf ein Gebäude tippen zum Ausbauen, gedrückt halten für seine Karte.",
+        "build_hint": "Auf einen freien Platz tippen zum Bauen. Auf ein Gebäude tippen für seine Karte und den Ausbau. Ein Abzeichen markiert, was ausgebaut werden kann.",
         "confirm_destroy": "Erneut tippen zum Abreißen",
         "construction": "Bau",
         "inspect_hint": "Auf ein Gebäude tippen, um seine Karte zu sehen.",
@@ -408,6 +408,10 @@
         "multi_move_banner": "System antippen, um eine Bewegung dorthin einzureihen. Doppelt tippen zum Beenden.",
         "multi_move_done": "Fertig",
         "upgrade_queued": "{name}: Stufe {level} eingereiht",
+        "card_maximize": "Ganze Karte zeigen",
+        "card_minimize": "Kompakte Karte zeigen",
+        "recall_confirm": "Zum Zurückrufen erneut tippen",
+        "upgrade_to": "Auf Stufe {level} ausbauen",
         "repair_queued": "{name}: Reparatur eingereiht",
         "back": "Zurück zur Karte"
       }

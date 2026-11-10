@@ -40,10 +40,21 @@
       v-if="sheetOpen"
       class="mobile-agent-sheet-backdrop"
       @click.self="sheetOpen = false">
-      <div class="mobile-agent-sheet">
+      <div
+        class="mobile-agent-sheet"
+        :class="{ 'is-expanded': expanded }">
         <div class="mas-header">
           <span class="mas-title">{{ character.name }}</span>
           <span class="mas-sub">{{ $tc(`data.character.${character.type}.name`, 1) }}</span>
+          <!-- compact card with the orders beside it, or the full card
+               across the screen with orders and fleet under it -->
+          <button
+            class="mas-size"
+            :aria-label="$t(expanded ? 'galaxy.system.mobile.card_minimize' : 'galaxy.system.mobile.card_maximize')"
+            :aria-pressed="String(expanded)"
+            @click="toggleSize">
+            <svgicon :name="expanded ? 'minimize' : 'maximize'" />
+          </button>
           <button
             class="mas-close"
             @click="sheetOpen = false">
@@ -51,24 +62,33 @@
           </button>
         </div>
 
-        <div class="mas-body">
+        <div
+          class="mas-body"
+          :class="{ 'is-expanded': expanded }">
           <!-- orders as the editable plan, beside the card; above it,
-               the orders that take more than one tap on the map -->
+               the orders that take more than one tap on the map, and
+               the way back to the deck -->
           <agent-detail-pair
             :character="character"
             :theme="theme"
+            :expanded="expanded"
             plan>
             <div
-              v-if="canOrder"
+              v-if="isOwn"
               slot="top"
               class="mas-bulk">
               <button
+                v-if="canOrder"
                 class="mas-bulk-button"
                 data-bulk="multi-move"
                 @click="startMultiMove">
                 <svgicon name="action/jump_alt" />
                 <span>{{ $t('galaxy.system.mobile.multi_move') }}</span>
               </button>
+              <agent-recall-button
+                v-if="character.status === 'on_board'"
+                :character="character"
+                @recalled="unselect" />
             </div>
           </agent-detail-pair>
         </div>
@@ -94,6 +114,8 @@
 
 <script>
 import AgentDetailPair from '@/game/components/card/AgentDetailPair.vue';
+import AgentRecallButton from '@/game/components/galaxy/AgentRecallButton.vue';
+import agentCardSize from '@/utils/agentCardSize';
 
 const DRAG_SLOP_PX = 8;
 // A second tap inside this window is a double-tap. The first tap has
@@ -128,6 +150,11 @@ export default {
         : null;
     },
     multiMove() { return this.$store.state.game.multiMove; },
+    expanded() { return agentCardSize.expanded; },
+    isOwn() {
+      return !!this.character.owner
+        && this.character.owner.id === this.$store.state.game.player.id;
+    },
     // An agent of the player's, out on the map, takes orders.
     canOrder() {
       const { character } = this;
@@ -135,8 +162,7 @@ export default {
         && character.status === 'on_board'
         && !character.on_sold
         && !character.on_strike
-        && !!character.owner
-        && character.owner.id === this.$store.state.game.player.id;
+        && this.isOwn;
     },
   },
   watch: {
@@ -205,6 +231,9 @@ export default {
     center() {
       this.$root.$emit('map:centerToCharacter', this.character);
     },
+    toggleSize() {
+      agentCardSize.toggle();
+    },
     unselect() {
       this.sheetOpen = false;
       this.$store.dispatch('game/unselectCharacter');
@@ -252,6 +281,6 @@ export default {
     document.removeEventListener('pointermove', this.onPointerMoveBound, true);
     document.removeEventListener('pointerup', this.onPointerUpBound, true);
   },
-  components: { AgentDetailPair },
+  components: { AgentDetailPair, AgentRecallButton },
 };
 </script>

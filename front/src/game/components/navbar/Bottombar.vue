@@ -585,13 +585,22 @@ export default {
       }
     },
 
-    // Bar space on a phone is too tight for full figures — 300,018
-    // reads as 300k; the exact figure is in the resource drawer.
+    // Bar space on a phone is too tight for full figures: past 999 a
+    // figure keeps two significant digits (1,234 → 1.2k, 300,018 →
+    // 300k, 4,560,000 → 4.5M), cut rather than rounded so the bar never
+    // shows more than can be spent. The exact figure is in the drawer.
     compactNumber(value) {
       const n = Math.floor(value);
-      if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-      if (Math.abs(n) >= 10_000) return `${Math.round(n / 1000)}k`;
-      return `${n}`;
+      const abs = Math.abs(n);
+      if (abs < 1000) return `${n}`;
+
+      const units = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'k']];
+      const [size, suffix] = units.find(([s]) => abs >= s);
+      const scaled = abs / size;
+      const step = scaled >= 10 ? 10 ** (Math.floor(Math.log10(scaled)) - 1) : 0.1;
+      const cut = Math.floor(scaled / step + 1e-9) * step;
+      const text = cut >= 10 ? `${Math.round(cut)}` : cut.toFixed(1).replace(/\.0$/, '');
+      return `${n < 0 ? '-' : ''}${text}${suffix}`;
     },
     toggleActiveCharacterList() {
       this.isActiveCharacterListOpen = !this.isActiveCharacterListOpen;
