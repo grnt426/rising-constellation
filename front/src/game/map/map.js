@@ -826,8 +826,7 @@ export default class Map {
           if (isTouch) tappedBlipTarget = blip.targetSystemId;
         } else if (clickedObject.type === 'sector') {
           // Far zoom: a click on a sector's name turns its card to the
-          // next faction there (the card sits away from the pointer and
-          // cannot be clicked itself).
+          // next faction there (the card's own pager does the same).
           if (button === 'left') this.$root.$emit('map:sectorClick', clickedObject.data);
         }
       } else if (button === 'left' && isTrueClick) {
@@ -976,6 +975,12 @@ export default class Map {
     // by the mousedown/mouseup position comparison in onClick. Hover
     // state refreshes on the first move after release.
     if (event.buttons !== 0) {
+      return;
+    }
+
+    // The sector card (Map.vue) takes the pointer: picking the map under
+    // it would swap the card for whatever sector lies beneath.
+    if (event.target instanceof Element && event.target.closest('.map-overlay')) {
       return;
     }
 

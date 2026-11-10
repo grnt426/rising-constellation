@@ -42,7 +42,10 @@ const HoverCardMixin = {
     },
     hoverCardHide() {
       this.hoverCardClearTimers();
-      this.hoverCardCloseTimer = setTimeout(() => this.hoverCardClose(), CLOSE_GRACE_MS);
+      // hosts may define hoverCardCloseGrace for a card that sits far
+      // from its triggers (the map's sector card, in a screen corner)
+      const grace = this.hoverCardCloseGrace || CLOSE_GRACE_MS;
+      this.hoverCardCloseTimer = setTimeout(() => this.hoverCardClose(), grace);
     },
     hoverCardEnter() {
       if (!this.hoverCardVisible()) return;

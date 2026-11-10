@@ -42,8 +42,9 @@
               name="drag"
               v-if="isIdleAndAtHome && !character.on_sold"
               v-press
-              :aria-label="$t('galaxy.selection.view.action_recall')"
-              v-tooltip="$t('galaxy.selection.view.action_recall')"
+              :class="{ 'is-armed': recallArmed }"
+              :aria-label="recallLabel"
+              v-tooltip="recallLabel"
               @click="deactivate" />
             <svgicon
               name="drag"
@@ -138,8 +139,14 @@ import Army from '@/game/components/galaxy/selection/Army.vue';
 import Spy from '@/game/components/galaxy/selection/Spy.vue';
 import Speaker from '@/game/components/galaxy/selection/Speaker.vue';
 
+// how long the armed Recall icon waits for the confirming second click
+const RECALL_ARM_MS = 5000;
+
 export default {
   name: 'selection-view',
+  data() {
+    return { recallArmed: false };
+  },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
     character() { return this.$store.state.game.selectedCharacter; },
@@ -183,12 +190,19 @@ export default {
     isIdleAndAtHome() {
       return isIdleAndAtHome(this.$store.state.game, this.character);
     },
+    recallLabel() {
+      return this.recallArmed
+        ? this.$t('card.character.click_again_confirm')
+        : this.$t('galaxy.selection.view.action_recall');
+    },
   },
   watch: {
     // A newly selected agent: read its card out (see focusSummary).
     'character.id': function focusNewAgent() {
+      this.disarmRecall();
       this.$nextTick(this.focusCard);
     },
+    isIdleAndAtHome(can) { if (!can) this.disarmRecall(); },
     playerCharacters(characters) {
       const own = characters.find((c) => c.id === this.character.id);
 
@@ -198,6 +212,10 @@ export default {
     },
   },
   methods: {
+    disarmRecall() {
+      this.recallArmed = false;
+      clearTimeout(this.recallTimer);
+    },
     close() {
       this.$store.dispatch('game/unselectCharacter');
     },
@@ -220,8 +238,18 @@ export default {
         this.$toastError(data.reason);
       });
     },
+    // first click arms ("Click again to confirm"), a second within
+    // RECALL_ARM_MS recalls
     deactivate() {
       if (this.isIdleAndAtHome) {
+        if (!this.recallArmed) {
+          this.recallArmed = true;
+          clearTimeout(this.recallTimer);
+          this.recallTimer = setTimeout(() => { this.recallArmed = false; }, RECALL_ARM_MS);
+          return;
+        }
+
+        this.disarmRecall();
         const characterId = this.character.id;
 
         this.$store.dispatch('game/unselectCharacter');
@@ -232,6 +260,9 @@ export default {
         });
       }
     },
+  },
+  beforeDestroy() {
+    clearTimeout(this.recallTimer);
   },
   mounted() {
     this.focusCard();
