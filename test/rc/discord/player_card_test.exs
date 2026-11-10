@@ -88,4 +88,13 @@ defmodule RC.Discord.PlayerCardTest do
     assert {:ok, data} = PlayerCard.for_username("TraversalPlayer")
     assert data.avatar_jpeg == nil
   end
+
+  test "an AI-generated portrait shows its classic stand-in" do
+    account = account!(5, %{show_profile_in_discord: true})
+    profile!(account, "AigcPlayer", %{avatar: "portraitR_002.jpg"})
+
+    assert {:ok, data} = PlayerCard.for_username("AigcPlayer")
+    stand_in = Path.join([to_string(:code.priv_dir(:rc)), "data/avatars", "avatarM_002.jpg"])
+    assert data.avatar_jpeg == File.read!(stand_in)
+  end
 end

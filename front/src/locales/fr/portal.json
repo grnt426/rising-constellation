@@ -964,6 +964,8 @@
       "title": "Personnages"
     },
     "profile_detail": {
+      "aigc_stand_in": "Les joueurs qui masquent les portraits générés par IA vous voient avec ce portrait :",
+      "aigc_more": "D'autres portraits, créés par génération d'images par IA, peuvent être affichés depuis les Paramètres.",
       "begin": "Débuter l'aventure…",
       "create": "Créer",
       "daily_completed_line": "{completed} réussis sur {played} joués",
@@ -1029,6 +1031,12 @@
         }
       },
       "number_format": "Format des nombres",
+      "aigc_portraits": {
+        "title": "Portraits générés par IA",
+        "hide": "Masquer",
+        "show": "Afficher",
+        "note": "Certains portraits de joueur ont été créés par génération d'images par IA. Affichés, vous pouvez les choisir pour votre profil et vous les voyez chez les autres joueurs. Masqués, ils n'apparaissent jamais : les joueurs qui en utilisent un s'affichent avec un portrait classique."
+      },
       "income_display": {
         "title": "Affichage des revenus",
         "per_tick": "Par tick",

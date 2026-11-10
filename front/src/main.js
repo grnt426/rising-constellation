@@ -15,6 +15,7 @@ import config from '@/config';
 import store from '@/store';
 import router from '@/router';
 import PageFlowScrollbar from '@/utils/PageFlowScrollbar';
+import CardArt from '@/utils/CardArt';
 
 import '@/icons';
 import '@/plugins/filters';
@@ -73,6 +74,7 @@ Vue.use(A11y);
 Vue.component('v-scrollbar', PageFlowScrollbar);
 Vue.component('v-popover', VPopover);
 Vue.component('v-select', vSelect);
+Vue.component('card-art', CardArt);
 
 Vue.directive('tooltip', VTooltip);
 // Tooltips are text unless they ask for markup with `{ content, html: true }`

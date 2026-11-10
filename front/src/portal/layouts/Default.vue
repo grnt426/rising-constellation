@@ -116,9 +116,11 @@
               class="navbar-main-button"
               :to="`/profiles/${activeProfile.id}?mode=edit`">
               <div class="navbar-main-button-image">
-                <img
+                <card-art
                   :src="avatarProfile"
-                  :alt="$t('a11y_portal.your_profile', { name: activeProfile.name })" />
+                  :alt="$t('a11y_portal.your_profile', { name: activeProfile.name })"
+                  sizes="160px"
+                  eager />
               </div>
             </router-link>
           </div>

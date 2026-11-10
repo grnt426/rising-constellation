@@ -23,7 +23,7 @@
 
     <div class="card-body">
       <div class="card-illustration">
-        <img :src="`data/patents/${patent.illustration}`">
+        <card-art :src="`data/patents/${patent.illustration}`" />
       </div>
 
       <div class="card-information">

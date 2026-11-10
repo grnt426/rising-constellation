@@ -65,6 +65,11 @@ const portalStore = {
       // crosshair). Declared up front for the same reason, and always
       // replaced whole (see setCrosshair).
       crosshair: {},
+      // Show player portraits made with AI image generation (Settings →
+      // AI-generated portraits). Off: they appear as their classic
+      // stand-in (utils/portraits.js). Declared up front for the same
+      // reason.
+      aigc_portraits: false,
       // The Scenario Workshop's code editor: suggestions and the key that
       // accepts one (Settings → Scenario editor). Declared up front for the
       // same reason, and always replaced whole (see setScenarioEditor).
@@ -398,6 +403,9 @@ const portalStore = {
     async setNumberFormat({ commit }, format) {
       setNumberLocale(format);
       commit('updateSettings', { numberFormat: format });
+    },
+    async setAigcPortraits({ commit }, enabled) {
+      commit('updateSettings', { aigc_portraits: !!enabled });
     },
     async setIncomePerHour({ commit }, enabled) {
       setIncomePerHour(enabled);

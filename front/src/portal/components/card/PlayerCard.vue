@@ -22,9 +22,7 @@
 
     <div class="card-body">
       <div class="card-illustration">
-        <img
-          :src="path"
-          alt="" />
+        <card-art :src="path" />
         <div
           v-if="profile.favorite_icon"
           class="favorite-icon-badge"

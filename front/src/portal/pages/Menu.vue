@@ -43,7 +43,7 @@
 
                 <div class="card-body">
                   <div class="card-illustration">
-                    <img src="/portal/data/avatars/empty.jpg" alt="" />
+                    <card-art src="/portal/data/avatars/empty.jpg" />
                   </div>
 
                   <div class="card-information">

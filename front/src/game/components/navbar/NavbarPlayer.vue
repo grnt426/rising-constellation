@@ -3,7 +3,10 @@
     @click="openPanel"
     class="navbar-player navbar-central-box">
     <div class="navbar-player-image">
-      <img :src="`data/avatars/${activeProfile.avatar}`" />
+      <card-art
+        :src="`data/avatars/${activeProfile.avatar}`"
+        sizes="200px"
+        eager />
     </div>
     <div
       v-show="unreadMessages > 0"

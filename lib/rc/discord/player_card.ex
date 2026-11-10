@@ -42,7 +42,9 @@ defmodule RC.Discord.PlayerCard do
       name: profile.name,
       full_name: profile.full_name,
       description: profile.description,
-      avatar_jpeg: read_avatar(profile.avatar),
+      # Everyone in the channel sees the card, and no viewer has opted in
+      # to AI-generated portraits there: always the classic stand-in.
+      avatar_jpeg: read_avatar(RC.Portraits.public_avatar(profile.avatar)),
       favorite_faction: profile.favorite_faction,
       favorite_icon: profile.favorite_icon,
       stats: RC.ProfileStats.for_profile(profile.id)
