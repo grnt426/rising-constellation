@@ -11,6 +11,12 @@ defmodule RC.DeployTest do
   restart, so that is what we pin here.
   """
 
+  # The sandbox rolls back the log rows but not Portal.Config's cached flag,
+  # which other tests read (a daily or playtest refused with 503).
+  setup do
+    on_exit(fn -> Portal.Config.update_key(:deploy_flag, false) end)
+  end
+
   test "flag defaults to false with an empty log" do
     assert Deploy.get_flag_from_db() == false
   end
