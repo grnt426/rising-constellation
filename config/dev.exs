@@ -34,8 +34,7 @@ watchers =
         "--stdin",
         "--port=8080",
         "serve",
-        cd: Path.expand("../front", __DIR__),
-        env: [{"NODE_OPTIONS", "--openssl-legacy-provider"}]
+        cd: Path.expand("../front", __DIR__)
       ]
     ]
   else

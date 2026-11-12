@@ -6,6 +6,9 @@ const batchedPoll = require('./dev/batched-poll');
 // second kept an idle stack at ~18% of a core.
 if (process.argv.includes('serve')) batchedPoll.install();
 
+// The client version for Help -> Debug reports (src/game/debug/environment.js).
+process.env.VUE_APP_VERSION = require('./package.json').version;
+
 module.exports = {
   productionSourceMap: true,
   publicPath: '/portal/',
@@ -26,14 +29,19 @@ module.exports = {
     },
   },
   devServer: {
-    progress: false,
-    disableHostCheck: true,
-    // Windows bind-mounted volumes don't propagate inotify events into the
-    // container, so the dev watcher misses file changes. Fall back to
-    // polling.
-    watchOptions: {
-      poll: 1000,
-      ignored: /node_modules/,
+    // Reached through Phoenix's dev_proxy and the worktree's mapped port,
+    // never on its own hostname.
+    allowedHosts: 'all',
+    // webpack-dev-server 4 compresses every response, brotli for browsers,
+    // on each request: ~34s for the 4.8 MB dev app.js, ~1 min for vendors.
+    // Served over localhost, compression buys nothing.
+    compress: false,
+    client: {
+      progress: false,
+      // webpack-dev-server 4 also overlays uncaught runtime errors, a
+      // full-page iframe that swallows clicks (and fails e2e runs) over
+      // errors the game already reports in its own debug log.
+      overlay: { errors: true, warnings: false, runtimeErrors: false },
     },
     // When hitting the SPA directly on :8080 (bypassing Phoenix's slow
     // dev_proxy), forward API + WebSocket + uploaded-file calls back to
@@ -57,14 +65,16 @@ module.exports = {
     //
     // WEBSOCKETS ARE DELIBERATELY NOT PROXIED HERE (`ws: false` on every
     // entry — it must be explicit because vue-cli defaults it to true).
-    // http-proxy-middleware 0.19 (pinned by webpack-dev-server 3) wraps each
+    // http-proxy-middleware 0.19 (pinned by webpack-dev-server 3) wrapped each
     // entry's upgrade handler in lodash `debounce`, which coalesces
     // same-tick calls and keeps only the LAST one. Every ws-enabled entry
     // hears every upgrade event, so when a page opens two sockets in the
     // same tick — the login page opens /live and /phoenix/live_reload
     // together — a middleware processes only the second event and the first
     // socket is silently never forwarded: it hangs until phoenix.js retries.
-    // Instead, `after` below attaches ONE deterministic upgrade listener.
+    // Instead, `onListening` below attaches ONE deterministic upgrade
+    // listener. (webpack-dev-server 4 ships http-proxy-middleware 2, but one
+    // listener for every socket is still the simplest thing that works.)
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
       '/socket': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
@@ -83,9 +93,9 @@ module.exports = {
     // Single upgrade listener replacing the per-entry debounced handlers
     // (see the proxy comment above). Forwards the game socket (/socket),
     // LiveView (/live) and live-reload (/phoenix/live_reload) websockets
-    // to Phoenix. webpack-dev-server's own HMR socket lives at
-    // /sockjs-node and is untouched.
-    after(app, server) {
+    // to Phoenix. webpack-dev-server's own HMR socket lives at /ws and is
+    // untouched.
+    onListening(devServer) {
       const httpProxy = require('http-proxy');
       const wsProxy = httpProxy.createProxyServer({
         target: 'http://localhost:4000',
@@ -94,14 +104,10 @@ module.exports = {
       wsProxy.on('error', (err, req, socket) => {
         if (socket && socket.destroy) socket.destroy();
       });
-      // listeningApp is created later in the Server constructor than the
-      // `after` hook runs; by the next tick it exists.
-      process.nextTick(() => {
-        server.listeningApp.on('upgrade', (req, socket, head) => {
-          if (/^\/(socket|live|phoenix)\//.test(req.url)) {
-            wsProxy.ws(req, socket, head);
-          }
-        });
+      devServer.server.on('upgrade', (req, socket, head) => {
+        if (/^\/(socket|live|phoenix)\//.test(req.url)) {
+          wsProxy.ws(req, socket, head);
+        }
       });
     },
   },

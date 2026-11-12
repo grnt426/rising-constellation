@@ -155,8 +155,8 @@ ENV NODE_ENV=production
 # SVG sprite for the public help pages, built from front/src/icons.
 RUN npm run help-icons --prefix assets
 # webpack 4 hits OpenSSL 3's "unsupported" error without the legacy
-# provider flag (same workaround as the Vue build below and the dev
-# watcher in config/dev.exs). Writes priv/static.
+# provider flag (same workaround as the dev watcher in config/dev.exs; the
+# Vue build is on webpack 5 and needs none). Writes priv/static.
 RUN NODE_OPTIONS="--openssl-legacy-provider" npm run deploy --prefix assets
 
 # --- vue: the game SPA -------------------------------------------------------
@@ -182,7 +182,6 @@ RUN cd front \
  && NODE_ENV=production \
     VUE_APP_BASE_URL="${VUE_APP_BASE_URL}" \
     VUE_APP_GIT_SHA="${APP_REVISION:-dev}" \
-    NODE_OPTIONS="--openssl-legacy-provider" \
     npm run build
 
 # --- app: the Elixir application ---------------------------------------------

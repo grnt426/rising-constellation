@@ -125,4 +125,4 @@ jobs:
         run: |
           cd front
           npm ci --no-audit
-          NODE_OPTIONS="--openssl-legacy-provider" npm run build
+          npm run build
