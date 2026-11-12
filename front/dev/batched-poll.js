@@ -44,7 +44,8 @@ function install() {
 
   // What counts as a change after the initial scan: a file whose recorded
   // mtime moved, a subdirectory not seen before, an entry that went missing.
-  // (Every scan reports every subdirectory again, so a known one is not.)
+  // (Every scan reports every subdirectory again, so a known one is not, and
+  // nor is an ignored one such as node_modules, which watchpack never records.)
   const { setFileTime, setDirectory, setMissing } = proto;
   proto.setFileTime = function patchedSetFileTime(target, mtime, initial, ...rest) {
     const before = this.files.get(target);
@@ -53,11 +54,11 @@ function install() {
     if (!initial && after && (!before || before.timestamp !== after.timestamp)) lastChangeAt = Date.now();
   };
   proto.setDirectory = function patchedSetDirectory(directoryPath, birthtime, initial, ...rest) {
-    if (!initial && directoryPath !== this.path && !this.directories.has(directoryPath)) lastChangeAt = Date.now();
+    if (!initial && directoryPath !== this.path && !this.ignored(directoryPath) && !this.directories.has(directoryPath)) lastChangeAt = Date.now();
     return setDirectory.call(this, directoryPath, birthtime, initial, ...rest);
   };
   proto.setMissing = function patchedSetMissing(itemPath, initial, ...rest) {
-    if (!initial && (this.files.has(itemPath) || this.directories.has(itemPath))) lastChangeAt = Date.now();
+    if (!initial && !this.ignored(itemPath) && (this.files.has(itemPath) || this.directories.has(itemPath))) lastChangeAt = Date.now();
     return setMissing.call(this, itemPath, initial, ...rest);
   };
 
