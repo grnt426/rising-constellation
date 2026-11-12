@@ -9,7 +9,7 @@
 //   - reads the system's three training percentages on its details page, in
 //     a section of their own, each with the buildings it comes from;
 //   - recalls its Erased and sends it to the Orb-INTEL from a free seat
-//     (deck panel, "Enrol"): the seat is taken, the fee is in the credit
+//     (deck panel, "Enroll"): the seat is taken, the fee is in the credit
 //     income, the agent is on the roster as a student;
 //   - watches it settle in: a ring fills around its seat, the seat's
 //     tooltip says that nothing is earned yet and for how long, the agent
@@ -233,10 +233,10 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
     await waitRested(page, erased.id);
   });
 
-  await test.step('a free Orb-INTEL seat opens the deck on an Enrol button', async () => {
+  await test.step('a free Orb-INTEL seat opens the deck on an Enroll button', async () => {
     await school(page, 'spy').locator('.school-seats > .school-seat.is-empty').first().click();
     await expect(deckCard(page, erasedName)).toBeVisible();
-    await expect(deckCard(page, erasedName).locator('.card-action .button')).toHaveText('Enrol');
+    await expect(deckCard(page, erasedName).locator('.card-action .button')).toHaveText('Enroll');
     await shot(page, '02-deck-enrol');
   });
 
@@ -569,7 +569,7 @@ test('an Erased goes to university, comes back with neural rewires, its skills a
 
     await expect.poll(async () => (await roster(page)).deck.find((c) => c.id === erased.id).rewires).toBe(0);
     await expect(card.locator('.card-ribbon.is-reallocations')).toHaveCount(0);
-    await expect(card.locator('.card-action .button')).toHaveText('Enrol', { ignoreCase: true });
+    await expect(card.locator('.card-action .button')).toHaveText('Enroll', { ignoreCase: true });
     expect((await roster(page)).deck.find((c) => c.id === erased.id).skills).toEqual(skillsBefore);
   });
 
