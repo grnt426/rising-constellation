@@ -236,9 +236,17 @@ fi
 # `docker info` success via SSH before kicking off the build. Nothing else
 # is installed: the build itself runs in containers, and the source arrives
 # as a tar stream (so no git).
+#
+# The swapfile is headroom for the cache-miss build, where the Elixir deps
+# compile, cargo (resvg), and both webpack builds overlap on 8 GB. Twice
+# after the 2026-11 dependency upgrade the builder dropped the ssh session
+# right there (the login session killed under memory pressure, not a build
+# error). Swap makes that peak slow instead of fatal; cached builds never
+# touch it.
 USER_DATA_PLAIN='#!/bin/bash
 exec > /var/log/builder-init.log 2>&1
 set -x
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 command -v docker >/dev/null || dnf install -y docker
 systemctl enable --now docker
 usermod -aG docker ec2-user
@@ -337,6 +345,7 @@ echo "[remote-build] waiting for docker on builder"
 for i in $(seq 1 150); do
   if ssh "${SSH_OPTS[@]}" "$B" 'docker info' >/dev/null 2>&1; then
     echo "[remote-build] docker up $((SECONDS - T_START))s after start"
+    ssh "${SSH_OPTS[@]}" "$B" "free -m | sed 's/^/[remote-build]   /'" || true
     break
   fi
   sleep 2
