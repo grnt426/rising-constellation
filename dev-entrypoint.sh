@@ -75,14 +75,16 @@ run_if_changed mix.lock                  "mix deps.get"                         
 run_if_changed assets/package-lock.json  "npm --prefix assets install --no-audit"  assets.package-lock.sha
 run_if_changed front/package-lock.json   "npm --prefix front  install --no-audit"  front.package-lock.sha
 
-# Seed once. The marker lives in the rc-state volume, separate from pgdata,
-# so wiping the DB volume re-runs seeds. Migrations run every boot
-# (idempotent).
-if [ ! -e "$STATE/seeded" ] ; then
+# Seed once per database volume. The marker lives in the rc-state volume,
+# separate from the DB, so it is named after the DB volume: the move to
+# Postgres 14 (volume pgdata14) left older stacks with a plain `seeded`
+# marker and an empty new database, which must be created and seeded again.
+# Migrations run every boot (idempotent).
+if [ ! -e "$STATE/seeded-pgdata14" ] ; then
     mix ecto.create
     mix ecto.migrate
     mix run priv/repo/seeds.exs
-    touch "$STATE/seeded"
+    touch "$STATE/seeded-pgdata14"
 else
     mix ecto.migrate
 fi

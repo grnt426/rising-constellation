@@ -21,6 +21,8 @@ defmodule RC.Application do
       {Phoenix.PubSub, name: RC.PubSub},
       # Start the Ecto repository
       RC.Repo,
+      # Rate-limit buckets (RC.RateLimit); before the endpoint whose plugs use them.
+      {RC.RateLimit, clean_period: :timer.minutes(10)},
       # Start the endpoint when the application starts
       Portal.Endpoint,
       # Start Presence endpoint

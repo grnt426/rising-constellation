@@ -1,4 +1,4 @@
-FROM elixir:1.17.3-otp-27
+FROM elixir:1.19.7-otp-28
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
@@ -15,7 +15,7 @@ RUN apt-get update -y \
       librsvg2-bin \
       make \
       postgresql-client \
- && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+ && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/*
 

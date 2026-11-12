@@ -15,7 +15,7 @@ jobs:
 
     services:
       db:
-        image: postgres:12
+        image: postgres:14
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -41,13 +41,10 @@ jobs:
       - name: Set up Elixir / OTP
         uses: erlef/setup-beam@v1
         with:
-          # .tool-versions pins erlang 27.1, but OTP 27.1's TLS client
-          # rejects hex.pm's current certificate chain
-          # (key_usage_mismatch, an ssl bug fixed in later 27.x
-          # patches), which kills `mix local.rebar` / deps.get on the
-          # runner. Track the latest OTP 27 patch release here instead.
-          otp-version: '27'
-          elixir-version: '1.17.3'
+          # Same major versions as .tool-versions and the Dockerfiles;
+          # OTP tracks the latest 28 patch release.
+          otp-version: '28'
+          elixir-version: '1.19.7'
 
       - name: Restore mix deps cache
         uses: actions/cache@v4
@@ -93,13 +90,10 @@ jobs:
       - name: Set up Elixir / OTP
         uses: erlef/setup-beam@v1
         with:
-          # .tool-versions pins erlang 27.1, but OTP 27.1's TLS client
-          # rejects hex.pm's current certificate chain
-          # (key_usage_mismatch, an ssl bug fixed in later 27.x
-          # patches), which kills `mix local.rebar` / deps.get on the
-          # runner. Track the latest OTP 27 patch release here instead.
-          otp-version: '27'
-          elixir-version: '1.17.3'
+          # Same major versions as .tool-versions and the Dockerfiles;
+          # OTP tracks the latest 28 patch release.
+          otp-version: '28'
+          elixir-version: '1.19.7'
 
       - name: Restore mix deps cache (sources only)
         uses: actions/cache@v4
@@ -115,7 +109,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           # Match .tool-versions
-          node-version: '20.18.0'
+          node-version: '24.22.3'
           cache: npm
           cache-dependency-path: |
             assets/package-lock.json
@@ -131,4 +125,4 @@ jobs:
         run: |
           cd front
           npm ci --no-audit
-          NODE_OPTIONS="--openssl-legacy-provider" npm run build
+          npm run build

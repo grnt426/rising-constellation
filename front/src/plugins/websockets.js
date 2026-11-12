@@ -271,11 +271,24 @@ const socket = {
     this.faction.onClose(() => store.commit('game/statusChannel', { channel: 'faction', status: false }));
     this.faction.on('broadcast', (data) => this.handleReceive(data));
 
+    // Presence bookkeeping stays outside Vue. phoenix.js 1.8's Presence
+    // copies every own property of the state it is handed (toNullProtoObj),
+    // so syncing against the reactive store object copied Vue's hidden
+    // __ob__ in as an ordinary key, and the next sync's JSON clone ran
+    // through the observer into a component: "Converting circular structure
+    // to JSON" on every presence update. The store gets a frozen plain copy,
+    // which Vue leaves unobserved.
+    let presence = {};
+    const publishPresence = () => {
+      store.commit('game/updateOnlinePlayers', Object.freeze({ ...presence }));
+    };
     this.faction.on('presence_state', (state) => {
-      store.commit('game/updateOnlinePlayers', Presence.syncState(store.state.game.onlinePlayers, state));
+      presence = Presence.syncState(presence, state);
+      publishPresence();
     });
     this.faction.on('presence_diff', (diff) => {
-      store.commit('game/updateOnlinePlayers', Presence.syncDiff(store.state.game.onlinePlayers, diff));
+      presence = Presence.syncDiff(presence, diff);
+      publishPresence();
     });
 
     this.faction

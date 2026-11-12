@@ -31,7 +31,7 @@ defmodule Portal.Plug.AccountRateLimit do
       window_ms = Keyword.fetch!(opts, :window_ms)
       key = "#{bucket}:#{actor.id}"
 
-      case Hammer.check_rate(key, window_ms, limit) do
+      case RC.RateLimit.hit(key, window_ms, limit) do
         {:allow, _count} ->
           conn
 

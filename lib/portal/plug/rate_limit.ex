@@ -22,7 +22,7 @@ defmodule Portal.Plug.RateLimit do
     window_ms = Keyword.fetch!(opts, :window_ms)
     key = "#{bucket}:#{client_ip(conn)}"
 
-    case Hammer.check_rate(key, window_ms, limit) do
+    case RC.RateLimit.hit(key, window_ms, limit) do
       {:allow, _count} ->
         conn
 

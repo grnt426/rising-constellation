@@ -65,7 +65,7 @@ Without `make`, the equivalents are visible in the [Makefile](Makefile).
 
 ### What's inside the stack
 
-* **`db`** — `postgres:12`, data persisted in the `pgdata` named volume.
+* **`db`** — `postgres:14` (the major prod runs), data persisted in the `pgdata14` named volume. Stacks from before the 12 → 14 move keep their old data in the `pgdata` volume, untouched; the first boot on 14 creates and seeds a fresh database.
 * **`rc`** — the Phoenix app (`mix phx.server`) plus two file watchers (`webpack` for `assets/` and `vue-cli-service serve` for `front/`). The Phoenix dev proxy fetches `/portal/*` from `localhost:8080` server-side, so you only need to talk to port 4000 from your browser. Code is bind-mounted from your working tree, so edits hot-reload. Docker Desktop on Windows delivers no file-change events for bind mounts, so the `front/` watcher polls: every second while files are changing, and every 10 seconds after 5 quiet minutes (see [`front/dev/batched-poll.js`](front/dev/batched-poll.js)). The first rebuild after a break can take up to ~10s to start.
 * Named volumes (`rc-deps`, `rc-build`, `rc-assets-node-modules`, `rc-front-node-modules`, `rc-state`) hold `deps/`, `_build/`, and the two `node_modules/` trees so that Linux-only NIFs and Windows host IO don't fight each other.
 

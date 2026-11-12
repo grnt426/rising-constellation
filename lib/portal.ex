@@ -19,10 +19,16 @@ defmodule Portal do
 
   def controller do
     quote do
-      use Phoenix.Controller, namespace: Portal
+      # Spelled out rather than `namespace: Portal`, deprecated in Phoenix
+      # 1.8: one legacy Phoenix.View per controller for both formats the
+      # router accepts (FooController -> FooView), and Portal.LayoutView as
+      # the html layout, which is exactly what `namespace:` used to infer.
+      use Phoenix.Controller,
+        formats: [html: "View", json: "View"],
+        layouts: [html: Portal.LayoutView]
 
       import Plug.Conn
-      import Portal.Gettext
+      use Gettext, backend: Portal.Gettext
       alias Portal.Router.Helpers, as: Routes
     end
   end
@@ -81,7 +87,7 @@ defmodule Portal do
   def channel do
     quote do
       use Phoenix.Channel
-      import Portal.Gettext
+      use Gettext, backend: Portal.Gettext
     end
   end
 
@@ -99,7 +105,7 @@ defmodule Portal do
       import Phoenix.Component
 
       import Portal.ErrorHelpers
-      import Portal.Gettext
+      use Gettext, backend: Portal.Gettext
       alias Portal.Router.Helpers, as: Routes
     end
   end

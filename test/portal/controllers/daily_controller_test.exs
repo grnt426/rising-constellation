@@ -12,6 +12,9 @@ defmodule Portal.DailyControllerTest do
   # deploy flag is up — and nothing is booted (no instance rows).
   test "POST /api/daily/play is refused while a deploy is in flight", %{conn: conn, account: account} do
     {:ok, profile} = RC.Accounts.create_profile(%{account_id: account.id, name: "Drainer", avatar: "todo"})
+    # The sandbox rolls back the log row, not Portal.Config's cached flag;
+    # left up it refuses other tests' dailies and playtests (503).
+    on_exit(fn -> Portal.Config.update_key(:deploy_flag, false) end)
     :ok = RC.Deploy.start_deploy("test")
 
     body = json_response(post(conn, "/api/daily/play", %{profile_id: profile.id}), 503)

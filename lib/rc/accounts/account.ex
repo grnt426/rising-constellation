@@ -3,7 +3,7 @@ defmodule RC.Accounts.Account do
 
   import Ecto.Changeset
   import Filtrex.Type.Config
-  import Portal.Gettext
+  use Gettext, backend: Portal.Gettext
 
   alias Argon2
 

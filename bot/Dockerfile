@@ -1,7 +1,7 @@
 # Bot harness build/test image. Matches the Erlang/Elixir versions used by
 # the parent rc app so BEAM compatibility is consistent — if you bump
 # versions in the root Dockerfile, bump them here too.
-FROM hexpm/elixir:1.17.3-erlang-27.3.4.12-ubuntu-jammy-20260509 AS build
+FROM hexpm/elixir:1.19.7-erlang-28.5.0.8-ubuntu-jammy-20261110 AS build
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8

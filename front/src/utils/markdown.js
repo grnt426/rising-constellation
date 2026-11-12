@@ -14,7 +14,7 @@
 //
 // No Vue, no webpack aliases: runs under plain node
 // (see __tests__/markdown.test.mjs).
-import marked from 'marked';
+import { Marked } from 'marked';
 import { escape } from './escape.js';
 
 const ENTITY_RE = /&(?:#(\d+)|#x([0-9a-f]+)|(amp|lt|gt|quot|apos));/gi;
@@ -74,21 +74,34 @@ export function safeTarget(href, kind) {
   }
 }
 
-const renderer = new marked.Renderer();
+// Attribute escaping as marked's own renderer does it: entities already in
+// the string (escape() ran on the whole input) are left alone.
+const attr = (s) => s
+  .replace(/&(?!#?\w+;)/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
 
-// marked has already escaped `title` and the rendered `text`.
-renderer.link = (href, title, text) => {
-  const target = safeTarget(href, 'link');
-  if (target === null) return text;
-  return `<a href="${target}"${title ? ` title="${title}"` : ''}>${text}</a>`;
-};
+// Since marked 13 a renderer gets the token: `title` (and an image's alt)
+// arrive unescaped and the link text as inline tokens to render.
+const md = new Marked({
+  renderer: {
+    link({ href, title, tokens }) {
+      const text = this.parser.parseInline(tokens);
+      const target = safeTarget(href, 'link');
+      if (target === null) return text;
+      return `<a href="${target}"${title ? ` title="${attr(title)}"` : ''}>${text}</a>`;
+    },
+    image({ href, title, text, tokens }) {
+      const alt = attr(tokens ? this.parser.parseInline(tokens, this.parser.textRenderer) : text);
+      const target = safeTarget(href, 'image');
+      if (target === null) return alt;
+      return `<img src="${target}" alt="${alt}"${title ? ` title="${attr(title)}"` : ''}>`;
+    },
+  },
+});
 
-renderer.image = (href, title, text) => {
-  const target = safeTarget(href, 'image');
-  if (target === null) return text;
-  return `<img src="${target}" alt="${text}"${title ? ` title="${title}"` : ''}>`;
-};
-
-export function renderMd(md) {
-  return marked(escape(md), { renderer });
+export function renderMd(source) {
+  return md.parse(escape(source));
 }

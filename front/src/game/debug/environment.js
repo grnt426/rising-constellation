@@ -15,7 +15,10 @@
 import { Howler } from 'howler';
 import config from '@/config';
 import { ambiance } from '@/plugins/ambiance';
-import { version as clientVersion } from '@/../package.json';
+
+// package.json's "version", set by vue.config.js (webpack 5 allows only the
+// default import from a JSON module, and that would bundle the whole file).
+const clientVersion = process.env.VUE_APP_VERSION;
 
 const SOFTWARE_RENDERERS = /swiftshader|llvmpipe|softpipe|microsoft basic render|software/i;
 

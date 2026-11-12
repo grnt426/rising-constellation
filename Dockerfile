@@ -23,8 +23,8 @@
 # Every source stage copies the WHOLE build context, so none of them can
 # see less of the tree than a single-stage build would.
 #
-# Elixir/OTP are pinned to what the dev container resolves to: Elixir 1.17,
-# OTP 27, on Ubuntu Jammy (22.04). If you bump these, also bump the dev
+# Elixir/OTP are pinned to what the dev container resolves to: Elixir 1.19,
+# OTP 28, on Ubuntu Jammy (22.04). If you bump these, also bump the dev
 # image / .tool-versions / mix.exs `elixir:` requirement.
 
 # true = backend-only release: the assets, vue and web stages are skipped
@@ -52,7 +52,7 @@ RUN cargo install resvg --version ${RESVG_VERSION} --locked
 # The official hexpm/elixir image has Erlang/Elixir pre-installed — no PPA
 # fetches. build-essential is for native deps like argon2_elixir, git for
 # git-sourced deps, pigz to gzip the tarballs on every core.
-FROM hexpm/elixir:1.17.3-erlang-27.3.4.12-ubuntu-jammy-20260509 AS toolchain
+FROM hexpm/elixir:1.19.7-erlang-28.5.0.8-ubuntu-jammy-20261110 AS toolchain
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
@@ -113,11 +113,19 @@ RUN mix deps.get --only prod
 # whatever differs from mix.lock and marks it for compilation, and the
 # application's own compile (phx.digest / release) builds every dependency
 # that is marked or missing before it compiles anything else.
+#
+# Elixir 1.19 can compile independent dependencies in parallel OS processes
+# (MIX_OS_DEPS_COMPILE_PARTITION_COUNT): 69s -> 31-38s for a clean test-env
+# build in the dev container. One of the first trial runs failed for no
+# reason it logged (the next five passed), so a failed parallel compile
+# falls back to the old serial one rather than failing the build.
 FROM deps-src AS deps
 RUN if [ -f /home/rc/.deps-cache-restored ]; then \
       echo "dependencies restored from the cache"; \
     else \
-      mix deps.compile email_guard && mix deps.compile; \
+      mix deps.compile email_guard \
+      && { MIX_OS_DEPS_COMPILE_PARTITION_COUNT=$(( $(nproc) / 2 > 1 ? $(nproc) / 2 : 1 )) mix deps.compile \
+           || { echo "parallel deps.compile failed -- retrying serially"; mix deps.compile; }; }; \
     fi
 
 # The application's own _build directory (an empty lock file at this point)
@@ -131,8 +139,8 @@ FROM toolchain AS cache-save-false
 RUN mkdir /home/rc/cache-out
 
 # --- assets: Phoenix-side JS/CSS (landing, admin, help pages) ----------------
-# Node 20 (matches dev).
-FROM node:20-bookworm-slim AS assets-deps
+# Node 24 (matches dev).
+FROM node:24-bookworm-slim AS assets-deps
 WORKDIR /home/rc/build
 COPY assets/package.json assets/package-lock.json assets/
 # package.json points at these with file:../deps/...
@@ -147,12 +155,12 @@ ENV NODE_ENV=production
 # SVG sprite for the public help pages, built from front/src/icons.
 RUN npm run help-icons --prefix assets
 # webpack 4 hits OpenSSL 3's "unsupported" error without the legacy
-# provider flag (same workaround as the Vue build below and the dev
-# watcher in config/dev.exs). Writes priv/static.
+# provider flag (same workaround as the dev watcher in config/dev.exs; the
+# Vue build is on webpack 5 and needs none). Writes priv/static.
 RUN NODE_OPTIONS="--openssl-legacy-provider" npm run deploy --prefix assets
 
 # --- vue: the game SPA -------------------------------------------------------
-FROM node:20-bookworm-slim AS vue-deps
+FROM node:24-bookworm-slim AS vue-deps
 WORKDIR /home/rc/build
 COPY front/package.json front/package-lock.json front/
 RUN npm ci --prefix front
@@ -174,7 +182,6 @@ RUN cd front \
  && NODE_ENV=production \
     VUE_APP_BASE_URL="${VUE_APP_BASE_URL}" \
     VUE_APP_GIT_SHA="${APP_REVISION:-dev}" \
-    NODE_OPTIONS="--openssl-legacy-provider" \
     npm run build
 
 # --- app: the Elixir application ---------------------------------------------

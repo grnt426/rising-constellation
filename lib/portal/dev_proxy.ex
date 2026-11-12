@@ -33,7 +33,15 @@ defmodule Portal.Plug.DevProxy do
     end
   end
 
+  # Hop-by-hop headers describe the upstream connection, not this one. The
+  # body below goes out whole (send_resp sets its own content-length), so a
+  # forwarded `transfer-encoding: chunked` (webpack-dev-server 4 answers
+  # compressible assets chunked, brotli-encoded) announced chunk framing that
+  # never came: the browser waited on every script forever.
+  @hop_by_hop ~w(connection keep-alive transfer-encoding content-length te trailer upgrade proxy-connection)
+
   defp send_response({:ok, conn, %{headers: headers, status_code: status_code, body: body}}) do
+    headers = Enum.reject(headers, fn {name, _} -> String.downcase(name) in @hop_by_hop end)
     conn = %{conn | resp_headers: headers}
     send_resp(conn, status_code, body)
   end

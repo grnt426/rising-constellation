@@ -3,7 +3,7 @@ defmodule RC.Instances.Instance do
 
   import Ecto.Changeset
   import Filtrex.Type.Config
-  import Portal.Gettext
+  use Gettext, backend: Portal.Gettext
 
   schema "instances" do
     field(:game_data, :map)

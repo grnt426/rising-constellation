@@ -91,7 +91,7 @@ instance. Move items between sections as they land; tick the box when done.
 ### Tier 1 — required for a first deploy
 
 - [x] **Move dynamic prod config to `config/runtime.exs`.** URL host, rc_domain,
-  mailer creds, S3, Stripe, secret_key_base, Guardian key, AppSignal, GELF,
+  mailer creds, S3, secret_key_base, Guardian key, AppSignal, GELF,
   libcluster query — all env-driven. See `config/runtime.exs` and `.env.example`.
 - [x] **Strip prod secrets / hostnames from `config/config.exs` and
   `config/prod.exs`.** Dev defaults remain in `config.exs` (clearly labeled);
@@ -155,8 +155,9 @@ instance. Move items between sections as they land; tick the box when done.
 - [ ] **Clustering decision.** Default is single-node. If you ever need
   multi-node, set `RC_CLUSTER_DNS` to a DNS name resolving to all node IPs;
   libcluster will discover them via DNSPoll. Otherwise leave unset.
-- [ ] **Stripe.** Currently configured with a previous owner's TEST keys. If
-  billing is out of scope for the relaunch, gut the integration.
+- [x] **Stripe.** Removed: nothing called the Stripe API, so the
+  `stripity_stripe` dependency, its config and the previous owner's TEST keys
+  are gone. The `store_customers.stripe_id` column is still in the schema.
 - [ ] **Steam integration.** `front/steam-libs/steam-auth.js` ships a Steam
   ticket handshake against the API. Confirm intent before exposing the
   endpoint publicly.

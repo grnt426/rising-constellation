@@ -34,8 +34,7 @@ watchers =
         "--stdin",
         "--port=8080",
         "serve",
-        cd: Path.expand("../front", __DIR__),
-        env: [{"NODE_OPTIONS", "--openssl-legacy-provider"}]
+        cd: Path.expand("../front", __DIR__)
       ]
     ]
   else
@@ -87,11 +86,7 @@ config :phoenix, :stacktrace_depth, 20
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
 
-# Google Sheet data
-config :goth,
-  disabled: false,
-  json: "./config/service_account.json" |> File.read!()
-
+# Google Sheet data (credentials: Mix.Tasks.UpdateData)
 config :elixir_google_spreadsheets, :client,
   request_workers: 5,
   max_demand: 100,

@@ -95,12 +95,6 @@ config :rc, RC.Uploader.ImageFile, path: "images/"
 
 config :rc, RC.Uploader.ThumbnailFile, path: "thumbnails/"
 
-# Hammer (rate limiter). ETS backend is in-process, so limits are per-node;
-# acceptable for a small community deployment, swap for a shared backend
-# (Redis/Mnesia) if we ever scale horizontally.
-config :hammer,
-  backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 4, cleanup_interval_ms: 60_000 * 10]}
-
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
@@ -123,10 +117,8 @@ config :ueberauth, Ueberauth,
        ]}
   ]
 
-# disable elixir_google_spreadsheets by default, we only need it in dev for now
-config :goth,
-  disabled: true
-
+# elixir_google_spreadsheets is only started by `mix update_data`, which
+# supplies the service-account credentials (see Mix.Tasks.UpdateData).
 config :elixir_google_spreadsheets,
   spreadsheet_id: ""
 
@@ -137,12 +129,6 @@ config :waffle,
   # in order to have a different storage directory from url
   storage_dir: "priv/storage/",
   asset_host: "localhost"
-
-config :stripity_stripe,
-  api_key:
-    "sk_test_51HErywBV7j6S5TKAnjMvPr5jX8jRuyFqW03HHq10H3CPyeHviMh16npdVzi1tPt7N8o4vXVLlh5Rcbzkfh5l41sG00j3IWkFEl",
-  public_key:
-    "pk_test_51HErywBV7j6S5TKAnvkvZQ9s01YkfnPFdVQi3haVBfBhYZslueyL8ROgi2MVQOpjfwinBWlWUxwwSL2SYuCI4lEc00kvJ6QS2T"
 
 # configure reserved names for folders
 config :rc, RC.Scenarios.Folder,

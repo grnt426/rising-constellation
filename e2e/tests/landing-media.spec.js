@@ -102,7 +102,8 @@ test('landing: video facade swaps in the player on click and keeps it across re-
   // A LiveView round trip re-renders the page (sign-up/login toggle, then a
   // full reconnect); phx-update="ignore" must keep the player in place.
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.locator('a[phx-click="show_signup"]').first().click();
+  // "Sign up" is a <button> since the accessibility pass (#181).
+  await page.locator('[phx-click="show_signup"]').first().click();
   await page.waitForTimeout(500);
   await expect(iframe).toHaveCount(1);
   await page.evaluate(() => { window.liveSocket.disconnect(); window.liveSocket.connect(); });

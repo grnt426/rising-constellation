@@ -162,7 +162,7 @@ defmodule Portal.SteamController do
   defp get(url) do
     case HTTPoison.get(url, @headers) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
-        Poison.decode(body)
+        Jason.decode(body)
 
       {:ok, %HTTPoison.Response{status_code: status_code, body: _body}} ->
         Logger.error({:error, status_code})

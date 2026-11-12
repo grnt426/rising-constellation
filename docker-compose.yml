@@ -1,6 +1,7 @@
 services:
   db:
-    image: postgres:12
+    # Same major as prod (see deploy/DISASTER-RECOVERY.md).
+    image: postgres:14
     environment:
       POSTGRES_PASSWORD: postgres
       PGDATA: /var/lib/postgresql/data/pgdata
@@ -11,8 +12,12 @@ services:
     # Docker network as `db:5432` (see RDBMS_HOST). For ad-hoc host-side
     # access use `docker compose exec db psql -U postgres`. If you really
     # need a host port, add it via a docker-compose.override.yml.
+    # pgdata14, not pgdata: a Postgres 14 server can't open the Postgres 12
+    # data directory older stacks left in `pgdata`, so 14 starts on a fresh
+    # volume (seeded on first boot, see dev-entrypoint.sh) and the old data
+    # stays put in case anyone wants to pg_dump it from a postgres:12 container.
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata14:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -61,7 +66,7 @@ services:
       - rc-state:/var/lib/rc-state
 
 volumes:
-  pgdata:
+  pgdata14:
   rc-deps:
   rc-build:
   rc-assets-node-modules:
