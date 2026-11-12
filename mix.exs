@@ -156,6 +156,11 @@ defmodule RC.MixProject do
       {:phoenix, "~> 1.8"},
       {:plug_cowboy, "~> 2.0"},
       {:plug_logger_json, "~> 0.7.0"},
+      # plug_logger_json (prod's request logger) encodes with Poison but its
+      # .app leaves Poison out, so a release only ships Poison when some other
+      # app pulls it in. elixir_google_spreadsheets did until it went
+      # runtime: false (2026-11-12); without Poison every prod request 500'd.
+      {:poison, "~> 4.0"},
       {:postgrex, ">= 0.0.0"},
       {:puid, "~> 1.0"},
       {:rexbug, "~> 1.0"},
