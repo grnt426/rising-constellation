@@ -11,7 +11,8 @@ defmodule RC.MixProject do
       lockfile: "mix.lock",
       elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: Mix.compilers(),
+      # :phoenix_live_view first: LiveView 1.1+ extracts colocated hooks/JS.
+      compilers: [:phoenix_live_view] ++ Mix.compilers(),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -81,11 +82,12 @@ defmodule RC.MixProject do
       # Spatial.Supervisor still call; nothing was removed, so override.
       {:delta_crdt, "~> 0.6.5", override: true},
       {:decorator, "~> 1.2"},
-      {:earmark, "~> 1.4.5"},
+      # Markdown for player messages, blog posts and the help manual (RC.Markdown).
+      {:mdex, "~> 0.14"},
       {:ecto_autoslug_field, "~> 2.0"},
       {:ecto_enum, "~> 1.4"},
       {:ecto_psql_extras, "~> 0.4"},
-      {:ecto_sql, "~> 3.12"},
+      {:ecto_sql, "~> 3.14"},
       {:elixir_google_spreadsheets, "~> 0.1.17"},
       {:email_guard, "~> 1.0"},
       {:ex_aws_s3, "~> 2.0"},
@@ -98,8 +100,13 @@ defmodule RC.MixProject do
       {:excoveralls, "~> 0.13", only: :test},
       {:filtrex, "~> 0.4.3"},
       {:floki, ">= 0.0.0", only: :test},
+      # LiveViewTest (LiveView 1.1+) parses rendered HTML with lazy_html.
+      {:lazy_html, ">= 0.1.0", only: :test},
       {:gelf_logger, "~> 0.10"},
-      {:gettext, "~> 0.18"},
+      # 0.26 is the first with Gettext.Backend (`use Gettext, backend:`), which
+      # the code uses. 1.0 is blocked: filtrex (even 0.5) needs timex ~> 3.7,
+      # and timex 3 needs gettext ~> 0.26.
+      {:gettext, "~> 0.26"},
       {:guardian_phoenix, "~> 2.0"},
       {:guardian, "~> 2.5"},
       {:hackney, "~> 1.25"},
@@ -131,16 +138,15 @@ defmodule RC.MixProject do
       #     rejected by Mix with "Application :rc has mode :permanent
       #     but it depends on :nostrum which is set to :load".
       {:nostrum, "~> 0.10"},
-      {:number, "~> 1.0.0"},
       {:phoenix_ecto, "~> 4.6"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_html_helpers, "~> 1.0"},
       {:phoenix_view, "~> 2.0"},
-      {:phoenix_live_dashboard, "~> 0.8.0"},
+      {:phoenix_live_dashboard, "~> 0.9"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:phoenix_live_view, "~> 0.20.17"},
+      {:phoenix_live_view, "~> 1.2"},
       {:phoenix_pubsub, "~> 2.0"},
-      {:phoenix, "~> 1.7.14"},
+      {:phoenix, "~> 1.8"},
       {:plug_cowboy, "~> 2.0"},
       {:plug_logger_json, "~> 0.7.0"},
       {:postgrex, ">= 0.0.0"},
@@ -148,7 +154,6 @@ defmodule RC.MixProject do
       {:rexbug, "~> 1.0"},
       {:scrivener_ecto, "~> 3.0"},
       {:scrivener_headers, "~> 3.1"},
-      {:stripity_stripe, "~> 2.0"},
       {:sweet_xml, "~> 0.6"},
       {:swoosh, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},

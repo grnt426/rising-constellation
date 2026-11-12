@@ -35,8 +35,8 @@ defmodule RcBot.MixProject do
       {:jason, "~> 1.4"},
       # Driver-side admin LiveView (RcBot.Endpoint).
       # Matches the rc app's pinned versions so we don't surprise-upgrade.
-      {:phoenix, "~> 1.7.14"},
-      {:phoenix_live_view, "~> 0.20.17"},
+      {:phoenix, "~> 1.8"},
+      {:phoenix_live_view, "~> 1.2"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_pubsub, "~> 2.0"},
       {:plug_cowboy, "~> 2.7"}

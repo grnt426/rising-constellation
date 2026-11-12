@@ -276,13 +276,6 @@ if config_env() == :prod do
     secret_access_key: [{:system, "SES_SECRET_ACCESS_KEY"}, :instance_role],
     region: System.get_env("RC_SES_REGION") || "us-east-1"
 
-  # --- Stripe (optional; only required if billing is enabled) ---------------
-  if System.get_env("STRIPE_API_KEY") do
-    config :stripity_stripe,
-      api_key: System.get_env("STRIPE_API_KEY"),
-      public_key: System.get_env("STRIPE_PUBLIC_KEY")
-  end
-
   # --- Steam (optional) -----------------------------------------------------
   if System.get_env("STEAMWORKS_WEB_API_SECRET") do
     config :rc, steamworks_web_api_secret: System.get_env("STEAMWORKS_WEB_API_SECRET")

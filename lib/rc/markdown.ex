@@ -15,9 +15,18 @@ defmodule RC.Markdown do
   # check (they contain `:`) so they're unaffected.
   @protocol_relative_url_regex ~r/(href|src)=(['"])\/\//
 
-  def render_inline(md, earmark_opts \\ []) do
+  # MDEx (comrak) replaced Earmark, which is retired and has an open XSS
+  # advisory (EEF-CVE-2026-48591). The options keep Earmark's defaults:
+  # GFM tables and strikethrough, smart punctuation unless the caller turns
+  # `smartypants` off, and raw HTML passed through. HtmlSanitizeEx is still
+  # the trust boundary, exactly as it was behind Earmark.
+  def render_inline(md, opts \\ []) do
     md
-    |> Earmark.as_html!(earmark_opts)
+    |> MDEx.to_html!(
+      extension: [table: true, strikethrough: true, autolink: true],
+      parse: [smart: Keyword.get(opts, :smartypants, true)],
+      render: [unsafe: true]
+    )
     |> HtmlSanitizeEx.markdown_html()
     |> strip_protocol_relative()
   end

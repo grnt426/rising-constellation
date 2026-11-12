@@ -138,12 +138,6 @@ config :waffle,
   storage_dir: "priv/storage/",
   asset_host: "localhost"
 
-config :stripity_stripe,
-  api_key:
-    "sk_test_51HErywBV7j6S5TKAnjMvPr5jX8jRuyFqW03HHq10H3CPyeHviMh16npdVzi1tPt7N8o4vXVLlh5Rcbzkfh5l41sG00j3IWkFEl",
-  public_key:
-    "pk_test_51HErywBV7j6S5TKAnvkvZQ9s01YkfnPFdVQi3haVBfBhYZslueyL8ROgi2MVQOpjfwinBWlWUxwwSL2SYuCI4lEc00kvJ6QS2T"
-
 # configure reserved names for folders
 config :rc, RC.Scenarios.Folder,
   scenario_likes_name: "scenario-likes",

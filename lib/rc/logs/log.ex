@@ -2,7 +2,7 @@ defmodule RC.Logs.Log do
   use Ecto.Schema
 
   import Ecto.Changeset
-  import Portal.Gettext
+  use Gettext, backend: Portal.Gettext
 
   schema "logs" do
     field(:action, LogAction)

@@ -13,6 +13,12 @@ module.exports = (env, options) => {
       alias: {
         static: path.resolve(__dirname, './static/'),
       },
+      // phoenix, phoenix_html and phoenix_live_view are file: links into
+      // ../deps. Babel compiles them too (babel.config.json is project-wide,
+      // unlike the old .babelrc, so LiveView 1.x's ES2020 syntax gets down to
+      // what webpack 4 parses), and the @babel/runtime helpers it injects
+      // into them must resolve from here, not from ../deps.
+      modules: [path.resolve(__dirname, 'node_modules'), 'node_modules'],
     },
     optimization: {
       minimizer: [
