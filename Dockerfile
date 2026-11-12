@@ -114,18 +114,17 @@ RUN mix deps.get --only prod
 # application's own compile (phx.digest / release) builds every dependency
 # that is marked or missing before it compiles anything else.
 #
-# Elixir 1.19 can compile independent dependencies in parallel OS processes
-# (MIX_OS_DEPS_COMPILE_PARTITION_COUNT): 69s -> 31-38s for a clean test-env
-# build in the dev container. One of the first trial runs failed for no
-# reason it logged (the next five passed), so a failed parallel compile
-# falls back to the old serial one rather than failing the build.
+# Serial on purpose. Elixir 1.19 can compile dependencies in parallel OS
+# processes (MIX_OS_DEPS_COMPILE_PARTITION_COUNT), but the builder is a
+# c7g.xlarge (4 vCPU, 8 GB, no swap) and this stage runs next to the Rust,
+# npm and webpack builds: the first cache-miss deploy with 2 partitions
+# lost the builder mid-compile (2026-11-12). Two partitions peaked ~0.4 GB
+# above serial for ~25 s saved, and only on a cache miss.
 FROM deps-src AS deps
 RUN if [ -f /home/rc/.deps-cache-restored ]; then \
       echo "dependencies restored from the cache"; \
     else \
-      mix deps.compile email_guard \
-      && { MIX_OS_DEPS_COMPILE_PARTITION_COUNT=$(( $(nproc) / 2 > 1 ? $(nproc) / 2 : 1 )) mix deps.compile \
-           || { echo "parallel deps.compile failed -- retrying serially"; mix deps.compile; }; }; \
+      mix deps.compile email_guard && mix deps.compile; \
     fi
 
 # The application's own _build directory (an empty lock file at this point)
