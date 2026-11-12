@@ -36,6 +36,12 @@ module.exports = {
     // on each request: ~34s for the 4.8 MB dev app.js, ~1 min for vendors.
     // Served over localhost, compression buys nothing.
     compress: false,
+    // Vue CLI 5 has webpack-dev-server watch public/ (773 files) with its own
+    // chokidar poller, outside batched-poll. webpack-dev-server 3 never
+    // watched it (watchContentBase was off), so keep it that way: public/
+    // changes need a page reload, as they always did. (Vue CLI merges this
+    // into its own `static` block.)
+    static: { watch: false },
     client: {
       progress: false,
       // webpack-dev-server 4 also overlays uncaught runtime errors, a
