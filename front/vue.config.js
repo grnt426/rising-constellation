@@ -127,4 +127,8 @@ module.exports = {
     });
   },
   lintOnSave: false,
+  // No thread-loader pool for Babel (Vue CLI 5 turns it on for production
+  // builds): each worker loads its own Babel, and the release build runs
+  // on a 4-vCPU / 8 GB builder next to the Elixir and Rust compiles.
+  parallel: false,
 };
