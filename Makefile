@@ -88,7 +88,7 @@ seed:
 
 reset-db:
 	$(EXEC) mix ecto.reset
-	$(COMPOSE) exec rc rm -f /var/lib/rc-state/seeded
+	$(COMPOSE) exec rc rm -f /var/lib/rc-state/seeded-pgdata14
 
 # --- Quality ------------------------------------------------------------------
 

@@ -132,7 +132,7 @@ RUN mkdir /home/rc/cache-out
 
 # --- assets: Phoenix-side JS/CSS (landing, admin, help pages) ----------------
 # Node 20 (matches dev).
-FROM node:20-bookworm-slim AS assets-deps
+FROM node:24-bookworm-slim AS assets-deps
 WORKDIR /home/rc/build
 COPY assets/package.json assets/package-lock.json assets/
 # package.json points at these with file:../deps/...
@@ -152,7 +152,7 @@ RUN npm run help-icons --prefix assets
 RUN NODE_OPTIONS="--openssl-legacy-provider" npm run deploy --prefix assets
 
 # --- vue: the game SPA -------------------------------------------------------
-FROM node:20-bookworm-slim AS vue-deps
+FROM node:24-bookworm-slim AS vue-deps
 WORKDIR /home/rc/build
 COPY front/package.json front/package-lock.json front/
 RUN npm ci --prefix front

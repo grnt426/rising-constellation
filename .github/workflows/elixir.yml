@@ -15,7 +15,7 @@ jobs:
 
     services:
       db:
-        image: postgres:12
+        image: postgres:14
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -115,7 +115,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           # Match .tool-versions
-          node-version: '20.18.0'
+          node-version: '24.22.3'
           cache: npm
           cache-dependency-path: |
             assets/package-lock.json

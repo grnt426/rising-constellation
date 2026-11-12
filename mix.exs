@@ -75,6 +75,11 @@ defmodule RC.MixProject do
       {:csv, "~> 2.3"},
       {:collision, "~> 0.3.1"},
       {:ddrt, git: "https://github.com/windfish-studio/ddrt.git", ref: "3c0ba6defbfaad392e5ee41a7aae25c937a21058"},
+      # ddrt (above, unmaintained) pins delta_crdt ~> 0.5, which holds horde
+      # at 0.8.3 and through it telemetry at 0.4. delta_crdt 0.6 only added
+      # the put/get/to_map API and deprecated mutate/read, which ddrt and
+      # Spatial.Supervisor still call; nothing was removed, so override.
+      {:delta_crdt, "~> 0.6.5", override: true},
       {:decorator, "~> 1.2"},
       {:earmark, "~> 1.4.5"},
       {:ecto_autoslug_field, "~> 2.0"},
@@ -89,15 +94,15 @@ defmodule RC.MixProject do
       {:ex_aws, "~> 2.5"},
       # MIME rendering for Swoosh.Adapters.ExAwsAmazonSES raw sends.
       {:gen_smtp, "~> 1.2"},
-      {:ex_doc, "~> 0.23.0", only: :dev},
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:excoveralls, "~> 0.13", only: :test},
       {:filtrex, "~> 0.4.3"},
       {:floki, ">= 0.0.0", only: :test},
       {:gelf_logger, "~> 0.10"},
       {:gettext, "~> 0.18"},
       {:guardian_phoenix, "~> 2.0"},
-      {:guardian, "~> 2.1.1"},
-      {:hackney, "~> 1.9"},
+      {:guardian, "~> 2.5"},
+      {:hackney, "~> 1.25"},
       # Per-IP rate limiting for sensitive endpoints (login,
       # password-reset trigger). ETS backend — single-node only;
       # if/when we scale to multi-node, swap for Hammer.Backend.Redis.
@@ -146,8 +151,8 @@ defmodule RC.MixProject do
       {:stripity_stripe, "~> 2.0"},
       {:sweet_xml, "~> 0.6"},
       {:swoosh, "~> 1.0"},
-      {:telemetry_metrics, "~> 0.6"},
-      {:telemetry_poller, "~> 0.5"},
+      {:telemetry_metrics, "~> 1.0"},
+      {:telemetry_poller, "~> 1.0"},
       {:terraform, "~> 1.0.1", only: :dev},
       {:typed_struct, "~> 0.2"},
       {:ueberauth_identity, "~> 0.3"},
