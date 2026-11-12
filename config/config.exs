@@ -95,12 +95,6 @@ config :rc, RC.Uploader.ImageFile, path: "images/"
 
 config :rc, RC.Uploader.ThumbnailFile, path: "thumbnails/"
 
-# Hammer (rate limiter). ETS backend is in-process, so limits are per-node;
-# acceptable for a small community deployment, swap for a shared backend
-# (Redis/Mnesia) if we ever scale horizontally.
-config :hammer,
-  backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 4, cleanup_interval_ms: 60_000 * 10]}
-
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
@@ -123,10 +117,8 @@ config :ueberauth, Ueberauth,
        ]}
   ]
 
-# disable elixir_google_spreadsheets by default, we only need it in dev for now
-config :goth,
-  disabled: true
-
+# elixir_google_spreadsheets is only started by `mix update_data`, which
+# supplies the service-account credentials (see Mix.Tasks.UpdateData).
 config :elixir_google_spreadsheets,
   spreadsheet_id: ""
 

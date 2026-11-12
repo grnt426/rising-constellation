@@ -109,7 +109,7 @@ defmodule Mix.Tasks.PatentTable do
   end
 
   defp get_json(filename) do
-    with {:ok, body} <- File.read(filename), {:ok, json} <- Poison.decode(body) do
+    with {:ok, body} <- File.read(filename), {:ok, json} <- Jason.decode(body) do
       json
     end
   end

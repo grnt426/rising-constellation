@@ -10,6 +10,11 @@ defmodule Mix.Tasks.UpdateData do
   def run(module_name) do
     Mix.Task.run("app.start")
 
+    # elixir_google_spreadsheets is a runtime: false dependency (see
+    # mix.exs): configure its Goth source, then start it, here only.
+    Application.put_env(:elixir_google_spreadsheets, :json, File.read!("./config/service_account.json"))
+    {:ok, _} = Application.ensure_all_started(:elixir_google_spreadsheets)
+
     modules =
       if length(module_name) == 1,
         do: Enum.filter(Data.Querier.modules(), fn m -> m.string == List.first(module_name) end),

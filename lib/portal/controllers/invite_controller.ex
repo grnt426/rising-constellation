@@ -52,8 +52,8 @@ defmodule Portal.InviteController do
     hour_key = "invite_create_hour:#{account_id}"
     day_key = "invite_create_day:#{account_id}"
 
-    with {:allow, _} <- Hammer.check_rate(hour_key, @hour_window_ms, @hour_limit),
-         {:allow, _} <- Hammer.check_rate(day_key, @day_window_ms, @day_limit) do
+    with {:allow, _} <- RC.RateLimit.hit(hour_key, @hour_window_ms, @hour_limit),
+         {:allow, _} <- RC.RateLimit.hit(day_key, @day_window_ms, @day_limit) do
       true
     else
       {:deny, _} -> false

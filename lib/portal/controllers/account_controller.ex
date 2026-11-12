@@ -308,7 +308,7 @@ defmodule Portal.AccountController do
     account = conn.private.guardian_default_resource
 
     with {:allow, _} <-
-           Hammer.check_rate(
+           RC.RateLimit.hit(
              "deletion-request:#{account.id}",
              @deletion_request_window_ms,
              @deletion_request_limit
@@ -595,7 +595,7 @@ defmodule Portal.AccountController do
   defp recipient_allowed?(email) do
     key = "mail-to:" <> String.downcase("#{email}")
 
-    case Hammer.check_rate(key, @recipient_window_ms, @recipient_limit) do
+    case RC.RateLimit.hit(key, @recipient_window_ms, @recipient_limit) do
       {:allow, _count} -> true
       {:deny, _limit} -> false
     end
