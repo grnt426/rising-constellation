@@ -1,4 +1,4 @@
-FROM elixir:1.17.3-otp-27
+FROM elixir:1.19.7-otp-28
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8

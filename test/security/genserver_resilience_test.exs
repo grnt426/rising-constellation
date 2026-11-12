@@ -157,19 +157,11 @@ defmodule RC.Security.GenServerResilienceTest do
 
   describe "Stage 7 F14 — explicit supervisor budgets" do
     test "RC.Supervisor has explicit max_restarts=10 / max_seconds=60" do
-      # Inspect the running supervisor's intensity / period via
-      # :supervisor.get_callback_module + :sys.get_state. The flags
-      # are read from the supervisor state struct directly.
+      # The supervisor state record grows fields between OTP releases
+      # (OTP 28 changed its size), so read intensity/period by position
+      # like the Game test below rather than matching the whole record.
       state = :sys.get_state(RC.Supervisor)
-      # The supervisor state record fields differ slightly between
-      # OTP versions; we read intensity/period defensively.
-      {:state, _name, _strategy, _children, _dynamics, intensity, period, _restarts, _dynamic_restarts, _auto_shutdown,
-       _module,
-       _args} =
-        case state do
-          t when tuple_size(t) == 12 -> t
-          t when tuple_size(t) == 11 -> Tuple.append(t, nil)
-        end
+      {intensity, period} = supervisor_intensity_period(state)
 
       assert intensity == 10, "Stage 7 F14: RC.Supervisor max_restarts must be 10 (got #{intensity})"
       assert period == 60, "Stage 7 F14: RC.Supervisor max_seconds must be 60 (got #{period})"
